@@ -222,9 +222,9 @@ b, strong { font-weight: normal; }
 	transform-origin: bottom center; filter: drop-shadow(0 2px 0 rgba(0,0,0,.25)); }
 .slot.foe .sprite { transform: translateX(-50%) scale(calc(var(--s) * .78)); }
 .slot.own .sprite { transform: translateX(-50%) scale(calc(var(--s) * 1)); }
-.slot.foe.s0 { left: 76.5%; top: 69%; } .slot.own.s0 { left: 24%; top: 96%; }
-.doubles .slot.foe.s0 { left: 64%; top: 67%; } .doubles .slot.foe.s1 { left: 85%; top: 68.5%; }
-.doubles .slot.own.s0 { left: 17%; top: 95%; } .doubles .slot.own.s1 { left: 36%; top: 98%; }
+.slot.foe.s0 { left: 76.5%; top: 72.5%; } .slot.own.s0 { left: 24%; top: 99.5%; }
+.doubles .slot.foe.s0 { left: 64%; top: 70.5%; } .doubles .slot.foe.s1 { left: 85%; top: 72%; }
+.doubles .slot.own.s0 { left: 17%; top: 98.5%; } .doubles .slot.own.s1 { left: 36%; top: 101%; }
 .doubles .slot.foe .sprite { transform: translateX(-50%) scale(calc(var(--s) * .64)); }
 .doubles .slot.own .sprite { transform: translateX(-50%) scale(calc(var(--s) * .82)); }
 .slot .sprite-fallback { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: calc(var(--s) * 50px) !important; height: calc(var(--s) * 50px) !important; font-size: 12px; }
@@ -361,8 +361,8 @@ b, strong { font-weight: normal; }
 .fx-flash { position: absolute; inset: 0; }
 /* 트레이너 */
 .trainer-spr { position: absolute; z-index: 1; image-rendering: pixelated; transform-origin: bottom center; pointer-events: none; transition: transform .45s steps(6), opacity .45s steps(6); opacity: 0; }
-.trainer-spr.foe { left: 76.5%; top: 69%; transform: translate(60%, -100%) scale(calc(var(--s) * .9)); }
-.trainer-spr.own { left: 24%; top: 97%; transform: translate(-160%, -100%) scale(calc(var(--s) * 1.05)) scaleX(-1); }
+.trainer-spr.foe { left: 76.5%; top: 73%; transform: translate(60%, -100%) scale(calc(var(--s) * .9)); }
+.trainer-spr.own { left: 24%; top: 100%; transform: translate(-160%, -100%) scale(calc(var(--s) * 1.05)) scaleX(-1); }
 .trainer-spr.foe.in { opacity: 1; transform: translate(-50%, -100%) scale(calc(var(--s) * .9)); }
 .trainer-spr.own.in { opacity: 1; transform: translate(-50%, -100%) scale(calc(var(--s) * 1.05)) scaleX(-1); }
 .arena.t-foe .slot.foe { opacity: .15; transition: opacity .3s steps(3); }
@@ -443,3 +443,22 @@ b, strong { font-weight: normal; }
 .boost-cell { display: flex; align-items: center; gap: 3px; font-size: 13px; } .boost-cell button { width: 24px; height: 22px; background: rgba(0,0,0,.45); box-shadow: 0 0 0 1px #5a5c50; text-align: center; } .boost-cell b { width: 22px; text-align: center; }
 .calc-result { border: 18px solid transparent; border-image: var(--win) 6 fill / 18px stretch; image-rendering: pixelated; text-align: center; display: flex; flex-direction: column; gap: 2px; }
 .cr-main { font-size: 26px; color: var(--yellow); text-shadow: 2px 2px 0 #000; } .cr-pct { font-size: 15px; } .cr-ko { font-size: 15px; color: #8cf088; }
+
+/* 창틀 디자인 설정 */
+:root[data-frame="silver"] { --win: url(__IMG_spd_silver__); }
+:root[data-frame="silver"] .win, :root[data-frame="silver"] .set-card, :root[data-frame="silver"] .option, :root[data-frame="silver"] .team-row, :root[data-frame="silver"] .preview,
+:root[data-frame="silver"] .record-card, :root[data-frame="silver"] .pick-row, :root[data-frame="silver"] .switch-btn, :root[data-frame="silver"] .modal, :root[data-frame="silver"] .seg,
+:root[data-frame="silver"] .notice, :root[data-frame="silver"] .home-head, :root[data-frame="silver"] .ev-table, :root[data-frame="silver"] .info-screen h2, :root[data-frame="silver"] .mode-tile,
+:root[data-frame="silver"] .calc-side, :root[data-frame="silver"] .calc-result { border-image-slice: 7 fill; }
+:root[data-frame="dark"] { --win: url(__IMG_spd_toast__); }
+:root[data-frame="dark"] .win, :root[data-frame="dark"] .set-card, :root[data-frame="dark"] .option, :root[data-frame="dark"] .team-row, :root[data-frame="dark"] .preview,
+:root[data-frame="dark"] .record-card, :root[data-frame="dark"] .pick-row, :root[data-frame="dark"] .switch-btn, :root[data-frame="dark"] .modal, :root[data-frame="dark"] .seg,
+:root[data-frame="dark"] .notice, :root[data-frame="dark"] .home-head, :root[data-frame="dark"] .ev-table, :root[data-frame="dark"] .info-screen h2, :root[data-frame="dark"] .mode-tile,
+:root[data-frame="dark"] .calc-side, :root[data-frame="dark"] .calc-result { border-image-slice: 4 fill; border-width: 12px; border-image-width: 12px; }
+/* 메뉴 배경 설정 */
+:root[data-bg="field"] body::before { background-image: url(__IMG_arena_field__); filter: brightness(.5); }
+:root[data-bg="tower"] body::before { background-image: url(__IMG_arena_tower__); filter: brightness(.6); }
+:root[data-bg="factory"] body::before { background-image: url(__IMG_arena_factory__); filter: brightness(.6); }
+:root[data-bg="pwt"] body::before { background-image: url(__IMG_arena_pwt__); filter: brightness(.5); }
+:root[data-bg="champion"] body::before { background-image: url(__IMG_arena_champion__); filter: brightness(.5); }
+.seg.wrap button { flex: 1 1 28%; }

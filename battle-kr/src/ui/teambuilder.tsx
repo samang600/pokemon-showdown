@@ -142,6 +142,8 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 	const [editing, setEditing] = useState<number | null>(null);
 	const [adding, setAdding] = useState(false);
 	const [exportOpen, setExportOpen] = useState(false);
+	const [importOpen, setImportOpen] = useState(false);
+	const [importText2, setImportText2] = useState('');
 	const commit = (t: SavedTeam) => { setTeam(t); upsertTeam(t); };
 	const g = team.gen;
 
@@ -171,7 +173,21 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 		{team.sets.length < 6 && <button class="btn primary big" onClick={() => setAdding(true)}>+ 포켓몬 추가</button>}
 		<div class="row wrap">
 			<button class="btn ghost" onClick={() => setExportOpen(true)}>텍스트로 내보내기</button>
+			{team.sets.length < 6 && <button class="btn ghost" onClick={() => setImportOpen(true)}>텍스트로 추가</button>}
 		</div>
+		{importOpen && <Modal title="텍스트로 포켓몬 추가" onClose={() => setImportOpen(false)}>
+			<p class="muted">쇼다운 형식 텍스트. 빈 줄로 구분하면 여러 마리를 한 번에 추가합니다 (최대 6마리까지).</p>
+			<textarea rows={10} value={importText2} onInput={e => setImportText2((e.target as HTMLTextAreaElement).value)} />
+			<div class="row end"><button class="btn primary" onClick={() => {
+				const sets = importText(importText2, g);
+				if (!sets.length) { toast('읽을 수 있는 포켓몬이 없습니다'); return; }
+				const room = 6 - team.sets.length;
+				const add = sets.slice(0, room);
+				commit({ ...team, sets: [...team.sets, ...add] });
+				toast(`${add.length}마리를 추가했습니다${sets.length > room ? ` (${sets.length - room}마리는 자리가 없어 제외)` : ''}`);
+				setImportOpen(false); setImportText2('');
+			}}>추가</button></div>
+		</Modal>}
 		{exportOpen && <Modal title="내보내기" onClose={() => setExportOpen(false)}>
 			<textarea rows={14} readOnly value={exportText(team.sets)} />
 			<button class="btn primary" onClick={() => { navigator.clipboard?.writeText(exportText(team.sets)).then(() => toast('복사했습니다'), () => toast('복사 실패')); }}>복사</button>

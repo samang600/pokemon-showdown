@@ -58,6 +58,13 @@ function towerOpponent(streak: number, fmt: Fmt) {
 		return { name: '타워 타이쿤', title: '', sprite: 'palmer', lines: { ace: '이 한 마리에 모든 걸 건다!', lose: '훌륭하다! 너야말로 진정한 강자다!', win: '정점의 벽은 높다. 다시 오너라!' }, team: dedupeItems(assignGimmicks(team, { mega: 1, z: 1 })), skill: 0.97, boss: gold ? '금' : '은',
 			line: gold ? '여기까지 온 너에게 전력으로 답하겠다!' : '배틀타워의 정점, 타워 타이쿤이다. 승부다!' };
 	}
+	// 7의 배수 번째(세트 마지막): 네임드 트레이너가 등장 (세트가 오를수록 관장 → 사천왕 → 챔피언)
+	if (battleNo % 7 === 0) {
+		const role = tier <= 1 ? 'leader' : tier <= 3 ? 'elite' : 'champion';
+		const t = rng.pick(NAMED.filter(x => x.role === role));
+		const team = namedTeam(t, n);
+		return { name: t.name, title: ROLE_KO[t.role], team, skill: 0.9 + tier * 0.02, boss: '', line: t.line, sprite: namedSprite(t), lines: namedLines(t), special: true };
+	}
 	const ranges = [[380, 490], [430, 520], [460, 545], [480, 600], [490, 680]];
 	const [minBst, maxBst] = ranges[Math.min(tier, ranges.length - 1)];
 	const tr = randomTrainer();
@@ -95,7 +102,7 @@ export async function runTower() {
 		const opp = towerOpponent(state.streak, fmt);
 		const go = await ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title={`배틀타워 · ${fmt === 'doubles' ? '더블' : '싱글'}`}
 			banner={`${state!.streak + 1}번째 승부`}
-			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
+			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : (opp as any).special ? `★ 특별 트레이너! ${opp.title} ${opp.name}${josa(opp.name)} 나타났다!` : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`]}
 			sprites={state!.team.map(s => s.species)} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
@@ -103,19 +110,18 @@ export async function runTower() {
 		if (go === 'rest') { save(TOWER_KEY(fmt), state); return; }
 		if (go === 'quit') { remove(TOWER_KEY(fmt)); return; }
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: opp.boss ? 'champion' : 'tower',
+			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
 			label: `배틀타워 ${state.streak + 1}번째`,
 			p1: { name: playerName(), team: state.team, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: opp.team, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (res.win) {
 			state.streak++;
 			const s = state.streak;
-			const bp = s % 7 === 0 ? 3 + Math.floor(s / 7) : 0;
-			updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); r.bp += bp; });
+			updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); });
 			save(TOWER_KEY(fmt), state);
 			if (s % 7 === 0) {
 				await ask<void>(r => <InfoScreen title="배틀타워" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
-					lines={[`BP ${bp}를 받았다!`, '포켓몬들의 체력이 회복되었다.']} actions={[{ label: '계속', onClick: () => r() }]} />);
+					lines={['포켓몬들의 체력이 회복되었다.']} actions={[{ label: '계속', onClick: () => r() }]} />);
 			}
 		} else {
 			const s = state.streak;
@@ -160,7 +166,7 @@ export async function runFactory() {
 	const rentalRound = async (streak: number) => {
 		const rentals = factoryPool(streak, level, 6);
 		return ask<PSet[]>(r => <PickScreen title="렌탈 포켓몬 선택" team={rentals} gen={9} count={n}
-			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 선봉입니다.`} onDone={r} />);
+			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다.`} onDone={r} />);
 	};
 	if (!state) {
 		state = { fmt, level, team: await rentalRound(0), streak: 0 };
@@ -196,7 +202,7 @@ export async function runFactory() {
 		}
 		state.streak++;
 		const s = state.streak;
-		updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); if (s % 7 === 0) r.bp += 3 + Math.floor(s / 7); });
+		updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); });
 		if (s % 7 === 0) {
 			await ask<void>(r => <InfoScreen title="배틀팩토리" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
 				lines={['새로운 렌탈 포켓몬을 고릅니다.']} actions={[{ label: '계속', onClick: () => r() }]} />);
@@ -319,9 +325,9 @@ export async function runPWT() {
 			</InfoScreen>);
 		}
 	}
-	updateRecords(r => { r.cups[cup.id] = (r.cups[cup.id] || 0) + 1; r.bp += 5; });
+	updateRecords(r => { r.cups[cup.id] = (r.cups[cup.id] || 0) + 1; });
 	await ask<void>(r => <InfoScreen title={cup.name} banner="🏆 우승!" heading={`${cup.name} 우승을 축하합니다!`}
-		sprites={myTeam.map(s => s.species)} gen={9} lines={['BP 5를 받았다!']} actions={[{ label: '메뉴로', onClick: () => r() }]} />);
+		sprites={myTeam.map(s => s.species)} gen={9} actions={[{ label: '메뉴로', onClick: () => r() }]} />);
 	void pool; pool = [];
 }
 

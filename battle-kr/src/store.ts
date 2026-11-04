@@ -43,9 +43,9 @@ export function deleteTeam(id: string) { saveTeams(loadTeams().filter(t => t.id 
 export function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 // ── 설정 ──
-export interface Settings { speed: 1 | 2 | 3; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3 }
+export interface Settings { speed: 1 | 2 | 3; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string }
 export function loadSettings(): Settings {
-	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true, damagePreview: false, musicVolume: 2, ...load<Partial<Settings>>('settings', {}) };
+	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true, damagePreview: false, musicVolume: 2, sfxVolume: 2, frame: 'stone', homeBg: 'title', battleBgm: 'random', ...load<Partial<Settings>>('settings', {}) };
 }
 export function saveSettings(s: Settings) { save('settings', s); }
 

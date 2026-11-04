@@ -46,7 +46,7 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 		</div>
 		{view !== null && <MonSheet set={team[view]} gen={gen} onClose={() => setView(null)} actions={[
 			picked.includes(view) ? { label: '선택 해제', kind: 'ghost', onClick: () => { toggle(view); setView(null); } }
-				: { label: `선택 (${picked.length + 1}번째${picked.length === 0 ? ' · 선봉' : ''})`, disabled: picked.length >= need, onClick: () => { toggle(view); setView(null); } },
+				: { label: `선택 (${picked.length + 1}번째)`, disabled: picked.length >= need, onClick: () => { toggle(view); setView(null); } },
 			{ label: '닫기', kind: 'ghost', onClick: () => setView(null) },
 		]} />}
 		<div class="sticky-bottom">

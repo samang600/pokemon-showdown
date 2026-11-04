@@ -39,7 +39,7 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 	const useAnim = (anim ?? settings.animatedSprites);
 	const candidates: string[] = [];
 	const sh = shiny ? '-shiny' : '';
-	if (useAnim) candidates.push(`${SPRITE_HOST}/gen5ani${back ? '-back' : ''}${sh}/${id}.gif`);
+	if (useAnim) { candidates.push(`${SPRITE_HOST}/ani${back ? '-back' : ''}${sh}/${id}.gif`); candidates.push(`${SPRITE_HOST}/gen5ani${back ? '-back' : ''}${sh}/${id}.gif`); }
 	if (gen === 4) candidates.push(`${SPRITE_HOST}/gen4${back ? '-back' : ''}${sh}/${id}.png`);
 	candidates.push(`${SPRITE_HOST}/gen5${back ? '-back' : ''}${sh}/${id}.png`);
 	const [idx, setIdx] = useState(0);

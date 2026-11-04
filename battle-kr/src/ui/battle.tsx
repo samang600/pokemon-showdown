@@ -11,7 +11,7 @@ import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confir
 import { MonSheet, type LiveInfo } from './screens';
 import { estimateDamage } from '../ai';
 import * as FX from '../fx';
-import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries } from '../sound';
+import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries, pickBattleMusic } from '../sound';
 import { SPRITE_URL } from '../trainer-lines';
 import { loadAnim, preloadAnim, playAnim, animIdFor } from '../anim-player';
 
@@ -591,7 +591,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		});
 		// 내 팀은 미리 등록 (교체 화면용)
 		const lines = s.start();
-		playMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle');
+		playMusic(pickBattleMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle'));
 		preloadCries([...setup.p1.team, ...setup.p2.team].map(x => toID(x.species)));
 		if (settings.effects !== false) for (const set of [...setup.p1.team, ...setup.p2.team]) for (const m of set.moves) preloadAnim(animIdFor(toID(m)));
 		(async () => {

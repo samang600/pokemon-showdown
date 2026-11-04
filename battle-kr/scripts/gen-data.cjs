@@ -80,7 +80,7 @@ const FORME_KO = {
 	"Pa'u": '훌라훌라스타일', 'Sensu': '하늘하늘스타일', 'Galar-Zen': '가라르 달마모드', 'Busted': '들킨 모습', 'School': '군집의 모습',
 	'Hangry': '배고픈 모양', 'Noice': '나이스페이스', 'Gorging': '통째로 삼킨 모습', 'Gulping': '꿀꺽 삼킨 모습', 'Zero': '제로폼',
 	'Hero': '마이티폼', 'Stellar': '스텔라폼', 'Terastal': '테라스탈폼', 'Four': '네 식구', 'Three-Segment': '세 마디',
-	'Roaming': '도보폼', 'Blade': '블레이드폼', 'Ash': '지우개굴닌자', 'Primal': '원시회귀', 'Mega': '메가', 'Mega-X': '메가X', 'Mega-Y': '메가Y',
+	'Roaming': '도보폼', 'Blade': '블레이드폼', 'Ash': '지우개굴닌자', 'Primal': '원시회귀', 'Mega': '메가', 'Mega-X': '메가X', 'Mega-Y': '메가Y', 'Mega-Z': '메가Z',
 	'Dada': '아빠', 'Bug': '벌레', 'Dark': '악', 'Dragon': '드래곤', 'Electric': '전기', 'Fairy': '페어리', 'Fighting': '격투', 'Fire': '불꽃',
 	'Flying': '비행', 'Ghost': '고스트', 'Grass': '풀', 'Ground': '땅', 'Poison': '독', 'Psychic': '에스퍼', 'Rock': '바위', 'Steel': '강철',
 	'Water': '물', 'Small': '작은 사이즈', 'Large': '큰 사이즈', 'Super': '특대 사이즈', 'Crowned': '왕', 'Resolute': '각오의 모습',
@@ -96,6 +96,12 @@ function speciesName(s, dex) {
 	const base = dex.species.get(s.baseSpecies);
 	const baseKo = ko.pokedex[base.id]?.name || pkhexSpecies[s.num] || s.baseSpecies;
 	if (!s.forme) return baseKo;
+	if (/Mega/.test(s.forme)) {
+		const rest = s.forme.replace(/-?Mega-?/, ''); // 'Mega-X' → 'X', 'M-Mega' → 'M', 'Curly-Mega' → 'Curly'
+		const suffix = /^[XYZ]$/.test(rest) ? rest : '';
+		const sub = suffix ? '' : (FORME_KO[rest] || rest);
+		return '메가' + baseKo + suffix + (sub ? `(${sub})` : '');
+	}
 	let forme = FORME_KO[s.forme];
 	if (!forme && ['Arceus', 'Silvally'].includes(s.baseSpecies)) forme = TYPE_KO[s.forme] || s.forme;
 	if (s.id === 'zaciancrowned') forme = '검왕';
@@ -135,7 +141,7 @@ const moveIds = [];
 const moveIndex = {};
 for (const m of dex9.moves.all()) {
 	if (m.num <= 0 && !m.isMax) continue;
-	if (m.isNonstandard && BAD_NONSTD.has(m.isNonstandard) && !m.isMax) continue;
+	if (m.isNonstandard && BAD_NONSTD.has(m.isNonstandard) && !m.isMax) continue; // Future(Z-A 신기술) 포함
 	moveIndex[m.id] = moveIds.length;
 	moveIds.push(m.id);
 	result.moves[m.id] = {
@@ -148,20 +154,20 @@ for (const m of dex9.moves.all()) {
 
 // ── 특성 ──
 for (const a of dex9.abilities.all()) {
-	if (a.num <= 0 || (a.isNonstandard && a.isNonstandard !== 'Past' && a.isNonstandard !== 'Unobtainable')) continue;
+	if (a.num <= 0 || (a.isNonstandard && !['Past', 'Unobtainable', 'Future'].includes(a.isNonstandard))) continue;
 	result.abilities[a.id] = { n: ko.abilities[a.id]?.name || a.name, d: flavor.abilities[a.id] || '', gen: a.gen };
 }
 
 // ── 도구 (메가스톤·Z크리스탈 포함) ──
 for (const it of dex9.items.all()) {
 	if (it.num <= 0 || it.isPokeball || it.isGem && false) continue;
-	if (it.isNonstandard && !['Past', 'Unobtainable'].includes(it.isNonstandard)) continue;
+	if (it.isNonstandard && !['Past', 'Unobtainable', 'Future'].includes(it.isNonstandard)) continue;
 	if (/^tr\d|^tm\d|^hm\d/.test(it.id) || it.id.endsWith('mail')) continue;
 	let itemName = ko.items[it.id]?.name;
 	if (!itemName && it.megaStone) {
 		const from = (Array.isArray(it.megaEvolves) ? it.megaEvolves[0] : it.megaEvolves) ||
 			(typeof it.megaStone === 'object' ? Object.keys(it.megaStone)[0] : null) || it.itemUser?.[0] || '';
-		const suffix = / X$/.test(it.name) ? 'X' : / Y$/.test(it.name) ? 'Y' : '';
+		const suffix = / X$/.test(it.name) ? 'X' : / Y$/.test(it.name) ? 'Y' : / Z$/.test(it.name) ? 'Z' : '';
 		itemName = (ko.pokedex[toID(from)]?.name || from) + '나이트' + suffix;
 	}
 	result.items[it.id] = {
@@ -208,7 +214,7 @@ const BATTLE_ONLY = new Set(['Castform', 'Cherrim', 'Darmanitan', 'Meloetta', 'A
 	'Cramorant', 'Eiscue', 'Morpeko', 'Palafin', 'Terapagos']);
 for (const s of dex9.species.all()) {
 	if (s.num <= 0) continue;
-	if (s.isNonstandard && ['CAP', 'LGPE', 'Custom', 'Pokestar', 'Future'].includes(s.isNonstandard)) continue;
+	if (s.isNonstandard && ['CAP', 'LGPE', 'Custom', 'Pokestar'].includes(s.isNonstandard)) continue; // 'Future'(레전즈 Z-A 메가) 포함
 	if (s.forme && /Gmax|Totem|Starter|Artisan|Masterpiece/.test(s.forme)) continue;
 	if (s.baseSpecies === 'Pikachu' && s.forme) continue; // 모자·옷 피카츄 제외
 	if (s.forme && ['Vivillon', 'Alcremie', 'Pichu'].includes(s.baseSpecies)) continue; // 겉모습만 다른 폼

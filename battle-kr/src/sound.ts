@@ -15,7 +15,7 @@ function ac(): AudioContext | null {
 	if (!C) return null;
 	ctx = new C();
 	master = ctx!.createGain(); master.gain.value = 0.6; master.connect(ctx!.destination);
-	sfxBus = ctx!.createGain(); sfxBus.gain.value = 0.55; sfxBus.connect(master);
+	sfxBus = ctx!.createGain(); sfxBus.gain.value = [0.3, 0.55, 0.85][(loadSettings().sfxVolume || 2) - 1]; sfxBus.connect(master);
 	musicBus = ctx!.createGain(); musicBus.gain.value = [0.1, 0.22, 0.38][(loadSettings().musicVolume || 2) - 1]; musicBus.connect(master);
 	noiseBuf = ctx!.createBuffer(1, ctx!.sampleRate, ctx!.sampleRate);
 	const d = noiseBuf.getChannelData(0);
@@ -67,28 +67,37 @@ function cryEl(id: string): HTMLAudioElement | null {
 	}
 	return cryEls[id];
 }
+let cryQueue: Promise<void> = Promise.resolve();
 export function cry(speciesId: string, opts: { faint?: boolean; delay?: number } = {}) {
 	if (!sfxOn() || hidden) return;
-	const play = () => {
+	const vol = 0.32 * ([0.5, 1, 1.4][(loadSettings().sfxVolume || 2) - 1]);
+	const play = () => new Promise<void>(done => {
+		let started = false;
 		for (const id of cryIds(speciesId)) {
 			const el = cryEl(id);
 			if (!el) continue;
 			const inst = el.cloneNode() as HTMLAudioElement;
-			inst.volume = 0.6;
+			inst.volume = Math.min(1, vol);
 			(inst as any).preservesPitch = false; (inst as any).mozPreservesPitch = false;
 			inst.playbackRate = 1;
-			inst.addEventListener('error', () => { cryBad[id] = true; });
-			const p = inst.play();
-			if (p) p.catch(() => {});
+			let finished = false;
+			const finish = () => { if (!finished) { finished = true; done(); } };
+			inst.addEventListener('error', () => { cryBad[id] = true; finish(); });
+			inst.addEventListener('ended', finish);
+			const go = () => { const p = inst.play(); if (p) p.catch(finish); };
+			if (inst.readyState >= 3) go(); else { inst.addEventListener('canplay', go, { once: true }); inst.load(); }
 			if (opts.faint) {
-				// 쓰러질 때: 점점 느리고 낮게
 				let rate = 1;
-				const iv = setInterval(() => { rate -= 0.07; if (rate <= 0.4 || inst.ended) { clearInterval(iv); inst.pause(); return; } inst.playbackRate = rate; inst.volume = Math.max(0.05, inst.volume - 0.06); }, 60);
+				const iv = setInterval(() => { rate -= 0.07; if (rate <= 0.4 || inst.ended) { clearInterval(iv); inst.pause(); finish(); return; } inst.playbackRate = rate; inst.volume = Math.max(0.03, inst.volume - 0.04); }, 60);
 			}
-			return;
+			setTimeout(finish, 1800); // 안전장치
+			started = true;
+			break;
 		}
-	};
-	if (opts.delay) setTimeout(play, opts.delay); else play();
+		if (!started) done();
+	});
+	// 두 마리가 동시에 나올 때 소리가 겹쳐 하나만 들리는 문제 → 순서대로 재생
+	cryQueue = cryQueue.then(() => new Promise(r => setTimeout(r, opts.delay || 0))).then(play).catch(() => {});
 }
 /** 미리 받아 두기 (배틀 시작 때 양쪽 팀) */
 export function preloadCries(ids: string[]) {
@@ -272,6 +281,36 @@ const TRACKS: { [k: string]: Track } = {
 			e4 g4 b4 g4 e4 g4 b4 g4 a3 c4 e4 c4 a3 c4 e4 c4 d4 f4 a4 f4 d4 f4 a4 f4 g4 b4 d5 b4 c4 e4 g4 c5`),
 		drums: 'k.......h.......k.......h.......k.......h.......k.......h.h.h.h.',
 	},
+	// 배틀 2: g단조 172, 셔플 느낌의 당김음, 상승 베이스
+	battle2: {
+		bpm: 172, loop: true, leadType: 'square',
+		lead: seq(`g5 r bb5 r d6 r c6 bb5 a5 r g5 r f5 r g5 r a5 r a5 r c6 r bb5 a5 g5 r f5 r d5 r r r
+			eb5 r g5 r bb5 r a5 g5 f5 r eb5 r d5 r eb5 r d5 r d5 r f#5 r a5 g5 f#5 r d5 r a4 r r r
+			g5 r g5 r bb5 r d6 r g6 r f6 r d6 r bb5 r a5 r a5 r c6 r eb6 r d6 r bb5 r g5 r r r
+			eb5 r eb5 r g5 r bb5 r eb6 r d6 r bb5 r g5 r d5 r f#5 r a5 r d6 r c6 r a5 r f#5 r d5 r`),
+		harm: seq(`d5x8 r r r r r r r r c5x8 r r r r r r r r bb4x8 r r r r r r r r a4x8 r r r r r r r r bb4x8 r r r r r r r r d5x8 r r r r r r r r bb4x8 r r r r r r r r a4x8 r r r r r r r r`),
+		bass: seq(`g2 g2 g3 r g2 g3 g2 g3 f2 f2 f3 r f2 f3 f2 f3 eb2 eb2 eb3 r eb2 eb3 eb2 eb3 d2 d2 d3 r d2 d3 d2 d3
+			eb2 eb2 eb3 r eb2 eb3 eb2 eb3 c2 c2 c3 r c2 c3 c2 c3 d2 d2 d3 r d2 d3 d2 d3 d2 d2 d3 r f#2 f#2 a2 a2
+			g2 g2 g3 r g2 g3 g2 g3 f2 f2 f3 r f2 f3 f2 f3 eb2 eb2 eb3 r eb2 eb3 eb2 eb3 d2 d2 d3 r d2 d3 d2 d3
+			eb2 eb2 eb3 r eb2 eb3 eb2 eb3 c2 c2 c3 r c2 c3 c2 c3 d2 d2 d3 r d2 d3 d2 d3 d2 d2 d3 r d2 d3 d2 d3`),
+		arp: seq(`g4 bb4 d5 g5 g4 bb4 d5 g5 f4 a4 c5 f5 f4 a4 c5 f5 eb4 g4 bb4 eb5 eb4 g4 bb4 eb5 d4 f#4 a4 d5 d4 f#4 a4 d5
+			eb4 g4 bb4 eb5 eb4 g4 bb4 eb5 c4 eb4 g4 c5 c4 eb4 g4 c5 d4 f#4 a4 d5 d4 f#4 a4 d5 d4 f#4 a4 c5 d4 f#4 a4 c5`),
+		drums: 'k.h.s.h.k.h.s.hhk.h.s.h.k.hks.hsk.h.s.h.k.h.s.hhk.h.s.h.k.hkssss',
+	},
+	// 배틀 3: a단조 184, 빠른 16분 리드, 긴박
+	battle3: {
+		bpm: 184, loop: true, leadType: 'sawtooth',
+		lead: seq(`a5 g#5 a5 b5 c6 r a5 r e5 r a5 r c6 b5 c6 d6 e6 r c6 r a5 r e5 r f5 e5 f5 g5 a5 r e5 r
+			f5 e5 f5 g5 a5 r f5 r d5 r f5 r a5 g5 a5 b5 c6 r a5 r e5 r c5 r g#5 r b5 r e6 r d6 c6
+			a5 g#5 a5 b5 c6 r a5 r e5 r a5 r c6 b5 c6 d6 e6 r c6 r a5 r e5 r f5 e5 f5 g5 a5 r e5 r
+			f5 e5 f5 g5 a5 r f5 r d5 r f5 r a5 g5 a5 b5 c6 r b5 r a5 r g#5 r e5 r g#5 r b5 r e6x4`),
+		harm: seq(`a4x8 r r r r r r r r e4x8 r r r r r r r r f4x8 r r r r r r r r g4x8 r r r r r r r r f4x8 r r r r r r r r d4x8 r r r r r r r r a4x8 r r r r r r r r e4x8 r r r r r r r r`),
+		bass: seq(`a1 a2 a1 a2 a1 a2 a1 a2 e1 e2 e1 e2 e1 e2 e1 e2 f1 f2 f1 f2 f1 f2 f1 f2 g1 g2 g1 g2 g1 g2 g1 g2
+			f1 f2 f1 f2 f1 f2 f1 f2 d1 d2 d1 d2 d1 d2 d1 d2 a1 a2 a1 a2 a1 a2 a1 a2 e1 e2 e1 e2 g#1 g#2 g#1 g#2`),
+		arp: seq(`a3 c4 e4 a4 e4 c4 a3 c4 e3 g#3 b3 e4 b3 g#3 e3 g#3 f3 a3 c4 f4 c4 a3 f3 a3 g3 b3 d4 g4 d4 b3 g3 b3
+			f3 a3 c4 f4 c4 a3 f3 a3 d3 f3 a3 d4 a3 f3 d3 f3 a3 c4 e4 a4 e4 c4 a3 c4 e3 g#3 b3 e4 g#3 b3 e4 g#4`),
+		drums: 'kkhsk.hsk.hsk.hskkhsk.hsk.hsksss',
+	},
 	victory: {
 		bpm: 160, loop: false, leadType: 'square',
 		lead: seq(`c5 r c5 r c5 r c5 r ab4 r r r bb4 r r r c5 r r bb4 c5 r r r r r r r r r r r`),
@@ -287,6 +326,15 @@ let step = 0;
 let nextTime = 0;
 let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
+
+export const BGM_CHOICES: [string, string][] = [['random', '무작위'], ['battle', '배틀 1'], ['battle2', '배틀 2'], ['battle3', '배틀 3'], ['tower', '시설'], ['pwt', '토너먼트'], ['boss', '보스']];
+/** 배틀 음악 선택: 설정이 무작위면 상황별 후보 중 하나 */
+export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss') {
+	const pref = loadSettings().battleBgm || 'random';
+	if (pref !== 'random' && TRACKS[pref]) return pref;
+	const pool = situation === 'boss' ? ['boss', 'battle3'] : situation === 'tower' ? ['tower', 'battle2', 'battle'] : situation === 'pwt' ? ['pwt', 'battle', 'battle3'] : ['battle', 'battle2', 'battle3', 'tower'];
+	return pool[Math.floor(Math.random() * pool.length)];
+}
 
 export function playMusic(name: string) {
 	if (current === name) return;
@@ -336,6 +384,7 @@ function startSynth(name: string, c: AudioContext) {
 		}
 	}, 60);
 }
+export function setSfxVolume(v: 1 | 2 | 3) { if (sfxBus) sfxBus.gain.value = [0.3, 0.55, 0.85][v - 1]; }
 export function setMusicVolume(v: 1 | 2 | 3) {
 	if (musicBus) musicBus.gain.value = [0.1, 0.22, 0.38][v - 1];
 	if (bgmEl) bgmEl.volume = [0.25, 0.5, 0.8][v - 1];

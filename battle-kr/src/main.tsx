@@ -7,7 +7,7 @@ import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
 import { CUPS, NAMED } from './trainers';
-import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume } from './sound';
+import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, BGM_CHOICES } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
 
 const MODES = [
@@ -51,7 +51,7 @@ function Home({ go }: { go: (v: string) => void }) {
 		<div class="home-head">
 			<div>
 				<div class="hello">{settings.playerName}, 어서 와!</div>
-				<div class="stats-line">전적 {rec.wins}승 {rec.battles - rec.wins}패 · BP {rec.bp}</div>
+				<div class="stats-line">전적 {rec.wins}승 {rec.battles - rec.wins}패</div>
 			</div>
 			<button class="icon-btn" onClick={() => go('settings')} aria-label="설정">⚙</button>
 		</div>
@@ -80,7 +80,6 @@ function Records({ onBack }: { onBack: () => void }) {
 	];
 	return <Screen title="기록" onBack={onBack}>
 		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패</span></div>
-		<div class="record-card"><b>BP</b><span>{r.bp}</span></div>
 		<h3 class="sec">최고 연승</h3>
 		{rows.map(([k, v]) => <div class="record-row"><span>{k}</span><b>{v}</b></div>)}
 		<h3 class="sec">PWT 우승</h3>
@@ -108,7 +107,15 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>음악 {['작게', '보통', '크게'][v - 1]}</button>)}</div>
-		<p class="muted small">효과음과 배경음악은 이 앱에서 직접 합성한 칩튠입니다. 울음소리는 인터넷에서 받아 옵니다.</p>
+		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>효과음·울음 {['작게', '보통', '크게'][v - 1]}</button>)}</div>
+		<h3 class="sec">배틀 음악</h3>
+		<div class="seg wrap">{BGM_CHOICES.map(([k, l]) => <button class={s.battleBgm === k ? 'on' : ''} onClick={() => { up({ battleBgm: k }); if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); } }}>{l}</button>)}</div>
+		<p class="muted small">무작위면 배틀마다 상황에 맞는 곡 중 하나가 흐릅니다. 고르면 미리 들을 수 있어요.</p>
+		<h3 class="sec">창틀 디자인</h3>
+		<div class="seg">{([['stone', '돌'], ['silver', '은'], ['dark', '어두움']] as const).map(([k, l]) => <button class={s.frame === k ? 'on' : ''} onClick={() => { up({ frame: k }); applyTheme({ ...s, frame: k }); }}>{l}</button>)}</div>
+		<h3 class="sec">메뉴 배경</h3>
+		<div class="seg wrap">{([['title', '밤하늘'], ['field', '초원'], ['tower', '타워'], ['factory', '팩토리'], ['pwt', '경기장'], ['champion', '챔피언']] as const).map(([k, l]) => <button class={s.homeBg === k ? 'on' : ''} onClick={() => { up({ homeBg: k }); applyTheme({ ...s, homeBg: k }); }}>{l}</button>)}</div>
+		<p class="muted small">효과음·배경음악은 이 앱에서 합성한 칩튠, 기술 효과음은 Pokémon Reborn 제작. 울음소리는 인터넷에서 받아 옵니다.</p>
 		<h3 class="sec">배틀 화면</h3>
 		<div class="seg">
 			<button class={s.effects ? 'on' : ''} onClick={() => up({ effects: !s.effects })}>기술 이펙트 {s.effects ? '켜짐' : '꺼짐'}</button>
@@ -131,7 +138,7 @@ function App() {
 	const [modeView, setModeView] = useState<VNode | null>(null);
 	const [route, setRoute] = useState<string>('title');
 	const [editTeam, setEditTeam] = useState<any>(null);
-	useEffect(() => { bindView(setModeView); }, []);
+	useEffect(() => { bindView(setModeView); applyTheme(loadSettings()); }, []);
 
 	const go = async (r: string) => {
 		if (r.startsWith('mode:')) {
@@ -173,6 +180,13 @@ function App() {
 	if (route === 'calc') return <CalcScreen onBack={() => setRoute('home')} />;
 	if (route === 'settings') return <SettingsScreen onBack={() => setRoute('home')} />;
 	return <Home go={go} />;
+}
+
+/** 창틀·배경 설정 적용 (CSS 변수) */
+export function applyTheme(s: Settings) {
+	const root = document.documentElement;
+	root.setAttribute('data-frame', s.frame || 'stone');
+	root.setAttribute('data-bg', s.homeBg || 'title');
 }
 
 // 버튼 누를 때 효과음
