@@ -3,10 +3,11 @@ import { h, render, type VNode } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { bindView, Screen, Sprite, toast } from './ui/core';
 import { TeamList, TeamEditor } from './ui/teambuilder';
+import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
 import { CUPS, NAMED } from './trainers';
-import { unlockAudio, playMusic, stopMusic, sfx } from './sound';
+import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
 
 const MODES = [
@@ -62,8 +63,9 @@ function Home({ go }: { go: (v: string) => void }) {
 				<span class="mode-mon"><Sprite species={m.mon} gen={9} size={64} anim={false} /></span>
 			</button>)}
 		</div>
-		<div class="home-bottom">
+		<div class="home-bottom three">
 			<button class="btn big menu" onClick={() => go('teams')}>📋 팀 편집</button>
+			<button class="btn big menu" onClick={() => go('calc')}>🧮 배틀 계산기</button>
 			<button class="btn big menu" onClick={() => go('records')}>📊 기록</button>
 		</div>
 	</div>;
@@ -105,7 +107,14 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.sound ? 'on' : ''} onClick={() => { up({ sound: !s.sound }); }}>효과음 {s.sound ? '켜짐' : '꺼짐'}</button>
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
-		<p class="muted small">효과음과 배경음악은 이 앱에서 직접 합성한 칩튠입니다.</p>
+		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>음악 {['작게', '보통', '크게'][v - 1]}</button>)}</div>
+		<p class="muted small">효과음과 배경음악은 이 앱에서 직접 합성한 칩튠입니다. 울음소리는 인터넷에서 받아 옵니다.</p>
+		<h3 class="sec">배틀 화면</h3>
+		<div class="seg">
+			<button class={s.effects ? 'on' : ''} onClick={() => up({ effects: !s.effects })}>기술 이펙트 {s.effects ? '켜짐' : '꺼짐'}</button>
+			<button class={s.damagePreview ? 'on' : ''} onClick={() => up({ damagePreview: !s.damagePreview })}>데미지 예상 {s.damagePreview ? '켜짐' : '꺼짐'}</button>
+		</div>
+		<p class="muted small">데미지 예상: 기술 버튼에 상대에게 줄 데미지의 대략적인 비율을 표시합니다 (연습용).</p>
 		<h3 class="sec">포켓몬 그림</h3>
 		<div class="seg">
 			<button class={s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: true })}>움직이는 그림</button>
@@ -143,7 +152,13 @@ function App() {
 			const backBtn = document.querySelector('.bar .icon-btn[aria-label="뒤로"]') as HTMLButtonElement | null;
 			if (document.querySelector('.modal-bg')) { (document.querySelector('.modal-bg') as HTMLElement).click(); return true; }
 			if (backBtn) { backBtn.click(); return true; }
-			if (route !== 'home' && route !== 'title' && route !== 'mode') { setRoute('home'); return true; }
+			const ctlBack = document.querySelector('.ctl-head .btn') as HTMLButtonElement | null; // 배틀 명령창의 ‹ 뒤로
+			if (ctlBack) { ctlBack.click(); return true; }
+			const forfeit = document.querySelector('.cmd-grid .cmd:last-child') as HTMLButtonElement | null;
+			if (forfeit) { forfeit.click(); return true; } // 기권 확인 창
+			if (document.querySelector('.battle')) return true; // 연출 중엔 무시
+			if (route !== 'home' && route !== 'title') { setRoute('home'); return true; }
+			if (route === 'home') { setRoute('title'); return true; }
 			return false;
 		};
 	});
@@ -155,6 +170,7 @@ function App() {
 		return <TeamList onBack={() => setRoute('home')} onEdit={t => setEditTeam(t)} />;
 	}
 	if (route === 'records') return <Records onBack={() => setRoute('home')} />;
+	if (route === 'calc') return <CalcScreen onBack={() => setRoute('home')} />;
 	if (route === 'settings') return <SettingsScreen onBack={() => setRoute('home')} />;
 	return <Home go={go} />;
 }

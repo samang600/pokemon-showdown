@@ -9,9 +9,11 @@ import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords } from '../store';
 import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox } from './core';
 import { MonSheet, type LiveInfo } from './screens';
+import { estimateDamage } from '../ai';
 import * as FX from '../fx';
 import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries } from '../sound';
 import { SPRITE_URL } from '../trainer-lines';
+import { loadAnim, preloadAnim, playAnim, animIdFor } from '../anim-player';
 
 export interface BattleSetup {
 	gen: Gen;
@@ -27,7 +29,7 @@ export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p
 interface Mon {
 	ident: string; nick: string; species: string; level: number; gender: string; shiny: boolean;
 	hp: number; maxhp: number; status: string; fainted: boolean; boosts: { [k: string]: number };
-	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string;
+	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[];
 }
 interface SideScene { id: string; name: string; active: (Mon | null)[]; team: Mon[]; cond: { [id: string]: number }; teamSize: number }
 interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number }
@@ -131,7 +133,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			const d = details ? parseDetails(details) : { species: nick, level: 50, gender: '', shiny: false };
 			mon = {
 				ident: ident.slice(0, 2) + ': ' + nick, nick, species: d.species, level: d.level, gender: d.gender, shiny: d.shiny,
-				hp: 100, maxhp: 100, status: '', fainted: false, boosts: {}, vol: new Set(), anim: '',
+				hp: 100, maxhp: 100, status: '', fainted: false, boosts: {}, vol: new Set(), anim: '', seen: [],
 			};
 			side.team.push(mon);
 		}
@@ -162,6 +164,55 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		return { x: r.left - a.left, y: r.top - a.top - (own ? 34 : 26) * scale * (setup.doubles ? 0.8 : 1) };
 	}
 	const pendingHitRef = useRef<{ at: number; sound: string } | null>(null);
+	const frontRef = useRef<HTMLCanvasElement | null>(null);
+	const backRef = useRef<HTMLCanvasElement | null>(null);
+	const animBgRef = useRef<HTMLDivElement | null>(null);
+	const animUsedRef = useRef<ParsedLine | null>(null);
+	const [fieldOpen, setFieldOpen] = useState(false);
+	useEffect(() => {
+		const el = arenaRef.current; if (!el) return;
+		const fit = () => {
+			const dpr = window.devicePixelRatio || 1;
+			for (const c of [frontRef.current, backRef.current]) {
+				if (!c) continue;
+				c.width = el.clientWidth * dpr; c.height = el.clientHeight * dpr;
+				c.style.width = el.clientWidth + 'px'; c.style.height = el.clientHeight + 'px';
+				c.getContext('2d')!.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+		};
+		fit();
+		const ro = new ResizeObserver(fit); ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
+	function slotEl(ident: string): HTMLElement | null {
+		const arena = arenaRef.current;
+		if (!arena || !/^p\d[a-c]/.test(ident)) return null;
+		return arena.querySelector(`.slot.${ident.startsWith('p1') ? 'own' : 'foe'}.s${slotOf(ident)}`) as HTMLElement | null;
+	}
+	/** PokéRogue(Pokémon Reborn) 애니메이션 재생. 없으면 false */
+	async function tryRebornAnim(p: ParsedLine): Promise<boolean> {
+		if (settings.effects === false || p.kw.still || p.kw.notarget) return false;
+		const [, user, moveName, target] = p.args;
+		const id = animIdFor(toID(moveName));
+		const anim = await preloadAnim(id);
+		if (!anim || !frontRef.current || !backRef.current || !animBgRef.current) return false;
+		const userPt = slotPoint(user); if (!userPt) return false;
+		let tgt = target && /^p\d[a-c]/.test(target) ? target : '';
+		if (!tgt || tgt.slice(0, 3) === user.slice(0, 3)) {
+			// 자신 대상/대상 없음: 반대편 첫 포켓몬을 가상 대상으로
+			const foe = user.startsWith('p1') ? 'p2' : 'p1';
+			const idx = sceneRef.current[foe].active.findIndex(m => m && !m.fainted);
+			tgt = `${foe}${'ab'[Math.max(0, idx)]}: x`;
+		}
+		const targetPt = slotPoint(tgt) || userPt;
+		animUsedRef.current = p;
+		await playAnim(anim, {
+			front: frontRef.current, back: backRef.current, bgLayer: animBgRef.current,
+			userPt, targetPt, userEl: slotEl(user), targetEl: slotEl(tgt), k: scale * 0.85, userIsFoe: user.startsWith('p2'),
+			sfxVolume: settings.sound === false ? 0 : 0.8,
+		});
+		return true;
+	}
 	function moveFx(p: ParsedLine): number {
 		const layer = fxRef.current, arena = arenaRef.current;
 		const [, user, moveName, target] = p.args;
@@ -170,7 +221,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		const md = moveData(mid, gen);
 		const type = simMove?.type || md?.type || 'Normal', cat = simMove?.category || md?.category || 'Physical';
 		moveSound(type, cat);
-		if (!layer || !arena || p.kw.still) return 0;
+		if (!layer || !arena || p.kw.still || settings.effects === false) return 0;
 		const from = slotPoint(user);
 		if (!from) return 0;
 		if (p.kw.miss || p.kw.notarget) return 0;
@@ -229,8 +280,10 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		case 'move': {
 			const mon = activeMon(args[1]);
+			if (mon && !mon.seen.includes(args[2])) mon.seen.push(args[2]);
 			animate(mon, args[1].startsWith('p1') ? 'attack-own' : 'attack-foe', 450);
-			const impact = moveFx(p);
+			if (animUsedRef.current === p) { animUsedRef.current = null; pendingHitRef.current = { at: 0, sound: '' }; return 150; }
+			const impact = settings.effects === false ? (moveSound(moveData(toID(args[2]), gen)?.type || 'Normal', moveData(toID(args[2]), gen)?.category || 'Physical'), 0) : moveFx(p);
 			return Math.max(500, impact + 300);
 		}
 		case '-damage': case '-heal': case '-sethp': {
@@ -242,7 +295,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (hp.maxhp) mon.maxhp = hp.maxhp;
 			if (hp.status === 'fnt') { mon.hp = 0; }
 			else mon.status = hp.status;
-			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); sfx(pendingHitRef.current?.sound || 'hit'); }
+			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); if (pendingHitRef.current?.sound !== '') sfx(pendingHitRef.current?.sound || 'hit'); }
 			if (cmd === '-heal' && !kw.silent && fxRef.current) { const pt = slotPoint(args[1]); if (pt) FX.sparkle(fxRef.current, pt, 'Grass', scale); sfx('heal'); }
 			return before !== mon.hp ? 550 : 0;
 		}
@@ -407,6 +460,20 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				rerender();
 				await wait(SPEED_MS[settings.speed] * 0.7);
 			}
+			if (p.cmd === 'move' && msgs.length) {
+				// 기술 이름 메시지를 먼저 보여주고 애니메이션
+				showMsg(msgs.shift()!);
+				const mon = activeMon(p.args[1]);
+				if (mon && !mon.seen.includes(p.args[2])) mon.seen.push(p.args[2]);
+				rerender();
+				const used = await tryRebornAnim(p);
+				if (!used) {
+					const d = apply(p); rerender();
+					await wait(Math.max(d, SPEED_MS[settings.speed] * 0.6));
+				} else { pendingHitRef.current = { at: 0, sound: '' }; await wait(120); }
+				for (const m of msgs) { showMsg(m); await wait(SPEED_MS[settings.speed]); }
+				continue;
+			}
 			const delay = apply(p);
 			rerender();
 			if (p.cmd === 'turn') { pushLog(text); continue; }
@@ -526,6 +593,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		const lines = s.start();
 		playMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle');
 		preloadCries([...setup.p1.team, ...setup.p2.team].map(x => toID(x.species)));
+		if (settings.effects !== false) for (const set of [...setup.p1.team, ...setup.p2.team]) for (const m of set.moves) preloadAnim(animIdFor(toID(m)));
 		(async () => {
 			// 트레이너 등장 (양쪽 트레이너가 발판에 나타난 뒤 포켓몬을 내보냄)
 			setTrainerVis({ own: true, foe: true });
@@ -560,6 +628,22 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const reqMon = req?.side?.pokemon;
 	const activeReq = req?.active?.[slotIdx];
 	const curMon = scene.p1.active[slotIdx];
+
+	/** 예상 데미지 비율 문자열 (설정 켜짐 때) */
+	const dmgPreview = (m: any, targetSide: 'p1' | 'p2' = 'p2', slot?: number): string => {
+		if (!settings.damagePreview) return '';
+		const b = sessionRef.current?.battle; if (!b) return '';
+		const user = b.p1.active[slotIdx]; if (!user) return '';
+		const targets = slot !== undefined ? [b[targetSide].active[slot]] : b.p2.active.filter((x: any) => x && !x.fainted);
+		const mv = b.dex.moves.get(m.id);
+		if (!mv || mv.category === 'Status' || !targets.length || !targets[0]) return '';
+		try {
+			const d = estimateDamage(b, user, targets[0], mv);
+			if (d <= 0) return '';
+			const pct = Math.round(d * targets[0].hp / targets[0].maxhp * 100);
+			return pct >= 100 ? 'KO 가능' : `약 ${Math.max(1, pct)}%`;
+		} catch { return ''; }
+	};
 
 	const moveInfo = (m: any, i = -1) => {
 		const md = moveData(m.id, gen);
@@ -602,9 +686,10 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 					return <button key={i} class={'move-btn' + (focus === i ? ' focus' : '')} disabled={disabled}
 						style={{ '--tc': TYPE_COLOR[type] } as any}
 						onPointerDown={() => setFocus(i)} onClick={() => onMove(i + 1, m)}>
-						<span class="mv-name">{name}</span>
+						<span class={'mv-name' + (name.length >= 9 ? ' xl' : name.length >= 7 ? ' l' : '')}>{name}</span>
 						<span class="mv-sub"><TypeBadge type={type} small /><span class="mv-pp">{m.maxpp ? `${m.pp}/${m.maxpp}` : ''}</span></span>
 						{eff && eff !== '보통' && <span class={'mv-eff ' + (eff.includes('굉장') ? 'good' : 'bad')}>{eff}</span>}
+						{settings.damagePreview && !setup.doubles && dmgPreview(m) && <span class="mv-dmg">{dmgPreview(m)}</span>}
 					</button>;
 				})}
 			</div>
@@ -642,7 +727,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (t !== 'adjacentAlly' && t !== 'adjacentAllyOrSelf') {
 			scene.p2.active.forEach((m, i) => {
 				if (!m || m.fainted) return;
-				btns.push(<button class="btn target foe" onClick={() => pushChoice(`move ${pendingMove.num} ${i + 1}${pendingMove.gm || ''}`)}>상대 {m.nick}</button>);
+				const mv = activeReq?.moves[pendingMove.num - 1];
+				let eff = '';
+				const b = sessionRef.current?.battle;
+				const tg = b?.p2.active[i];
+				const md = mv ? b?.dex.moves.get(mv.id) : null;
+				if (md && tg && md.category !== 'Status') {
+					const e = !b.dex.getImmunity(md.type, tg) ? 0 : Math.pow(2, b.dex.getEffectiveness(md.type, tg));
+					eff = e === 0 ? '효과 없음' : e >= 2 ? '효과 굉장' : e < 1 ? '효과 별로' : '';
+				}
+				const dp = mv ? dmgPreview(mv, 'p2', i) : '';
+				btns.push(<button class="btn target foe" onClick={() => pushChoice(`move ${pendingMove.num} ${i + 1}${pendingMove.gm || ''}`)}>상대 {m.nick}{eff && <small class="block">{eff}</small>}{dp && <small class="block">{dp}</small>}</button>);
 			});
 		}
 		scene.p1.active.forEach((m, i) => {
@@ -722,6 +817,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			{menu === 'main' && <div class="cmd-grid win-dark">
 				<button class="cmd" onClick={() => { setFocus(0); setMenu('moves'); }}>싸운다</button>
 				<button class="cmd" onClick={() => setMenu('switch')}>포켓몬</button>
+				<button class="cmd" onClick={() => setFieldOpen(true)}>필드</button>
 				<button class="cmd" onClick={() => setShowLog(true)}>기록</button>
 				<button class="cmd" onClick={forfeit}>기권</button>
 			</div>}
@@ -759,7 +855,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!mon || (mon.fainted && !mon.anim) || mon.hidden) return <div class={'slot ' + pos} key={i} />;
 		return <div class={'slot ' + pos + ' ' + (mon.anim || '') + (mon.vol.has('dynamax') ? ' dmax' : '') + (mon.tera ? ' tera' : '')} key={i}
 			style={mon.tera ? { '--tera': TYPE_COLOR[mon.tera] } as any : undefined} onClick={() => setDetail({ mon, own })}>
-			{mon.vol.has('substitute') ? <div class="sub-doll">대타</div> :
+			{mon.vol.has('substitute') ? <Sprite species="substitute" back={own} gen={gen} size={400} cls={own ? 'back' : 'front'} /> :
 				<Sprite species={mon.transformed || mon.species} back={own} shiny={mon.shiny} gen={gen} size={400} cls={own ? 'back' : 'front'} />}
 		</div>;
 	};
@@ -803,7 +899,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const d = parseDetails(p.details);
 				const hp = parseHP(p.condition);
 				scene.p1.team.push({ ident: 'p1: ' + nick, nick, species: d.species, level: d.level, gender: d.gender, shiny: d.shiny,
-					hp: hp.hp, maxhp: hp.maxhp, status: hp.status === 'fnt' ? '' : hp.status, fainted: hp.status === 'fnt', boosts: {}, vol: new Set(), anim: '' });
+					hp: hp.hp, maxhp: hp.maxhp, status: hp.status === 'fnt' ? '' : hp.status, fainted: hp.status === 'fnt', boosts: {}, vol: new Set(), anim: '', seen: [] });
 			}
 		}
 	}
@@ -812,14 +908,19 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')}>
 		<div class={'arena' + (trainerVis.foe ? ' t-foe' : '')} ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
 			<div class="arena-bg" />
+			<div class={'weather-ov ' + (scene.weather || '') + ' ' + [...scene.pseudo].join(' ')} />
+			<div class="anim-bg-layer" ref={animBgRef} />
+			<canvas class="anim-canvas back" ref={backRef} />
 			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{setup.p1.sprite && <img class={'trainer-spr own' + (trainerVis.own ? ' in' : '')} src={SPRITE_URL(setup.p1.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{slots.map(i => spriteSlot(scene.p2.active[i] || null, false, i))}
 			{slots.map(i => spriteSlot(scene.p1.active[i] || null, true, i))}
+			<canvas class="anim-canvas front" ref={frontRef} />
 			<div class="fx-layer" ref={fxRef} />
 			<div class="hud-top">
 				<span class="badge">{setup.label || ''}</span>
 				<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
+				<button class="badge field-btn" onClick={e => { e.stopPropagation(); setFieldOpen(true); }}>필드 ▸</button>
 			</div>
 			<div class="hud-cond">
 				{scene.weather && WEATHER_KO[scene.weather] && <span class="chip weather">{WEATHER_KO[scene.weather]}</span>}
@@ -841,6 +942,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			</div>
 			{controls()}
 		</div>
+		{fieldOpen && <FieldModal session={sessionRef.current!} onClose={() => setFieldOpen(false)} />}
 		{showLog && <Modal title="배틀 기록" onClose={() => setShowLog(false)}>
 			<div class="log">{log.map((l, i) => <div key={i} class={l.startsWith('──') ? 'log-turn' : ''}>{l}</div>)}</div>
 		</Modal>}
@@ -862,6 +964,39 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 }
 
 const RXp = (re: RegExp, id: string) => re.test(id);
+
+const TERRAIN_KO: { [id: string]: string } = { electricterrain: '일렉트릭필드', grassyterrain: '그래스필드', mistyterrain: '미스트필드', psychicterrain: '사이코필드' };
+const SIDE_COND_KO: { [id: string]: string } = { ...SIDE_KO, auroraveil: '오로라베일', craftyshield: '트릭가드', matblock: '마룻바닥세워막기', luckychant: '행운의주술', stickyweb: '끈적끈적네트' };
+/** 필드 상황: 날씨·필드·방·양쪽 설치기와 남은 턴 */
+function FieldModal({ session, onClose }: { session: Session; onClose: () => void }) {
+	const b = session.battle;
+	const turns = (st: any) => st?.duration ? `${st.duration}턴 남음` : st?.id ? '지속' : '';
+	const w = b.field.weatherState, t = b.field.terrainState;
+	const pw = Object.entries(b.field.pseudoWeather || {}) as [string, any][];
+	const sideInfo = (side: any, label: string) => {
+		const conds = Object.entries(side.sideConditions || {}) as [string, any][];
+		return <div class="field-side">
+			<b>{label}</b>
+			{!conds.length && <span class="muted"> 없음</span>}
+			{conds.map(([id, st]) => <div class="field-row"><span>{SIDE_COND_KO[id] || id}{st.layers > 1 ? ` ×${st.layers}` : ''}</span><span class="muted">{turns(st)}</span></div>)}
+			{side.active.filter((p: any) => p && !p.fainted).map((p: any) => {
+				const vols = Object.entries(p.volatiles || {}).filter(([id]) => VOLATILE_KO[id] || /^perish|^stockpile/.test(id)).map(([id, st]: any) => `${VOLATILE_KO[id] || id}${st?.duration ? `(${st.duration}턴)` : ''}`);
+				const st = p.status ? `${STATUS_LABEL_KO[p.status] || p.status}${p.status === 'slp' && p.statusState?.time ? `(최대 ${p.statusState.time}턴)` : ''}` : '';
+				return (vols.length || st) ? <div class="field-row"><span>{p.name}</span><span class="muted">{[st, ...vols].filter(Boolean).join(' · ')}</span></div> : null;
+			})}
+		</div>;
+	};
+	return <Modal title={`필드 상황 · ${b.turn}턴`} onClose={onClose}>
+		<div class="field-info">
+			<div class="field-row"><span>날씨</span><b>{w?.id ? `${WEATHER_KO[w.id] || w.id} · ${turns(w)}` : '없음'}</b></div>
+			<div class="field-row"><span>필드</span><b>{t?.id ? `${TERRAIN_KO[t.id] || t.id} · ${turns(t)}` : '없음'}</b></div>
+			{pw.map(([id, st]) => <div class="field-row"><span>{PSEUDO_KO[id] || id}</span><b>{turns(st)}</b></div>)}
+			{sideInfo(b.p1, '우리 편')}
+			{sideInfo(b.p2, '상대 편')}
+		</div>
+	</Modal>;
+}
+const STATUS_LABEL_KO: { [s: string]: string } = { brn: '화상', par: '마비', slp: '잠듦', frz: '얼음', psn: '독', tox: '맹독' };
 
 function josaSubject(word: string) {
 	const ch = word.charCodeAt(word.length - 1);
@@ -900,6 +1035,18 @@ function MonDetail({ mon, own, gen, session, onClose }: { mon: Mon; own: boolean
 				<ul class="move-list">{simMon.moveSlots.map((m: any) => <li>{moveKo(m.id === 'hiddenpower' ? 'hiddenpower' + (simMon.hpType || '').toLowerCase() : m.id)} <small>{m.pp}/{m.maxpp}</small></li>)}</ul>
 			</> : <>
 				{sd && <p class="muted">종족값 {sd.bs.join(' / ')}</p>}
+				{sd && (() => {
+					const b = session.battle;
+					const types = mon.tera ? [mon.tera] : sd.t;
+					const eff = (t: string) => { const fake = { getTypes: () => types, hasType: (x: string) => types.includes(x), types } as any; try { return !b.dex.getImmunity(t, types) ? 0 : Math.pow(2, b.dex.getEffectiveness(t, types)); } catch { void fake; return 1; } };
+					const all = ['Normal', 'Fire', 'Water', 'Electric', 'Grass', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Dark', 'Steel', 'Fairy'];
+					const weak = all.filter(t => eff(t) >= 2), resist = all.filter(t => eff(t) < 1);
+					return <>
+						<p><b>약점</b> {weak.length ? weak.map(t => <TypeBadge type={t} small />) : '없음'}</p>
+						<p><b>반감·무효</b> {resist.length ? resist.map(t => <TypeBadge type={t} small />) : '없음'}</p>
+					</>;
+				})()}
+				{mon.seen.length > 0 && <p><b>사용한 기술</b> {mon.seen.map(m => moveKo(m)).join(', ')}</p>}
 				{mon.ability && <p><b>특성</b> {abilityKo(mon.ability)}</p>}
 				{mon.item !== undefined && <p><b>도구</b> {mon.item ? itemKo(mon.item) : '없음'}</p>}
 				{sd && <p class="muted">가능한 특성: {sd.ab.map(a => abilityKo(a)).join(', ')}</p>}

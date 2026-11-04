@@ -259,7 +259,16 @@ export async function runPWT() {
 			return { name: tr.name, title: tr.className, team: () => randomTeam({ gen: 9, size: 6, minBst: cup.rental ? 460 : 490, maxBst: cup.rental ? 600 : 680, allowSubLegend: !cup.rental }), skill: cup.rental ? 0.7 : 0.85, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines };
 		});
 	}
-	while (entrants.length < 7) entrants.push(entrants[entrants.length % Math.max(1, named.length)]);
+	const usedNames = new Set(entrants.map(e => e.name));
+	usedNames.add(me);
+	while (entrants.length < 7) {
+		const tr = randomTrainer();
+		if (usedNames.has(tr.name)) continue;
+		usedNames.add(tr.name);
+		entrants.push({ name: tr.name, title: tr.className, team: () => randomTeam({ gen: 9, size: 6, minBst: 480, maxBst: 640, doubles: fmt === 'doubles' }), skill: 0.8, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines });
+	}
+	// 같은 이름이 둘이면 대진표가 꼬이므로 바꿈
+	for (let i = 0; i < entrants.length; i++) for (let j = 0; j < i; j++) if (entrants[i].name === entrants[j].name) entrants[i] = { ...entrants[i], name: entrants[i].name + ' 2' };
 	const order = rng.shuffle([...entrants.keys()]);
 	const slots = [me, ...order.map(i => entrants[i].name)];
 	const rounds: string[][] = [slots, ['', '', '', ''], ['', ''], ['']];
@@ -384,11 +393,13 @@ export async function runFree() {
 	if (level === BACK) return;
 	const skill = level === 'h' ? 0.97 : level === 'n' ? 0.85 : 0.5;
 	const n = fmt === 'doubles' ? 4 : 3;
+	let rematch: { oppTeam: PSet[]; oppName: string; oppTitle: string; oppSprite: string; oppLines: any } | null = null;
 	while (true) {
 		const tr = randomTrainer();
 		let oppTeam: PSet[];
 		let oppName = tr.name, oppTitle = tr.className, oppSprite = tr.sprite, oppLines: any = tr.lines;
-		if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
+		if (rematch) ({ oppTeam, oppName, oppTitle, oppSprite, oppLines } = rematch);
+		else if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
 		else if (oppPick === 'strong') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: fmt === 'doubles' });
 		else { oppTeam = withLevel(oppPick.sets.map(cloneSet), 50); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
 		const myTeam = withLevel(my, 50);
@@ -403,9 +414,10 @@ export async function runFree() {
 			gen: 9, doubles: fmt === 'doubles', aiSkill: skill, bg: 'field', label: '프리 배틀',
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: oppName, title: oppTitle, team: oppSel, sprite: oppSprite, lines: oppLines },
 		});
-		const again = await ask<boolean>(r => <InfoScreen title="프리 배틀" heading={res.win ? '승리!' : '패배…'}
-			actions={[{ label: '한 번 더', onClick: () => r(true) }, { label: '메뉴로', kind: 'ghost', onClick: () => r(false) }]} />);
-		if (!again) return;
+		const again = await ask<'same' | 'new' | 'quit'>(r => <InfoScreen title="프리 배틀" heading={res.win ? '승리!' : '패배…'}
+			actions={[{ label: '같은 상대와 다시', onClick: () => r('same') }, { label: '다른 상대와', kind: 'ghost', onClick: () => r('new') }, { label: '메뉴로', kind: 'ghost', onClick: () => r('quit') }]} />);
+		if (again === 'quit') return;
+		if (again === 'same') { rematch = { oppTeam, oppName, oppTitle, oppSprite, oppLines }; } else rematch = null;
 	}
 }
 

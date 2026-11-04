@@ -79,7 +79,7 @@ export const NAMED: NamedTrainer[] = [
 	T('elesa', '카밀레', '하나 체육관 관장 · 전기', '하나', 'leader', ['emolga', 'jolteon', 'ampharos', 'galvantula', 'eelektross', 'zebstrika'], '눈부시게 반짝이는 승부를!'),
 	T('clay', '야콘', '하나 체육관 관장 · 땅', '하나', 'leader', ['gigalith', 'seismitoad', 'golurk', 'steelix', 'krookodile', 'excadrill'], '내 땅 포켓몬은 거칠다고!'),
 	T('skyla', '풍란', '하나 체육관 관장 · 비행', '하나', 'leader', ['sigilyph', 'unfezant', 'archeops', 'skarmory', 'braviary', 'swanna'], '하늘을 날듯이 즐거운 승부를!'),
-	T('brycen', '하치쿠', '하나 체육관 관장 · 얼음', '하나', 'leader', ['cryogonal', 'vanilluxe', 'weavile', 'abomasnow', 'mamoswine', 'beartic'], '얼음처럼 냉정하게 상대해 주지.'),
+	T('brycen', '담죽', '하나 체육관 관장 · 얼음', '하나', 'leader', ['cryogonal', 'vanilluxe', 'weavile', 'abomasnow', 'mamoswine', 'beartic'], '얼음처럼 냉정하게 상대해 주지.'),
 	T('drayden', '사간', '하나 체육관 관장 · 드래곤', '하나', 'leader', ['druddigon', 'altaria', 'flygon', 'dragonite', 'salamence', 'haxorus'], '드래곤의 긍지를 걸고!'),
 	T('alder', '노간주', '하나 챔피언', '하나', 'champion', ['bouffalant', 'accelgor', 'vanilluxe', 'escavalier', 'druddigon', 'volcarona'], '포켓몬과의 승부, 즐겨 보자!'),
 	T('iris', '아이리스', '하나 챔피언', '하나', 'champion', ['archeops', 'lapras', 'aggron', 'dragonite', 'hydreigon', 'haxorus'], '드래곤 포켓몬과 함께, 진심으로 갈게!'),
@@ -151,14 +151,19 @@ export const CLASSES: TrainerClass[] = [
 	{ name: '스키어', types: ['Ice'] }, { name: '오컬트마니아', types: ['Ghost'] }, { name: '카우걸', types: ['Normal', 'Ground'] },
 	{ name: '포켓몬브리더' }, { name: '가라테왕', types: ['Fighting'] }, { name: '레인저', types: ['Grass', 'Water'] },
 ];
-const NAMES = ['민준', '서연', '지호', '하윤', '도윤', '서진', '예준', '지우', '시우', '수아', '주원', '하은', '건우', '지민',
-	'현우', '채원', '유준', '다은', '은우', '소율', '정우', '예린', '승현', '지안', '태윤', '나연', '준서', '윤서', '민서', '재원',
-	'수빈', '도현', '하린', '시윤', '유나', '우진', '서윤', '지훈', '예은', '성민', '가은', '민혁', '보람', '한결', '세아', '태오'];
+const NAMES_M = ['민준', '지호', '도윤', '예준', '시우', '주원', '건우', '현우', '유준', '은우', '정우', '승현', '태윤', '준서', '재원',
+	'도현', '시윤', '우진', '지훈', '성민', '민혁', '한결', '태오', '서진', '지우', '하준', '선우', '연우', '이준', '수호'];
+const NAMES_F = ['서연', '하윤', '수아', '하은', '지민', '채원', '다은', '소율', '예린', '지안', '나연', '윤서', '민서', '수빈', '하린',
+	'유나', '서윤', '예은', '가은', '보람', '세아', '지유', '서현', '채은', '소희', '유진', '다인', '아린', '시아', '지원'];
+const FEMALE_SPRITES = new Set(['acetrainerf-gen4', 'lass-gen4', 'psychicf-gen4', 'pokemonrangerf-gen4', 'battlegirl-gen4', 'swimmerf-gen4',
+	'channeler-gin1', 'channeler-gen1', 'aromalady', 'beauty', 'skierf', 'hexmaniac-gen3', 'cowgirl', 'pokemonbreederf-gen4']);
 
 export function randomTrainer() {
 	const c = rng.pick(CLASSES);
 	const sprites = CLASS_SPRITES[c.name] || ['acetrainer-gen4'];
-	return { className: c.name, name: rng.pick(NAMES), types: c.types, sprite: rng.pick(sprites), lines: genericLines() };
+	const sprite = rng.pick(sprites);
+	const female = FEMALE_SPRITES.has(sprite);
+	return { className: c.name, name: rng.pick(female ? NAMES_F : NAMES_M), female, types: c.types, sprite, lines: genericLines() };
 }
 
 export function namedSprite(t: NamedTrainer) { return NAMED_SPRITE[t.id] || t.id; }

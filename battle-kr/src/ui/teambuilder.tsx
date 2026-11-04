@@ -201,7 +201,7 @@ function statValue(base: number, ev: number, iv: number, level: number, nat: num
 	return Math.floor((Math.floor((2 * base + iv + Math.floor(ev / 4)) * level / 100) + 5) * nat);
 }
 
-function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void }) {
+export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void }) {
 	const [s, setS] = useState<PSet>(JSON.parse(JSON.stringify(set)));
 	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' }>(null);
 	const up = (patch: Partial<PSet>) => { const n = { ...s, ...patch }; setS(n); onChange(n); };
@@ -297,7 +297,9 @@ function MovePicker({ gen, species, current, onPick, onBack }: { gen: Gen; speci
 
 function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) => void; onBack: () => void }) {
 	const [q, setQ] = useState('');
-	const items = useMemo(() => allItems(gen).filter(i => !/mail$|^tr\d|^tm\d|fossil|shard/.test(i.id)), [gen]);
+	const [filter, setFilter] = useState<'all' | 'mega' | 'z' | 'berry'>('all');
+	const items = useMemo(() => allItems(gen).filter(i => !/mail$|^tr\d|^tm\d|fossil|shard/.test(i.id))
+		.filter(i => filter === 'all' ? true : filter === 'mega' ? !!(i as any).mega : filter === 'z' ? !!(i as any).zt : i.id.endsWith('berry')), [gen, filter]);
 	const popular = ['leftovers', 'lifeorb', 'choicescarf', 'choiceband', 'choicespecs', 'focussash', 'sitrusberry', 'lumberry', 'expertbelt', 'blacksludge', 'eviolite', 'rockyhelmet', 'airballoon', 'lightclay'];
 	const shown = items.filter(i => matches(q, i.n, i.id)).sort((a, b) => {
 		const pa = popular.indexOf(a.id), pb = popular.indexOf(b.id);
@@ -305,6 +307,8 @@ function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) =>
 	});
 	return <Screen title="도구 고르기" onBack={onBack}>
 		<input class="search" placeholder="도구 검색" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} />
+		<div class="seg">{([['all', '전체'], ['mega', '메가스톤'], ['z', 'Z크리스탈'], ['berry', '나무열매']] as const).map(([k, l]) =>
+			<button class={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>)}</div>
 		<div class="pick-list">
 			<button class="pick-row" onClick={() => onPick('')}><span class="pick-name">없음</span></button>
 			{shown.map(i => <button class="pick-row" onClick={() => onPick(i.id)}>

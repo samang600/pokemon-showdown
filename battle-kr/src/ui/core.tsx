@@ -35,7 +35,7 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 	species: string; back?: boolean; shiny?: boolean; gen?: Gen; size?: number; anim?: boolean; cls?: string;
 }) {
 	const settings = loadSettings();
-	const id = spriteId(species);
+	const id = species === 'substitute' ? 'substitute' : spriteId(species);
 	const useAnim = (anim ?? settings.animatedSprites);
 	const candidates: string[] = [];
 	const sh = shiny ? '-shiny' : '';
@@ -46,6 +46,9 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 	const [key, setKey] = useState(id + back + shiny + gen + useAnim);
 	const curKey = id + back + shiny + gen + useAnim;
 	if (key !== curKey) { setKey(curKey); setIdx(0); }
+	if (idx >= candidates.length && id === 'substitute') {
+		return <div class={'sub-doll ' + (cls || '')}>대타</div>;
+	}
 	if (idx >= candidates.length) {
 		const s = speciesData(toID(species), gen);
 		const color = TYPE_COLOR[s?.t[0] || 'Normal'];

@@ -16,7 +16,7 @@ function ac(): AudioContext | null {
 	ctx = new C();
 	master = ctx!.createGain(); master.gain.value = 0.6; master.connect(ctx!.destination);
 	sfxBus = ctx!.createGain(); sfxBus.gain.value = 0.55; sfxBus.connect(master);
-	musicBus = ctx!.createGain(); musicBus.gain.value = 0.22; musicBus.connect(master);
+	musicBus = ctx!.createGain(); musicBus.gain.value = [0.1, 0.22, 0.38][(loadSettings().musicVolume || 2) - 1]; musicBus.connect(master);
 	noiseBuf = ctx!.createBuffer(1, ctx!.sampleRate, ctx!.sampleRate);
 	const d = noiseBuf.getChannelData(0);
 	for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -298,7 +298,7 @@ export function playMusic(name: string) {
 	if (!bgmFileMissing[name]) {
 		const el = new Audio(`bgm/${name}.mp3`);
 		el.loop = name !== 'victory';
-		el.volume = 0.5;
+		el.volume = [0.25, 0.5, 0.8][(loadSettings().musicVolume || 2) - 1];
 		el.addEventListener('error', () => { bgmFileMissing[name] = true; if (current === name && bgmEl === el) { bgmEl = null; startSynth(name, c); } });
 		el.addEventListener('canplay', () => { if (current === name && !hidden) el.play().catch(() => {}); });
 		bgmEl = el;
@@ -335,6 +335,10 @@ function startSynth(name: string, c: AudioContext) {
 			nextTime += stepDur; step++;
 		}
 	}, 60);
+}
+export function setMusicVolume(v: 1 | 2 | 3) {
+	if (musicBus) musicBus.gain.value = [0.1, 0.22, 0.38][v - 1];
+	if (bgmEl) bgmEl.volume = [0.25, 0.5, 0.8][v - 1];
 }
 export function stopMusic() {
 	if (timer) clearInterval(timer);
