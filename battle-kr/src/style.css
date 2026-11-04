@@ -343,10 +343,27 @@ b, strong { font-weight: normal; }
 	box-shadow: 0 0 0 1px #000, inset 0 0 0 1px rgba(255,255,255,.6); }
 .slot.tera .sprite { filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 4px var(--tera)); }
 .slot.dmax .sprite { filter: drop-shadow(0 0 3px #ff2040) drop-shadow(0 0 6px #ff2040); }
-.slot.own.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * 1.45)); }
+.slot.own.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * 1.25)); }
 .slot.foe.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * 1.1)); }
 .tera-pick { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 4px; }
 .tera-pick button { padding: 2px; opacity: .55; } .tera-pick button.on { opacity: 1; outline: 2px solid var(--yellow); }
 .move-grid { align-content: start; }
 .move-info { align-self: start; gap: 6px; }
 .move-panel { align-content: start; }
+
+/* 이펙트 */
+.fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.fxp { position: absolute; image-rendering: pixelated; }
+.fx-flash { position: absolute; inset: 0; }
+/* 트레이너 */
+.trainer-spr { position: absolute; z-index: 1; image-rendering: pixelated; transform-origin: bottom center; pointer-events: none; transition: transform .45s steps(6), opacity .45s steps(6); opacity: 0; }
+.trainer-spr.foe { left: 76.5%; top: 69%; transform: translate(60%, -100%) scale(calc(var(--s) * .9)); }
+.trainer-spr.own { left: 24%; top: 97%; transform: translate(-160%, -100%) scale(calc(var(--s) * 1.05)) scaleX(-1); }
+.trainer-spr.foe.in { opacity: 1; transform: translate(-50%, -100%) scale(calc(var(--s) * .9)); }
+.trainer-spr.own.in { opacity: 1; transform: translate(-50%, -100%) scale(calc(var(--s) * 1.05)) scaleX(-1); }
+.arena.t-foe .slot.foe { opacity: .15; transition: opacity .3s steps(3); }
+.trainer-big { display: block; margin: 0 auto; image-rendering: pixelated; height: 128px; filter: drop-shadow(0 3px 0 rgba(0,0,0,.6)); }
+.opt-icon .trainer-icon { height: 40px; width: auto; image-rendering: pixelated; }
+.avatar-pick { display: flex; gap: 4px; padding: 0 4px; }
+.avatar-pick button { flex: 1; padding: 4px; opacity: .5; text-align: center; font-size: 12px; } .avatar-pick button.on { opacity: 1; outline: 2px solid var(--yellow); }
+.avatar-pick img { height: 64px; image-rendering: pixelated; display: block; margin: 0 auto; }

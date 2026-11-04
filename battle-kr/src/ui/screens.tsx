@@ -50,13 +50,14 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 }
 
 /** 트레이너 등장 / 결과 같은 안내 화면 */
-export function InfoScreen({ title, heading, lines, sprites, gen, actions, banner, children }: {
-	title: string; heading?: string; lines?: string[]; sprites?: string[]; gen?: Gen; banner?: string; children?: ComponentChildren;
+export function InfoScreen({ title, heading, lines, sprites, gen, actions, banner, children, trainer }: {
+	title: string; heading?: string; lines?: string[]; sprites?: string[]; gen?: Gen; banner?: string; children?: ComponentChildren; trainer?: string;
 	actions: { label: string; kind?: 'primary' | 'ghost' | 'danger'; onClick: () => void }[];
 }) {
 	return <Screen title={title}>
 		<div class="info-screen">
 			{banner && <div class="banner">{banner}</div>}
+			{trainer && <img class="trainer-big" src={`https://play.pokemonshowdown.com/sprites/trainers/${trainer}.png`} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{heading && <h2>{heading}</h2>}
 			{sprites && <div class="preview-row big">{sprites.map(s => <Sprite species={s} gen={gen || 5} size={64} anim />)}</div>}
 			{lines?.map(l => <p class="pre">{l}</p>)}

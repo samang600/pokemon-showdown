@@ -8,12 +8,15 @@ import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natu
 import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords } from '../store';
 import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox } from './core';
+import * as FX from '../fx';
+import { sfx, moveSound, playMusic, stopMusic } from '../sound';
+import { SPRITE_URL } from '../trainer-lines';
 
 export interface BattleSetup {
 	gen: Gen;
 	doubles: boolean;
-	p1: { name: string; team: PSet[] };
-	p2: { name: string; title?: string; team: PSet[]; line?: string };
+	p1: { name: string; team: PSet[]; sprite?: string };
+	p2: { name: string; title?: string; team: PSet[]; line?: string; sprite?: string; lines?: { intro?: string; ace?: string; lose?: string; win?: string } };
 	aiSkill: number;
 	label?: string; // 예: '배틀타워 12번째'
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
@@ -94,6 +97,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const [menu, setMenu] = useState<'main' | 'moves' | 'switch' | 'target'>('main');
 	const [pendingMove, setPendingMove] = useState<{ num: number; target: string; gm?: string } | null>(null);
 	const [focus, setFocus] = useState(0);
+	const fxRef = useRef<HTMLDivElement | null>(null);
+	const [trainerVis, setTrainerVis] = useState<{ own: boolean; foe: boolean }>({ own: false, foe: false });
+	const aceShownRef = useRef(false);
 	const [gimmick, setGimmick] = useState('');
 	const arenaRef = useRef<HTMLDivElement | null>(null);
 	const [scale, setScale] = useState(1.5);
@@ -143,6 +149,37 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		setTimeout(() => { if (mon.anim === anim) { mon.anim = ''; rerender(); } }, ms);
 	}
 
+	/** 슬롯 위 포켓몬 몸통 중심 좌표 (arena 기준 px) */
+	function slotPoint(ident: string): FX.Pt | null {
+		const arena = arenaRef.current;
+		if (!arena || !ident || !/^p\d[a-c]/.test(ident)) return null;
+		const own = ident.startsWith('p1');
+		const el = arena.querySelector(`.slot.${own ? 'own' : 'foe'}.s${slotOf(ident)}`) as HTMLElement | null;
+		if (!el) return null;
+		const a = arena.getBoundingClientRect(), r = el.getBoundingClientRect();
+		return { x: r.left - a.left, y: r.top - a.top - (own ? 34 : 26) * scale * (setup.doubles ? 0.8 : 1) };
+	}
+	function moveFx(p: ParsedLine) {
+		const layer = fxRef.current;
+		const [, user, moveName, target] = p.args;
+		const md = moveData(toID(moveName), gen);
+		const type = md?.type || 'Normal', cat = md?.category || 'Physical';
+		moveSound(type, cat);
+		if (!layer || p.kw.still && !md) return;
+		const from = slotPoint(user);
+		const to = slotPoint(target || '') || from;
+		if (!from || !to) return;
+		if (p.kw.miss || p.kw.notarget) return;
+		if (cat === 'Status') {
+			FX.sparkle(layer, target && !target.startsWith(user.slice(0, 3)) ? to : from, type, scale, md?.target !== 'self' && !!target && target.slice(0, 2) !== user.slice(0, 2));
+		} else if (cat === 'Special' && to !== from) {
+			const t = FX.projectile(layer, from, to, type, scale);
+			setTimeout(() => FX.burst(layer, to, type, scale), Math.max(200, t - 150));
+		} else {
+			setTimeout(() => FX.burst(layer, to, type, scale), 180);
+		}
+	}
+
 	/** 줄 하나를 화면 상태에 반영. 연출 대기시간(ms) 반환 */
 	function apply(p: ParsedLine): number {
 		const scene = sceneRef.current;
@@ -162,17 +199,20 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			mon.fainted = false; mon.boosts = {}; mon.vol = new Set();
 			side.active[slot] = mon;
 			animate(mon, 'enter', 600);
+			sfx('ball');
 			return 350;
 		}
 		case 'faint': {
 			const mon = activeMon(args[1]);
 			if (mon) { mon.fainted = true; mon.hp = 0; animate(mon, 'faint', 900); }
+			sfx('faint');
 			return 500;
 		}
 		case 'move': {
 			const mon = activeMon(args[1]);
 			animate(mon, args[1].startsWith('p1') ? 'attack-own' : 'attack-foe', 450);
-			return 250;
+			moveFx(p);
+			return 550;
 		}
 		case '-damage': case '-heal': case '-sethp': {
 			const mon = activeMon(args[1]);
@@ -183,10 +223,15 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (hp.maxhp) mon.maxhp = hp.maxhp;
 			if (hp.status === 'fnt') { mon.hp = 0; }
 			else mon.status = hp.status;
-			if (cmd === '-damage' && !kw.from) animate(mon, 'hit', 450);
+			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); sfx('hit'); }
+			if (cmd === '-heal' && !kw.silent && fxRef.current) { const pt = slotPoint(args[1]); if (pt) FX.sparkle(fxRef.current, pt, 'Grass', scale); sfx('heal'); }
 			return before !== mon.hp ? 550 : 0;
 		}
-		case '-status': { const m = activeMon(args[1]); if (m) m.status = args[2]; return 0; }
+		case '-status': { const m = activeMon(args[1]); if (m) m.status = args[2]; sfx('status'); return 0; }
+		case '-supereffective': { sfx('hitSuper'); if (arenaRef.current) FX.shake(arenaRef.current, true); return 0; }
+		case '-crit': { sfx('crit'); if (fxRef.current) FX.flash(fxRef.current); return 0; }
+		case '-miss': { sfx('miss'); return 0; }
+		case '-zpower': { sfx('zmove'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, '#ffe040', scale); return 700; }
 		case '-curestatus': {
 			const side = scene[args[1].slice(0, 2) as 'p1' | 'p2'];
 			const nick = args[1].slice(args[1].indexOf(': ') + 2);
@@ -205,6 +250,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const n = parseInt(args[3], 10) * (cmd === '-boost' ? 1 : -1);
 				m.boosts[args[2]] = Math.max(-6, Math.min(6, (m.boosts[args[2]] || 0) + n));
 				animate(m, n > 0 ? 'boost' : 'unboost', 500);
+				sfx(n > 0 ? 'statUp' : 'statDown');
 			}
 			return 0;
 		}
@@ -233,6 +279,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			return 0;
 		}
 		case '-weather':
+			if (!kw.upkeep && args[1] !== 'none') sfx('weather');
 			if (!kw.upkeep) scene.weather = args[1] === 'none' ? '' : toID(args[1]);
 			return 0;
 		case '-fieldstart': scene.pseudo.add(effectInfo(args[1]).id); return 0;
@@ -256,6 +303,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (id.startsWith('stockpile')) { for (const k of [...m.vol]) if (k.startsWith('stockpile')) m.vol.delete(k); }
 			m.vol.add(id);
 			if (id === 'substitute') animate(m, 'enter', 400);
+			if (id === 'dynamax') { sfx('dynamax'); if (fxRef.current) FX.flash(fxRef.current, '#ff2040', 500); return 700; }
 			return 0;
 		}
 		case '-end': {
@@ -276,8 +324,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (m) { const d = parseDetails(args[2]); if (cmd === 'detailschange') m.species = d.species; else m.transformed = d.species; }
 			return 300;
 		}
-		case '-terastallize': { const m = activeMon(args[1]); if (m) { m.tera = args[2]; animate(m, 'enter', 600); } return 500; }
-		case '-mega': case '-primal': case '-burst': { const m = activeMon(args[1]); animate(m, 'enter', 600); return 400; }
+		case '-terastallize': {
+			const m = activeMon(args[1]);
+			if (m) { m.tera = args[2]; animate(m, 'enter', 600); }
+			sfx('tera'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, TYPE_COLOR[args[2]] || '#fff', scale);
+			return 800;
+		}
+		case '-mega': case '-primal': case '-burst': {
+			const m = activeMon(args[1]); animate(m, 'enter', 600);
+			sfx('mega'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, '#ff80ff', scale);
+			return 900;
+		}
 		case '-item': { const m = activeMon(args[1]); if (m) m.item = args[2]; return 0; }
 		case '-enditem': { const m = activeMon(args[1]); if (m) m.item = ''; return 0; }
 		case '-ability': { const m = activeMon(args[1]); if (m) m.ability = args[2]; return 0; }
@@ -306,6 +363,21 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			let text = '';
 			try { text = kt.render(p, prev); } catch (e) { console.error(e, line); }
 			const msgs = text ? text.split('\n').filter(Boolean) : [];
+			// 상대 마지막 포켓몬: 트레이너 등장 + 대사
+			if ((p.cmd === 'switch' || p.cmd === 'drag') && p.args[1].startsWith('p2') && !aceShownRef.current && setup.p2.lines?.ace) {
+				const sc = sceneRef.current.p2;
+				const fainted = sc.team.filter(m => m.fainted).length;
+				const alive = sc.teamSize - fainted;
+				const isNew = !sc.team.some(m => m.nick === p.args[1].slice(p.args[1].indexOf(': ') + 2));
+				if (alive === 1 && (isNew || sc.teamSize === sc.team.length) && sc.teamSize > 1) {
+					aceShownRef.current = true;
+					setTrainerVis({ own: false, foe: true });
+					showMsg(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}: “${setup.p2.lines.ace}”`);
+					await wait(SPEED_MS[settings.speed] * 1.5);
+					setTrainerVis({ own: false, foe: false });
+					await wait(300);
+				}
+			}
 			// 교체 메시지는 들어가기 전에
 			if (msgs.length && (p.cmd === 'switch' || p.cmd === 'drag') && prev && !prev.fainted && msgs.length > 1) {
 				showMsg(msgs.shift()!);
@@ -329,7 +401,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			setPhase('ended');
 			const win = s.winner === setup.p1.name;
 			updateRecords(r => { r.battles++; if (win) r.wins++; });
+			if (win) playMusic('victory'); else stopMusic();
 			showMsg(win ? `${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}에게 이겼다!` : '눈앞이 깜깜해졌다…');
+			const endLine = win ? setup.p2.lines?.lose : setup.p2.lines?.win;
+			if (endLine) {
+				await wait(SPEED_MS[settings.speed] * 1.2);
+				setTrainerVis({ own: false, foe: true });
+				showMsg(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}: “${endLine}”`);
+			}
 		} else {
 			beginInput();
 		}
@@ -425,15 +504,24 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		});
 		// 내 팀은 미리 등록 (교체 화면용)
 		const lines = s.start();
+		playMusic(setup.bg === 'champion' ? 'boss' : 'battle');
 		(async () => {
-			if (setup.p2.line) {
-				setMessage(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}: “${setup.p2.line}”`);
-				pushLog(`${setup.p2.name}: “${setup.p2.line}”`);
+			// 트레이너 등장 (양쪽 트레이너가 발판에 나타난 뒤 포켓몬을 내보냄)
+			setTrainerVis({ own: true, foe: true });
+			const who = `${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}`;
+			setMessage(`${who}${josaSubject(setup.p2.name)} 승부를 걸어왔다!`);
+			pushLog(`${who}${josaSubject(setup.p2.name)} 승부를 걸어왔다!`);
+			await wait(SPEED_MS[settings.speed] * 1.3);
+			const intro = setup.p2.lines?.intro || setup.p2.line;
+			if (intro) {
+				showMsg(`${who}: “${intro}”`);
 				await wait(SPEED_MS[settings.speed] * 1.6);
 			}
+			setTrainerVis({ own: false, foe: false });
+			await wait(350);
 			await play(lines);
 		})();
-		return () => { skipRef.current?.(); };
+		return () => { skipRef.current?.(); stopMusic(); };
 	}, []);
 
 	const scene = sceneRef.current;
@@ -441,6 +529,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	function finish() {
 		const s = sessionRef.current!;
+		stopMusic();
 		const win = s.winner === setup.p1.name;
 		const alive = (side: 'p1' | 'p2') => s.battle[side].pokemon.filter((p: any) => !p.fainted).length;
 		onEnd({ win, forfeit: !win && s.battle.turn > 0 && alive('p1') > 0, turns: s.battle.turn, p1Left: alive('p1'), p2Left: alive('p2') });
@@ -681,10 +770,13 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	const slots = setup.doubles ? [0, 1] : [0];
 	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')}>
-		<div class="arena" ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
+		<div class={'arena' + (trainerVis.foe ? ' t-foe' : '')} ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
 			<div class="arena-bg" />
+			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+			{setup.p1.sprite && <img class={'trainer-spr own' + (trainerVis.own ? ' in' : '')} src={SPRITE_URL(setup.p1.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{slots.map(i => spriteSlot(scene.p2.active[i] || null, false, i))}
 			{slots.map(i => spriteSlot(scene.p1.active[i] || null, true, i))}
+			<div class="fx-layer" ref={fxRef} />
 			<div class="hud-top">
 				<span class="badge">{setup.label || ''}</span>
 				<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
@@ -714,6 +806,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		</Modal>}
 		{detail && <MonDetail mon={detail.mon} own={detail.own} gen={gen} session={sessionRef.current!} onClose={() => setDetail(null)} />}
 	</div>;
+}
+
+function josaSubject(word: string) {
+	const ch = word.charCodeAt(word.length - 1);
+	if (ch >= 0xAC00 && ch <= 0xD7A3) return (ch - 0xAC00) % 28 ? '이' : '가';
+	return '가';
 }
 
 function josaTopic(word: string) {

@@ -6,6 +6,8 @@ import { TeamList, TeamEditor } from './ui/teambuilder';
 import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
 import { CUPS, NAMED } from './trainers';
+import { unlockAudio, playMusic, stopMusic, sfx } from './sound';
+import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
 
 const MODES = [
 	{ id: 'tower', name: '배틀타워', sub: '연승 도전', run: runTower, color: '#3a6df0', icon: '🗼', mon: 'garchomp' },
@@ -95,6 +97,15 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		</label>
 		<h3 class="sec">메시지 속도</h3>
 		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.speed === v ? 'on' : ''} onClick={() => up({ speed: v })}>{['느림', '보통', '빠름'][v - 1]}</button>)}</div>
+		<h3 class="sec">주인공 모습</h3>
+		<div class="avatar-pick">{PLAYER_SPRITES.map(p => <button class={s.playerSprite === p.id ? 'on' : ''} onClick={() => up({ playerSprite: p.id })}>
+			<img src={SPRITE_URL(p.id)} alt="" />{p.name}</button>)}</div>
+		<h3 class="sec">소리</h3>
+		<div class="seg">
+			<button class={s.sound ? 'on' : ''} onClick={() => { up({ sound: !s.sound }); }}>효과음 {s.sound ? '켜짐' : '꺼짐'}</button>
+			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
+		</div>
+		<p class="muted small">효과음과 배경음악은 이 앱에서 직접 합성한 칩튠입니다.</p>
 		<h3 class="sec">포켓몬 그림</h3>
 		<div class="seg">
 			<button class={s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: true })}>움직이는 그림</button>
@@ -120,6 +131,7 @@ function App() {
 			try { await m.run(); } catch (e: any) { console.error(e); toast('오류: ' + (e?.message || e)); }
 			setModeView(null);
 			setRoute('home');
+			playMusic('title');
 			return;
 		}
 		setRoute(r);
@@ -136,7 +148,7 @@ function App() {
 		};
 	});
 
-	if (route === 'title') return <TitleScreen onStart={() => setRoute('home')} />;
+	if (route === 'title') return <TitleScreen onStart={() => { unlockAudio(); playMusic('title'); sfx('select'); setRoute('home'); }} />;
 	if (route === 'mode') return modeView || <div class="loading">불러오는 중…</div>;
 	if (route === 'teams') {
 		if (editTeam) return <TeamEditor team={editTeam} onBack={() => setEditTeam(null)} />;
@@ -146,5 +158,13 @@ function App() {
 	if (route === 'settings') return <SettingsScreen onBack={() => setRoute('home')} />;
 	return <Home go={go} />;
 }
+
+// 버튼 누를 때 효과음
+document.addEventListener('pointerdown', e => {
+	const b = (e.target as HTMLElement).closest('button');
+	if (!b || (b as HTMLButtonElement).disabled) return;
+	unlockAudio();
+	sfx(b.getAttribute('aria-label') === '뒤로' || b.textContent?.includes('뒤로') ? 'back' : 'select');
+}, true);
 
 render(<App />, document.getElementById('app')!);

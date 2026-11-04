@@ -3,7 +3,7 @@
 스마트폰에서 바로 하는 한국어 포켓몬 배틀 앱. 배틀 계산은 이 저장소의 **Pokémon Showdown 시뮬레이터(`sim/`)를 그대로** 브라우저에서 돌립니다.
 
 ## 받기
-- **안드로이드**: [`release/BattleSimKR-v1.1.0.apk`](release/BattleSimKR-v1.1.0.apk) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
+- **안드로이드**: [`release/BattleSimKR-v1.2.0.apk`](release/BattleSimKR-v1.2.0.apk) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
 - **아이폰·PC**: `dist/index.html` 한 파일을 브라우저로 열거나 웹에 올리면 됩니다 (홈 화면에 추가 → 앱처럼 실행)
 - 포켓몬 그림은 인터넷 연결 시 Showdown 스프라이트 서버에서 받아 표시합니다 (오프라인이면 이름 카드)
 
@@ -32,6 +32,16 @@
 - [FredodaFred/pokemon-battle-ai](https://github.com/FredodaFred/pokemon-battle-ai) 의 규칙 기반 점수(추가효과·자해 고려) 아이디어 반영.
 - [atw1020/Pokemon_Battle_AI](https://github.com/atw1020/Pokemon_Battle_AI) 는 학습된 모델이 필요한 TensorFlow 신경망이고, 저자 README에 따르면 정확도가 50% 수준이라 사용하지 않았습니다.
 - 데미지는 실제 능력치(노력치·성격·랭크)로 계산하고, 난이도(skill)가 낮을수록 실수가 잦아집니다.
+
+## 트레이너 · 연출 · 소리
+- 트레이너 스프라이트: Showdown 스프라이트 서버(포켓몬 그림과 같은 곳)에서 실행 중에 불러옵니다. 네임드 트레이너 61명 + 일반 트레이너 직업 27종(남/여) + 타워 타이쿤·팩토리 헤드, 주인공 모습 4종 선택.
+- 대사(`src/trainer-lines.ts`): 승부 시작 · 마지막 포켓몬을 낼 때 · 이겼을 때 · 졌을 때. 모두 이 앱을 위해 새로 쓴 대사입니다.
+- 배틀 시작 시 양쪽 트레이너가 발판에 등장 → 대사 → 포켓몬 등장, 상대 마지막 포켓몬 때 트레이너 재등장, 승부 후 트레이너 대사.
+- 기술 이펙트(`src/fx.ts`): 타입·분류별 도트 파티클(특수기는 탄, 물리기는 타격·베기, 변화기는 반짝이), 효과 굉장 시 화면 흔들림, 급소 번쩍임,
+  메가진화·Z파워·테라스탈 빛기둥, 다이맥스 붉은 빛.
+- 효과음·배경음악(`src/sound.ts`): WebAudio 로 합성한 칩튠 (타입별 기술음, 타격·급소·빗나감·기절·능력 변화·회복·상태이상·볼, 기믹 효과음,
+  타이틀·배틀·보스·승리 음악). 설정에서 끄고 켤 수 있습니다.
+- PokeRogue·Essentials 의 애니메이션·효과음 파일은 공식 게임에서 추출된 것이 대부분이라 가져오지 않고, 같은 느낌으로 직접 만들었습니다.
 
 ## 그래픽
 - 창틀·버튼: [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon) 의 `chrome.png` 9-slice (GPL-3.0, `src/ui-assets/LICENSE-SPD-GPL3.txt`)

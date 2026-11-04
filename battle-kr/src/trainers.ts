@@ -1,5 +1,6 @@
 /** 네임드 트레이너 · 일반 트레이너 · PWT 대회 데이터 */
 import { rng } from './sets';
+import { CLASS_SPRITES, NAMED_SPRITE, NAMED_LINES, genericLines } from './trainer-lines';
 
 export interface NamedTrainer {
 	id: string;
@@ -106,7 +107,13 @@ const NAMES = ['민준', '서연', '지호', '하윤', '도윤', '서진', '예�
 
 export function randomTrainer() {
 	const c = rng.pick(CLASSES);
-	return { className: c.name, name: rng.pick(NAMES), types: c.types };
+	const sprites = CLASS_SPRITES[c.name] || ['acetrainer-gen4'];
+	return { className: c.name, name: rng.pick(NAMES), types: c.types, sprite: rng.pick(sprites), lines: genericLines() };
+}
+
+export function namedSprite(t: NamedTrainer) { return NAMED_SPRITE[t.id] || t.id; }
+export function namedLines(t: NamedTrainer) {
+	return { intro: t.line || '', ...(NAMED_LINES[t.id] || genericLines()) };
 }
 
 // ── PWT 대회 ──
