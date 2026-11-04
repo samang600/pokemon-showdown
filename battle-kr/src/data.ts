@@ -188,3 +188,9 @@ export const ALL_TYPES = ['Normal', 'Fire', 'Water', 'Electric', 'Grass', 'Ice',
 
 /** 배틀 중 부르는 이름 (폼 표기 없이) */
 export function nickKo(id: string) { return speciesKo(id).replace(/\s*\(.*\)$/, ''); }
+
+/** 실제 능력치 계산 */
+export function calcStat(base: number, ev: number, iv: number, level: number, natMul: number, hp: boolean) {
+	if (hp) return base === 1 ? 1 : Math.floor((2 * base + iv + Math.floor(ev / 4)) * level / 100) + level + 10;
+	return Math.floor((Math.floor((2 * base + iv + Math.floor(ev / 4)) * level / 100) + 5) * natMul);
+}

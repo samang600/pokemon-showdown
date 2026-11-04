@@ -8,6 +8,7 @@ import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natu
 import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords } from '../store';
 import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox } from './core';
+import { MonSheet, type LiveInfo } from './screens';
 import * as FX from '../fx';
 import { sfx, moveSound, playMusic, stopMusic } from '../sound';
 import { SPRITE_URL } from '../trainer-lines';
@@ -97,6 +98,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const [menu, setMenu] = useState<'main' | 'moves' | 'switch' | 'target'>('main');
 	const [pendingMove, setPendingMove] = useState<{ num: number; target: string; gm?: string } | null>(null);
 	const [focus, setFocus] = useState(0);
+	const [sheet, setSheet] = useState<{ idx: number; canSwitch: boolean } | null>(null);
 	const fxRef = useRef<HTMLDivElement | null>(null);
 	const [trainerVis, setTrainerVis] = useState<{ own: boolean; foe: boolean }>({ own: false, foe: false });
 	const aceShownRef = useRef(false);
@@ -660,8 +662,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const isActive = p.active;
 				const fainted = hp.status === 'fnt';
 				const disabled = isActive || fainted || trapped || chosen.has(i + 1);
-				return <button key={i} class={'switch-btn' + (isActive ? ' active' : '')} disabled={disabled}
-					onClick={() => pushChoice(`switch ${i + 1}`)}>
+				return <button key={i} class={'switch-btn' + (isActive ? ' active' : '') + (disabled ? ' off' : '')}
+					onClick={() => setSheet({ idx: i, canSwitch: !disabled })}>
 					<span class="sw-sprite"><Sprite species={species} gen={gen} size={40} anim={false} /></span>
 					<span class="sw-info">
 						<b>{nick}</b>
@@ -755,6 +757,24 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		return <div class={'balls ' + (own ? 'own' : 'foe')}>{dots}</div>;
 	};
 
+	/** 시뮬레이터의 내 포켓몬 → 상세 시트용 데이터 */
+	function liveOf(idx: number): { set: PSet; live: LiveInfo } | null {
+		const sm = sessionRef.current?.battle.p1.pokemon[idx];
+		if (!sm) return null;
+		const pp: LiveInfo['pp'] = {};
+		const moves = sm.baseMoveSlots.map((m: any) => {
+			const id = m.id === 'hiddenpower' && sm.hpType ? 'hiddenpower' + sm.hpType.toLowerCase() : m.id;
+			pp[toID(id)] = [m.pp, m.maxpp];
+			return id;
+		});
+		return {
+			set: { name: sm.name, species: sm.species.name, item: sm.item, ability: sm.ability, moves, nature: sm.set.nature || 'serious',
+				evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...sm.set.evs }, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31, ...sm.set.ivs },
+				level: sm.level, shiny: sm.set.shiny, teraType: sm.terastallized || sm.teraType },
+			live: { hp: sm.hp, maxhp: sm.maxhp, status: sm.status, pp, stats: { hp: sm.maxhp, ...sm.storedStats }, boosts: sm.isActive ? sm.boosts : undefined },
+		};
+	}
+
 	// 내 팀 순서대로 미리 채우기
 	if (reqMon && scene.p1.team.length < reqMon.length) {
 		for (const p of reqMon) {
@@ -804,7 +824,20 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		{showLog && <Modal title="배틀 기록" onClose={() => setShowLog(false)}>
 			<div class="log">{log.map((l, i) => <div key={i} class={l.startsWith('──') ? 'log-turn' : ''}>{l}</div>)}</div>
 		</Modal>}
-		{detail && <MonDetail mon={detail.mon} own={detail.own} gen={gen} session={sessionRef.current!} onClose={() => setDetail(null)} />}
+		{sheet && (() => {
+			const d = liveOf(sheet.idx);
+			if (!d) return null;
+			const reason = !sheet.canSwitch ? (d.live.hp <= 0 ? '쓰러져서 낼 수 없다.' : reqMon?.[sheet.idx]?.active ? '지금 배틀에 나와 있다.' : activeReq?.trapped ? '도망칠 수 없어서 교체할 수 없다!' : '') : '';
+			return <MonSheet set={d.set} gen={gen} live={d.live} note={reason} onClose={() => setSheet(null)} actions={phase === 'input' && menu === 'switch' ? [
+				{ label: req?.forceSwitch ? '내보낸다' : '교체한다', disabled: !sheet.canSwitch, onClick: () => { const i = sheet.idx; setSheet(null); pushChoice(`switch ${i + 1}`); } },
+				{ label: '닫기', kind: 'ghost', onClick: () => setSheet(null) },
+			] : [{ label: '닫기', kind: 'ghost', onClick: () => setSheet(null) }]} />;
+		})()}
+		{detail && (detail.own ? (() => {
+			const idx = sessionRef.current!.battle.p1.pokemon.findIndex((p: any) => p.name === detail.mon.nick);
+			const d = idx >= 0 ? liveOf(idx) : null;
+			return d ? <MonSheet set={d.set} gen={gen} live={d.live} onClose={() => setDetail(null)} actions={[{ label: '닫기', kind: 'ghost', onClick: () => setDetail(null) }]} /> : null;
+		})() : <MonDetail mon={detail.mon} own={detail.own} gen={gen} session={sessionRef.current!} onClose={() => setDetail(null)} />)}
 	</div>;
 }
 
