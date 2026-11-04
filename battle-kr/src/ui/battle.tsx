@@ -23,7 +23,7 @@ export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p
 interface Mon {
 	ident: string; nick: string; species: string; level: number; gender: string; shiny: boolean;
 	hp: number; maxhp: number; status: string; fainted: boolean; boosts: { [k: string]: number };
-	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean;
+	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string;
 }
 interface SideScene { id: string; name: string; active: (Mon | null)[]; team: Mon[]; cond: { [id: string]: number }; teamSize: number }
 interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number }
@@ -34,7 +34,7 @@ const VOLATILE_KO: { [id: string]: string } = {
 	curse: '저주', nightmare: '악몽', ingrain: '뿌리박기', aquaring: '아쿠아링', magnetrise: '전자부유', embargo: '금제',
 	healblock: '회복봉인', focusenergy: '기충전', disable: '사슬묶기', flashfire: '타오르는불꽃', slowstart: '슬로스타트',
 	charge: '충전', stockpile1: '비축 1', stockpile2: '비축 2', stockpile3: '비축 3', typechange: '타입 변화', smackdown: '떨어뜨리기',
-	telekinesis: '텔레키네시스', autotomize: '바디퍼지', imprison: '봉인', uproar: '소란', partiallytrapped: '조이기',
+	telekinesis: '텔레키네시스', dynamax: '다이맥스', autotomize: '바디퍼지', imprison: '봉인', uproar: '소란', partiallytrapped: '조이기',
 	trapped: '도망 불가', foresight: '꿰뚫어보기', miracleeye: '미라클아이', powertrick: '파워트릭', destinybond: '길동무',
 };
 const SIDE_KO: { [id: string]: string } = {
@@ -92,8 +92,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const [slotIdx, setSlotIdx] = useState(0);
 	const [parts, setParts] = useState<string[]>([]);
 	const [menu, setMenu] = useState<'main' | 'moves' | 'switch' | 'target'>('main');
-	const [pendingMove, setPendingMove] = useState<{ num: number; target: string } | null>(null);
+	const [pendingMove, setPendingMove] = useState<{ num: number; target: string; gm?: string } | null>(null);
 	const [focus, setFocus] = useState(0);
+	const [gimmick, setGimmick] = useState('');
 	const arenaRef = useRef<HTMLDivElement | null>(null);
 	const [scale, setScale] = useState(1.5);
 	useEffect(() => {
@@ -275,6 +276,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (m) { const d = parseDetails(args[2]); if (cmd === 'detailschange') m.species = d.species; else m.transformed = d.species; }
 			return 300;
 		}
+		case '-terastallize': { const m = activeMon(args[1]); if (m) { m.tera = args[2]; animate(m, 'enter', 600); } return 500; }
+		case '-mega': case '-primal': case '-burst': { const m = activeMon(args[1]); animate(m, 'enter', 600); return 400; }
 		case '-item': { const m = activeMon(args[1]); if (m) m.item = args[2]; return 0; }
 		case '-enditem': { const m = activeMon(args[1]); if (m) m.item = ''; return 0; }
 		case '-ability': { const m = activeMon(args[1]); if (m) m.ability = args[2]; return 0; }
@@ -343,6 +346,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	function beginInput() {
 		setParts([]);
+		setGimmick('');
 		setPendingMove(null);
 		const req = sessionRef.current!.p1Request;
 		if (!req || req.wait) { setPhase('playing'); return; }
@@ -447,10 +451,18 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const activeReq = req?.active?.[slotIdx];
 	const curMon = scene.p1.active[slotIdx];
 
-	const moveInfo = (m: any) => {
+	const moveInfo = (m: any, i = -1) => {
 		const md = moveData(m.id, gen);
 		let type = md?.type || 'Normal';
 		let name = moveKo(m.move);
+		if (i >= 0 && gimmick === 'zmove') {
+			const z = activeReq?.canZMove?.[i];
+			if (z) name = moveKo(z.move);
+		}
+		const dmaxed = activeReq?.maxMoves && !activeReq?.canDynamax;
+		if (i >= 0 && (gimmick === 'dynamax' || dmaxed) && activeReq?.maxMoves?.maxMoves?.[i]) {
+			name = moveKo(activeReq.maxMoves.maxMoves[i].move);
+		}
 		if (m.id === 'hiddenpower') {
 			const t = /Hidden Power (\w+)/.exec(m.move)?.[1];
 			if (t) { type = t; name = `잠재파워(${typeKo(t)})`; }
@@ -472,11 +484,24 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!activeReq) return null;
 		const focusM = activeReq.moves[focus] || activeReq.moves[0];
 		const fi = focusM ? moveInfo(focusM) : null;
+		const usedG = parts.join(' ');
+		const g: [string, string][] = [];
+		if (!/ mega| ultra/.test(usedG)) {
+			if (activeReq.canMegaEvo) g.push(['mega', '메가진화']);
+			if (activeReq.canMegaEvoX) g.push(['megax', '메가진화 X']);
+			if (activeReq.canMegaEvoY) g.push(['megay', '메가진화 Y']);
+			if (activeReq.canUltraBurst) g.push(['ultra', '울트라버스트']);
+		}
+		if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워']);
+		if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스']);
+		if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈(${typeKo(activeReq.canTerastallize)})`]);
 		return <div class="move-panel">
+			{g.length > 0 && <div class="gimmicks">{g.map(([k, label]) =>
+				<button class={'btn small gm gm-' + k + (gimmick === k ? ' on' : '')} onClick={() => setGimmick(gimmick === k ? '' : k)}>{gimmick === k ? '✔ ' : ''}{label}</button>)}</div>}
 			<div class="move-grid win-dark">
 				{activeReq.moves.map((m: any, i: number) => {
-					const { type, name, eff } = moveInfo(m);
-					const disabled = m.disabled || (m.pp === 0 && m.id !== 'struggle');
+					const { type, name, eff } = moveInfo(m, i);
+					const disabled = m.disabled || (m.pp === 0 && m.id !== 'struggle') || (gimmick === 'zmove' && !activeReq.canZMove?.[i]);
 					return <button key={i} class={'move-btn' + (focus === i ? ' focus' : '')} disabled={disabled}
 						style={{ '--tc': TYPE_COLOR[type] } as any}
 						onPointerDown={() => setFocus(i)} onClick={() => onMove(i + 1, m)}>
@@ -498,13 +523,19 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	};
 
 	function onMove(num: number, m: any) {
-		const target = m.target || moveData(m.id, gen)?.target || 'normal';
+		const locked = m.pp === undefined && m.maxpp === undefined;
+		const dmaxed = activeReq?.maxMoves && !activeReq?.canDynamax;
+		let target = locked ? 'self' : m.target || moveData(m.id, gen)?.target || 'normal';
+		if (dmaxed || gimmick === 'dynamax') target = activeReq.maxMoves?.maxMoves?.[num - 1]?.target || 'adjacentFoe';
+		if (gimmick === 'zmove') target = activeReq.canZMove?.[num - 1]?.target || target;
+		const gm = gimmick ? ' ' + gimmick : '';
+		setGimmick('');
 		if (setup.doubles && ['normal', 'any', 'adjacentFoe', 'adjacentAlly', 'adjacentAllyOrSelf'].includes(target)) {
-			setPendingMove({ num, target });
+			setPendingMove({ num, target, gm });
 			setMenu('target');
 			return;
 		}
-		pushChoice(`move ${num}`);
+		pushChoice(`move ${num}${gm}`);
 	}
 
 	const renderTargets = () => {
@@ -514,7 +545,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (t !== 'adjacentAlly' && t !== 'adjacentAllyOrSelf') {
 			scene.p2.active.forEach((m, i) => {
 				if (!m || m.fainted) return;
-				btns.push(<button class="btn target foe" onClick={() => pushChoice(`move ${pendingMove.num} ${i + 1}`)}>상대 {m.nick}</button>);
+				btns.push(<button class="btn target foe" onClick={() => pushChoice(`move ${pendingMove.num} ${i + 1}${pendingMove.gm || ''}`)}>상대 {m.nick}</button>);
 			});
 		}
 		scene.p1.active.forEach((m, i) => {
@@ -522,7 +553,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			const self = i === slotIdx;
 			if (self && t !== 'adjacentAllyOrSelf') return;
 			if (!self && t === 'adjacentFoe') return;
-			btns.push(<button class="btn target ally" onClick={() => pushChoice(`move ${pendingMove.num} -${i + 1}`)}>{self ? '자신' : '같은 편'} {m.nick}</button>);
+			btns.push(<button class="btn target ally" onClick={() => pushChoice(`move ${pendingMove.num} -${i + 1}${pendingMove.gm || ''}`)}>{self ? '자신' : '같은 편'} {m.nick}</button>);
 		});
 		return <div class="target-grid">{btns}</div>;
 	};
@@ -608,13 +639,15 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				{boosts.map(([k, v]) => <span class={'chip ' + (v > 0 ? 'up' : 'down')}>{STAT_SHORT[k] || STAT_KO[k]}{v > 0 ? '+' : ''}{v}</span>)}
 				{vols.map(v => <span class="chip vol">{VOLATILE_KO[v]}</span>)}
 			</div>}
+			{mon.tera && <span class="tera-badge" style={{ background: TYPE_COLOR[mon.tera] }}>테라 {typeKo(mon.tera)}</span>}
 		</div>;
 	};
 
 	const spriteSlot = (mon: Mon | null, own: boolean, i: number) => {
 		const pos = (own ? 'own' : 'foe') + ' s' + i;
 		if (!mon || (mon.fainted && !mon.anim)) return <div class={'slot ' + pos} key={i} />;
-		return <div class={'slot ' + pos + ' ' + (mon.anim || '')} key={i} onClick={() => setDetail({ mon, own })}>
+		return <div class={'slot ' + pos + ' ' + (mon.anim || '') + (mon.vol.has('dynamax') ? ' dmax' : '') + (mon.tera ? ' tera' : '')} key={i}
+			style={mon.tera ? { '--tera': TYPE_COLOR[mon.tera] } as any : undefined} onClick={() => setDetail({ mon, own })}>
 			{mon.vol.has('substitute') ? <div class="sub-doll">대타</div> :
 				<Sprite species={mon.transformed || mon.species} back={own} shiny={mon.shiny} gen={gen} size={400} cls={own ? 'back' : 'front'} />}
 		</div>;

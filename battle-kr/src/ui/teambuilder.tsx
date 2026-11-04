@@ -2,7 +2,7 @@
 import { h } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
-	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, type Gen, type StatID } from '../data';
+	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, type Gen, type StatID } from '../data';
 import { randomSetFor, applySpread, randomTeam, type PSet } from '../sets';
 import { loadTeams, upsertTeam, deleteTeam, newId, type SavedTeam } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast, confirmBox } from './core';
@@ -37,22 +37,20 @@ export function newSet(species: string, gen: Gen): PSet {
 export function TeamList({ onBack, onEdit }: { onBack: () => void; onEdit: (t: SavedTeam) => void }) {
 	const [teams, setTeams] = useState(loadTeams());
 	const create = (gen: Gen, random: boolean) => {
-		const t: SavedTeam = { id: newId(), name: `${gen}세대 팀 ${teams.length + 1}`, gen, sets: random ? randomTeam({ gen, size: 6, minBst: 470 }) : [], updated: Date.now() };
+		const t: SavedTeam = { id: newId(), name: `팀 ${teams.length + 1}`, gen, sets: random ? randomTeam({ gen, size: 6, minBst: 470 }) : [], updated: Date.now() };
 		upsertTeam(t);
 		onEdit(t);
 	};
 	return <Screen title="팀 편집" onBack={onBack}>
 		<div class="row wrap">
-			<button class="btn primary" onClick={() => create(4, false)}>+ 4세대 팀</button>
-			<button class="btn primary" onClick={() => create(5, false)}>+ 5세대 팀</button>
-			<button class="btn ghost" onClick={() => create(4, true)}>🎲 4세대 추천팀</button>
-			<button class="btn ghost" onClick={() => create(5, true)}>🎲 5세대 추천팀</button>
+			<button class="btn primary" onClick={() => create(9, false)}>+ 새 팀</button>
+			<button class="btn ghost" onClick={() => create(9, true)}>🎲 추천 팀 받기</button>
 		</div>
 		<ImportBox onImported={() => setTeams(loadTeams())} />
 		{!teams.length && <p class="empty-msg">아직 팀이 없습니다. 새 팀을 만들거나 추천팀을 받아 보세요.</p>}
 		<div class="card-list">
 			{teams.map(t => <div class="team-row clickable" onClick={() => onEdit(t)}>
-				<div class="team-row-head"><b>{t.name}</b><span class="tag">{t.gen}세대</span><span class="muted">{t.sets.length}/6</span></div>
+				<div class="team-row-head"><b>{t.name}</b><span class="muted">{t.sets.length}/6</span></div>
 				<div class="preview-row">{t.sets.map(s => <MiniSprite species={s.species} gen={t.gen} size={40} />)}</div>
 			</div>)}
 		</div>
@@ -84,7 +82,7 @@ export function importText(text: string, gen: Gen): PSet[] {
 		const sd = speciesData(sid, gen);
 		if (!sd) continue;
 		const set: PSet = {
-			name: speciesKo(sid), species: sd.en, item: item ? koLookup(item) : '', ability: sd.ab[0], moves: [], nature: 'serious',
+			name: nickKo(sid), species: sd.en, item: item ? koLookup(item) : '', ability: sd.ab[0], moves: [], nature: 'serious',
 			evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level: 50,
 		};
 		for (const l of lines.slice(1)) {
@@ -120,11 +118,10 @@ export function exportText(sets: PSet[]) {
 function ImportBox({ onImported }: { onImported: () => void }) {
 	const [open, setOpen] = useState(false);
 	const [text, setText] = useState('');
-	const [gen, setGen] = useState<Gen>(4);
+	const gen: Gen = 9;
 	if (!open) return <button class="btn ghost small" onClick={() => setOpen(true)}>텍스트로 팀 가져오기</button>;
 	return <Modal title="팀 가져오기" onClose={() => setOpen(false)}>
 		<p class="muted">쇼다운 형식(영어/한글 이름) 텍스트를 붙여 넣으세요.</p>
-		<div class="seg">{[4, 5].map(g => <button class={gen === g ? 'on' : ''} onClick={() => setGen(g as Gen)}>{g}세대</button>)}</div>
 		<textarea rows={10} value={text} onInput={e => setText((e.target as HTMLTextAreaElement).value)}
 			placeholder={'한카리아스 @ 구애스카프\n특성: 모래숨기\n노력치: 252 공격 / 4 HP / 252 스피드\n명랑 성격\n- 역린\n- 지진\n- 스톤에지\n- 불꽃엄니'} />
 		<div class="row end">
@@ -163,7 +160,7 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 		<label class="field-label">팀 이름
 			<input value={team.name} onInput={e => commit({ ...team, name: (e.target as HTMLInputElement).value })} />
 		</label>
-		<p class="muted">{g}세대 규칙 · 레벨 50 · 같은 포켓몬은 1마리씩</p>
+		<p class="muted">내셔널 도감 · 레벨 50 · 같은 포켓몬은 1마리씩 · 메가스톤·Z크리스탈 사용 가능</p>
 		<div class="card-list">
 			{team.sets.map((s, i) => <SetCard set={s} gen={g} onClick={() => setEditing(i)}>
 				<div class="reorder" onClick={e => e.stopPropagation()}>
@@ -255,6 +252,8 @@ function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet; gen: G
 		<h3 class="sec">성격</h3>
 		<button class="option" onClick={() => setPicker({ kind: 'nature' })}><span class="opt-body"><b>{natureKo(s.nature)}</b>
 			<small>{nat?.p ? `${STAT_KO[nat.p]} ▲ / ${STAT_KO[nat.m]} ▼` : '능력 변화 없음'}</small></span></button>
+		<h3 class="sec">테라스탈 타입</h3>
+		<div class="tera-pick">{ALL_TYPES.map(t => <button class={(s.teraType || sd.t[0]) === t ? 'on' : ''} onClick={() => up({ teraType: t })}><TypeBadge type={t} small /></button>)}</div>
 		<h3 class="sec">노력치 <small class="muted">{evTotal}/510</small>
 			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: n.evs, nature: n.nature }); }}>자동 배분</button></h3>
 		<div class="ev-table">
@@ -298,7 +297,7 @@ function MovePicker({ gen, species, current, onPick, onBack }: { gen: Gen; speci
 
 function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) => void; onBack: () => void }) {
 	const [q, setQ] = useState('');
-	const items = useMemo(() => allItems(gen).filter(i => !/mail$|^tr\d|^tm\d|fossil|shard|scarf$/.test(i.id) || i.id === 'choicescarf'), [gen]);
+	const items = useMemo(() => allItems(gen).filter(i => !/mail$|^tr\d|^tm\d|fossil|shard/.test(i.id)), [gen]);
 	const popular = ['leftovers', 'lifeorb', 'choicescarf', 'choiceband', 'choicespecs', 'focussash', 'sitrusberry', 'lumberry', 'expertbelt', 'blacksludge', 'eviolite', 'rockyhelmet', 'airballoon', 'lightclay'];
 	const shown = items.filter(i => matches(q, i.n, i.id)).sort((a, b) => {
 		const pa = popular.indexOf(a.id), pb = popular.indexOf(b.id);

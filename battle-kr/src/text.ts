@@ -54,6 +54,8 @@ const DEFAULT_OVERRIDE: { [k: string]: string } = {
 	ohko: '  일격필살!',
 	immune: '  {POKEMON}에게는 효과가 없는 것 같다...',
 	fail: '  그러나 실패하고 말았다!!',
+	terastallize: '  {POKEMON:topic} 테라스탈해서 {TYPE}타입이 되었다!',
+	ultraBurst: '  {POKEMON:subject} 빛을 발하며 울트라버스트했다!',
 	setHpMax: '  {POKEMON}의 {STAT:subject} 최대로 올라갔다!',
 	nothing: '  그러나 아무 일도 일어나지 않았다!',
 };
@@ -67,6 +69,7 @@ const EFFECT_OVERRIDE: { [id: string]: { [k: string]: string } } = {
 	forewarn: { activateNoTarget: '  {POKEMON:topic} {MOVE:object} 간파했다!' },
 	persistent: { activate: '  {POKEMON:topic} {MOVE}의 효과를 2턴 늘렸다!' },
 	intimidate: {},
+	dynamax: { start: '  {POKEMON:topic} 다이맥스했다!', end: '  {POKEMON:topic} 원래 모습으로 돌아왔다!' },
 	partiallytrapped: {},
 	sitrusberry: {},
 };
@@ -107,6 +110,7 @@ export interface TextContext {
 
 export class KoreanText {
 	weather = '';
+	justDynamaxed = '';
 	constructor(public ctx: TextContext) {}
 
 	private lookup(entry: any, type: string): string | null | undefined {
@@ -209,7 +213,7 @@ export class KoreanText {
 			const side = this.sideOf(ident);
 			const species = speciesKo(args[2].split(',')[0]);
 			const nick = this.nickname(ident);
-			const fullname = nick === species ? nick : `${nick}(${species})`;
+			const fullname = nick === species || species.startsWith(nick) || species.includes(nick) ? nick : `${nick}(${species})`;
 			let out = '';
 			if (prevActive && !prevActive.fainted && cmd === 'switch') {
 				const fromEffect = kw.from ? '' : '';
@@ -277,7 +281,7 @@ export class KoreanText {
 		}
 		case '-heal': {
 			const [, ident] = args;
-			if (kw.silent) return '';
+			if (kw.silent || this.justDynamaxed === ident) { this.justDynamaxed = ''; return ''; }
 			const from = effectInfo(kw.from);
 			if (kw.wisher) return F(T('heal', 'wish'), { POKEMON: pk(ident), NICKNAME: kw.wisher });
 			if (from.id && this.hasTemplate('heal', from.id)) {
@@ -397,7 +401,25 @@ export class KoreanText {
 			return '';
 		case '-transform':
 			return F(T('transform', 'transform'), { POKEMON: pk(args[1]), SPECIES: speciesKo(this.nickname(args[2])) });
+		case '-mega': {
+			const [, ident, , item] = args;
+			return F(T('mega'), { POKEMON: pk(ident), ITEM: itemKo(item || ''), TRAINER: this.ctx.trainerName(this.sideOf(ident)) });
+		}
+		case '-primal':
+			return F(T('primal'), { POKEMON: pk(args[1]) });
+		case '-burst':
+			return F(DEFAULT_OVERRIDE.ultraBurst, { POKEMON: pk(args[1]) });
+		case '-zpower':
+			return F(T('zPower'), { POKEMON: pk(args[1]) });
+		case '-zbroken':
+			return F(T('zBroken'), { POKEMON: pk(args[1]) });
+		case '-terastallize':
+			return F(DEFAULT_OVERRIDE.terastallize, { POKEMON: pk(args[1]), TYPE: typeKo(args[2]) });
 		case '-formechange': case 'detailschange': {
+			const sp = (args[2] || '').split(',')[0];
+			if (cmd === 'detailschange' && /-Mega/.test(sp)) {
+				return F(T('transformMega'), { POKEMON: pk(args[1]), SPECIES: speciesKo(sp.replace(/-Mega.*$/, '')) });
+			}
 			if (!kw.msg) return '';
 			const from = effectInfo(kw.from);
 			if (from.id && this.hasTemplate('transform', from.id)) return F(T('transform', from.id), { POKEMON: pk(args[1]) });
@@ -407,6 +429,7 @@ export class KoreanText {
 			const [, ident, effect, arg3] = args;
 			if (kw.silent) return '';
 			const eff = effectInfo(effect);
+			if (eff.id === 'dynamax') this.justDynamaxed = ident;
 			const from = effectInfo(kw.from);
 			const vals: any = { POKEMON: pk(ident), EFFECT: eff.name, SOURCE: pk(kw.of), MOVE: '', NUMBER: '', TYPE: '' };
 			if (eff.id === 'typechange') {
@@ -416,6 +439,8 @@ export class KoreanText {
 				return F(T('typeChange'), vals);
 			}
 			if (eff.id === 'typeadd') { vals.TYPE = typeKo(arg3); return F(T('typeAdd'), vals); }
+			const qd = /^(quarkdrive|protosynthesis)(atk|def|spa|spd|spe)$/.exec(eff.id);
+			if (qd) return this.abilityLine(ident, 'ability: ' + (qd[1] === 'quarkdrive' ? 'Quark Drive' : 'Protosynthesis')) + '\n' + F('  {POKEMON}의 {STAT:subject} 강화되었다!', { POKEMON: pk(ident), STAT: STAT_KO[qd[2]] });
 			if (/^perish\d$/.test(eff.id)) return F(T('activate', 'perishsong'), { POKEMON: pk(ident), NUMBER: eff.id.slice(6) });
 			if (/^stockpile\d$/.test(eff.id)) return F(T('start', 'stockpile'), { POKEMON: pk(ident), NUMBER: eff.id.slice(9) });
 			if (/^stockpile\d$/.test(effectInfo(eff.name).id)) return '';
@@ -556,8 +581,7 @@ export class KoreanText {
 			return args[1] || '';
 		case '-mustrecharge': case '-hint': case 'upkeep': case 'player': case 'gen': case 'tier': case 'rule':
 		case 'teamsize': case 'gametype': case 't:': case 'split': case '': case 'poke': case 'clearpoke':
-		case 'teampreview': case 'request': case 'seed': case '-anim': case '-primal': case '-mega': case '-zpower':
-		case '-burst': case 'debug': case 'error': case 'sentchoice': case '-waiting':
+		case 'teampreview': case 'request': case 'seed': case '-anim': case 'debug': case 'error': case 'sentchoice': case '-waiting':
 			return '';
 		default:
 			return '';

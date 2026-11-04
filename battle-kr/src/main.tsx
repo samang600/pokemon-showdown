@@ -8,9 +8,9 @@ import { loadRecords, loadSettings, saveSettings, load, type Settings } from './
 import { CUPS, NAMED } from './trainers';
 
 const MODES = [
-	{ id: 'tower', name: '배틀타워', sub: '4세대 · 연승 도전', run: runTower, color: '#3a6df0', icon: '🗼', mon: 'garchomp' },
-	{ id: 'factory', name: '배틀팩토리', sub: '4세대 · 렌탈 배틀', run: runFactory, color: '#e0812b', icon: '🏭', mon: 'metagross' },
-	{ id: 'pwt', name: 'PWT', sub: '5세대 · 월드 토너먼트', run: runPWT, color: '#d23a6a', icon: '🏆', mon: 'hydreigon' },
+	{ id: 'tower', name: '배틀타워', sub: '연승 도전', run: runTower, color: '#3a6df0', icon: '🗼', mon: 'garchomp' },
+	{ id: 'factory', name: '배틀팩토리', sub: '렌탈 배틀', run: runFactory, color: '#e0812b', icon: '🏭', mon: 'metagross' },
+	{ id: 'pwt', name: 'PWT', sub: '월드 토너먼트', run: runPWT, color: '#d23a6a', icon: '🏆', mon: 'hydreigon' },
 	{ id: 'named', name: '네임드 트레이너', sub: '관장 · 사천왕 · 챔피언', run: runNamed, color: '#7a4ad8', icon: '⭐', mon: 'dragonite' },
 	{ id: 'free', name: '프리 배틀', sub: '싱글 · 더블 바로 대전', run: runFree, color: '#2a9d6a', icon: '⚔', mon: 'lucario' },
 ];
@@ -19,8 +19,8 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
 	return <div class="title-screen" onClick={onStart}>
 		<div class="title-glow" />
 		<div class="title-mons">
-			<Sprite species="garchomp" gen={5} size={110} />
-			<Sprite species="lucario" gen={5} size={90} />
+			<Sprite species="garchomp" gen={9} size={110} />
+			<Sprite species="lucario" gen={9} size={90} />
 		</div>
 		<div class="title-logo">
 			<span class="logo-small">BATTLE SIMULATOR</span>
@@ -57,7 +57,7 @@ function Home({ go }: { go: (v: string) => void }) {
 			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 || i === 4 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
 				<span class="mode-icon">{m.icon}</span>
 				<span class="mode-text"><b>{m.name}</b><small>{m.sub}</small>{badge[m.id] && <em>{badge[m.id]}</em>}</span>
-				<span class="mode-mon"><Sprite species={m.mon} gen={5} size={64} anim={false} /></span>
+				<span class="mode-mon"><Sprite species={m.mon} gen={9} size={64} anim={false} /></span>
 			</button>)}
 		</div>
 		<div class="home-bottom">

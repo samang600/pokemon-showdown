@@ -54,7 +54,7 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 		</div>;
 	}
 	return <img class={'sprite ' + (cls || '')} src={candidates[idx]} alt={species} loading="lazy"
-		style={{ maxWidth: size * 1.6, maxHeight: size * 1.6, minHeight: size * 0.4 }}
+		style={{ maxWidth: size, maxHeight: size, objectFit: 'contain' }}
 		onError={() => setIdx(idx + 1)} draggable={false} />;
 }
 

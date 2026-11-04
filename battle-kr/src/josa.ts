@@ -12,7 +12,8 @@ const DIGIT_FINAL = [true, true, false, true, false, false, true, true, true, fa
 const DIGIT_RIEUL = [false, true, false, false, false, false, false, true, true, false];
 
 function lastInfo(word: string): { final: boolean; rieul: boolean } {
-	const s = word.replace(/[\s)\]）」』!?.·…'"*]+$/g, '');
+	// "켄타로스(팔데아)" → 괄호 앞 단어 기준
+	const s = word.replace(/\s*[(（][^()（）]*[)）]\s*$/, '').replace(/[\s)\]）」』!?.·…'"*]+$/g, '');
 	const ch = s.charAt(s.length - 1);
 	if (!ch) return { final: false, rieul: false };
 	const code = ch.charCodeAt(0);

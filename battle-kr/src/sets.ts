@@ -1,10 +1,11 @@
 /** 포켓몬 세트(기술·도구·노력치) 만들기 */
 import { Teams } from '../../sim/teams';
-import { RAW, speciesData, learnset, moveData, toID, bst, speciesKo, type Gen, type StatID } from './data';
+import { RAW, speciesData, learnset, moveData, toID, bst, speciesKo, nickKo, megaStonesFor, zCrystalForType, type Gen, type StatID } from './data';
+import FACTORY_SETS from '../../data/random-battles/gen9/factory-sets.json';
 
 export interface PSet {
 	name: string; species: string; item: string; ability: string; moves: string[]; nature: string;
-	evs: { [k in StatID]: number }; ivs: { [k in StatID]: number }; level: number; gender?: string; shiny?: boolean;
+	evs: { [k in StatID]: number }; ivs: { [k in StatID]: number }; level: number; gender?: string; shiny?: boolean; teraType?: string;
 }
 
 const generators: { [gen: number]: any } = {};
@@ -115,7 +116,7 @@ export function buildSet(speciesId: string, gen: Gen): PSet {
 	else if (spe < 70 && chosen.every(id => moveData(id, gen)!.category !== 'Status')) item = physical ? 'choiceband' : 'choicespecs';
 	if (s.req) item = s.req;
 	const set: PSet = {
-		name: speciesKo(speciesId), species: s.en, item, ability, moves: chosen.slice(0, 4), nature: 'serious',
+		name: nickKo(speciesId), species: s.en, item, ability, moves: chosen.slice(0, 4), nature: 'serious',
 		evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level: 50,
 	};
 	applySpread(set, gen);
@@ -185,17 +186,18 @@ function sanitizeMoves(moves: string[], gen: Gen) {
 }
 
 /** 랜덤배틀 세트(있으면) 또는 자동 세트 */
-export function randomSetFor(speciesId: string, gen: Gen, level = 50): PSet {
+export function randomSetFor(speciesId: string, gen: Gen, level = 50, doubles = false): PSet {
 	const id = toID(speciesId);
 	const g = generator(gen);
 	let set: PSet;
-	if (g.randomSets?.[id]) {
+	const table = doubles ? g.randomDoublesSets : g.randomSets;
+	if (table?.[id]) {
 		try {
-			const r = g.randomSet(id);
+			const r = g.randomSet(id, {}, false, doubles);
 			set = {
-				name: speciesKo(id), species: speciesData(id, gen)?.en || r.species, item: toID(r.item), ability: toID(r.ability),
+				name: nickKo(id), species: speciesData(id, gen)?.en || r.species, item: toID(r.item), ability: toID(r.ability),
 				moves: sanitizeMoves(r.moves, gen), nature: 'serious', evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
-				ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level,
+				ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level, teraType: r.teraType,
 			};
 			if (set.moves.length < 1) throw new Error('no moves');
 			// 랜덤배틀 세트의 잠재파워 타입 유지
@@ -232,11 +234,10 @@ export function speciesPool(o: PoolOptions): string[] {
 	for (const id in RAW.species) {
 		const s = speciesData(id, o.gen);
 		if (!s || !RAW.species[id].g[o.gen]) continue;
-		if (o.gen === 4 && s.num > 493) continue;
 		if (!s.fe || s.bo || BANNED_POOL.has(id) || o.exclude?.has(id)) continue;
 		if (s.tags?.some(t => t === 'Restricted Legendary' || t === 'Mythical')) continue;
 		if (!o.allowSubLegend && s.tags?.includes('Sub-Legendary')) continue;
-		if (s.base && !['rotomwash', 'rotomheat', 'rotomfrost', 'rotommow', 'rotomfan'].includes(id)) continue;
+		if (s.base && s.req && !/^(rotom|ogerpon)/.test(id)) continue; // 아르세우스·실버디 타입폼 등은 제외
 		const b = bst(id, o.gen);
 		if (o.minBst && b < o.minBst) continue;
 		if (o.maxBst && b > o.maxBst) continue;
@@ -262,7 +263,7 @@ export function dedupeItems(team: PSet[]) {
 	return team;
 }
 
-export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?: number; itemClause?: boolean; must?: string[] }): PSet[] {
+export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?: number; itemClause?: boolean; must?: string[]; doubles?: boolean; gimmicks?: boolean }): PSet[] {
 	const pool = rng.shuffle(speciesPool(o));
 	const picked: string[] = [...(o.must || [])];
 	const usedBase = new Set(picked.map(id => speciesData(id, o.gen)?.num));
@@ -274,11 +275,71 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 		picked.push(id);
 	}
 	const team = picked.map(id => {
-		const set = randomSetFor(id, o.gen, o.level ?? 50);
+		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles);
 		if (o.ivs !== undefined) for (const k in set.ivs) (set.ivs as any)[k] = Math.min((set.ivs as any)[k] === 0 ? 0 : 31, o.ivs);
 		return set;
 	});
+	if (o.gimmicks !== false) assignGimmicks(team);
 	return o.itemClause === false ? team : dedupeItems(team);
+}
+
+/** 팀에 메가스톤·Z크리스탈을 하나씩 (가능하면) 나눠 주고 테라스탈 타입을 정함 */
+export function assignGimmicks(team: PSet[], opts: { mega?: number; z?: number } = {}) {
+	const megaProb = opts.mega ?? 0.6, zProb = opts.z ?? 0.4;
+	const hasMega = team.some(s => RAW.items[s.item]?.mega);
+	const hasZ = team.some(s => RAW.items[s.item]?.zt);
+	if (!hasMega && Math.random() < megaProb) {
+		const cands = team.filter(s => megaStonesFor(s.species).length && !speciesData(s.species, 9)?.req);
+		if (cands.length) {
+			const set = rng.pick(cands);
+			set.item = rng.pick(megaStonesFor(set.species));
+		}
+	}
+	if (!hasZ && Math.random() < zProb) {
+		const cands = team.filter(s => !RAW.items[s.item]?.mega && !speciesData(s.species, 9)?.req && !/^choice/.test(s.item));
+		if (cands.length) {
+			const set = rng.pick(cands);
+			const types = speciesData(set.species, 9)!.t;
+			const stab = set.moves.map(m => moveData(m, 9)).filter(m => m && m.category !== 'Status' && types.includes(m.type))
+				.sort((a, b) => b!.basePower - a!.basePower)[0];
+			const z = stab ? zCrystalForType(stab.type) : null;
+			if (z) set.item = z;
+		}
+	}
+	for (const s of team) if (!s.teraType) s.teraType = speciesData(s.species, 9)?.t[0];
+	return team;
+}
+
+/** 9세대 배틀팩토리 세트 (티어: PU → NU → RU → UU → OU → Uber) */
+export const FACTORY_TIERS = ['PU', 'NU', 'RU', 'UU', 'OU', 'Uber'] as const;
+export function factoryTeam(tier: string, size: number, level: number, exclude = new Set<string>()): PSet[] {
+	const table = (FACTORY_SETS as any)[tier] || (FACTORY_SETS as any).OU;
+	const ids = rng.shuffle(Object.keys(table).filter(id => !exclude.has(id) && speciesData(id, 9)));
+	const out: PSet[] = [];
+	const nums = new Set<number>();
+	for (const id of ids) {
+		if (out.length >= size) break;
+		const num = speciesData(id, 9)!.num;
+		if (nums.has(num)) continue;
+		const entry = table[id];
+		const total = entry.sets.reduce((a: number, x: any) => a + (x.weight || 1), 0);
+		let r = Math.random() * total;
+		let fs = entry.sets[0];
+		for (const x of entry.sets) { r -= x.weight || 1; if (r <= 0) { fs = x; break; } }
+		const pick = (v: any) => Array.isArray(v) ? rng.pick(v) : v;
+		const moves = fs.moves.map((slot: any) => toID(pick(slot))).filter((m: string) => moveData(m, 9));
+		const sid = toID(fs.species);
+		const sd = speciesData(sid, 9);
+		if (!sd || moves.length < 2) continue;
+		nums.add(num);
+		const evs = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...(fs.evs || {}) };
+		const ivs = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31, ...(fs.ivs || {}) };
+		out.push({
+			name: nickKo(sid), species: sd.en, item: toID(pick(fs.item) || ''), ability: toID(pick(fs.ability) || sd.ab[0]),
+			moves: [...new Set(moves)] as string[], nature: toID(pick(fs.nature) || 'serious'), evs, ivs, level, teraType: pick(fs.teraType) || sd.t[0],
+		});
+	}
+	return out;
 }
 
 /** 시뮬레이터에 넘길 형태로 */
@@ -286,6 +347,7 @@ export function toSimTeam(team: PSet[]) {
 	return team.map(s => ({
 		name: s.name || speciesKo(s.species), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
 		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny,
+		teraType: s.teraType || speciesData(s.species, 9)?.t[0],
 	}));
 }
 

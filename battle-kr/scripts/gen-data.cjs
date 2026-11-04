@@ -21,7 +21,7 @@ if (!fs.existsSync(path.join(DIST, 'sim'))) {
 	process.exit(1);
 }
 
-const { Dex } = require(path.join(DIST, 'sim'));
+const { Dex, toID } = require(path.join(DIST, 'sim'));
 const T = name => require(path.join(DIST, 'data/text', name));
 const ko = {
 	pokedex: T('ko/pokedex').PokedexText,
@@ -71,6 +71,21 @@ const FORME_KO = {
 	'Douse': '아쿠아카세트', 'Shock': '번개카세트', 'Burn': '블레이즈카세트', 'Chill': '프리즈카세트',
 	'Heat': '히트', 'Wash': '워시', 'Frost': '프로스트', 'Fan': '스핀', 'Mow': '커트',
 	'Black': '블랙', 'White': '화이트', 'Red-Striped': '붉은줄무늬',
+	'Alola': '알로라', 'Galar': '가라르', 'Hisui': '히스이', 'Paldea': '팔데아', 'Paldea-Combat': '팔데아 컴뱃종',
+	'Paldea-Blaze': '팔데아 블레이즈종', 'Paldea-Aqua': '팔데아 워터종', 'Rapid-Strike': '연격의 태세', 'Single-Strike': '일격의 태세',
+	'Wellspring': '우물의 가면', 'Hearthflame': '화덕의 가면', 'Cornerstone': '주춧돌의 가면', 'Teal': '벽록의 가면',
+	'Bloodmoon': '붉은 달', 'Dusk-Mane': '황혼의 갈기', 'Dawn-Wings': '새벽의 날개', 'Ultra': '울트라', 'Ice': '백마 탄 모습',
+	'Shadow': '흑마 탄 모습', 'Eternal': '영원의 꽃', 'Midnight': '한밤중의 모습', 'Dusk': '황혼의 모습', 'Low-Key': '로우한 모습',
+	'Complete': '퍼펙트폼', '10%': '10%폼', 'Unbound': '굴레를 벗어난 모습', 'F': '암컷', 'M': '수컷', 'Pom-Pom': '파칙파칙스타일',
+	"Pa'u": '훌라훌라스타일', 'Sensu': '하늘하늘스타일', 'Galar-Zen': '가라르 달마모드', 'Busted': '들킨 모습', 'School': '군집의 모습',
+	'Hangry': '배고픈 모양', 'Noice': '나이스페이스', 'Gorging': '통째로 삼킨 모습', 'Gulping': '꿀꺽 삼킨 모습', 'Zero': '제로폼',
+	'Hero': '마이티폼', 'Stellar': '스텔라폼', 'Terastal': '테라스탈폼', 'Four': '네 식구', 'Three-Segment': '세 마디',
+	'Roaming': '도보폼', 'Blade': '블레이드폼', 'Ash': '지우개굴닌자', 'Primal': '원시회귀', 'Mega': '메가', 'Mega-X': '메가X', 'Mega-Y': '메가Y',
+	'Dada': '아빠', 'Bug': '벌레', 'Dark': '악', 'Dragon': '드래곤', 'Electric': '전기', 'Fairy': '페어리', 'Fighting': '격투', 'Fire': '불꽃',
+	'Flying': '비행', 'Ghost': '고스트', 'Grass': '풀', 'Ground': '땅', 'Poison': '독', 'Psychic': '에스퍼', 'Rock': '바위', 'Steel': '강철',
+	'Water': '물', 'Small': '작은 사이즈', 'Large': '큰 사이즈', 'Super': '특대 사이즈', 'Crowned': '왕', 'Resolute': '각오의 모습',
+	'Meteor': '유성의 모습', 'Original': '500년 전의 색', 'Eternamax': '무한다이맥스', 'Curly': '젖힌 모습', 'Droopy': '늘어진 모습',
+	'Stretchy': '뻗은 모습', 'Blue': '푸른 깃털', 'Yellow': '노란 깃털', 'White-Striped': '하얀줄무늬', 'Antique': '진작폼', 'Bond': '유대변화', 'Teal-Tera': '벽록의 가면 테라스탈', 'Wellspring-Tera': '우물의 가면 테라스탈', 'Hearthflame-Tera': '화덕의 가면 테라스탈', 'Cornerstone-Tera': '주춧돌의 가면 테라스탈',
 };
 
 const TYPE_KO = ko.names.TypeNames;
@@ -82,7 +97,9 @@ function speciesName(s, dex) {
 	const baseKo = ko.pokedex[base.id]?.name || pkhexSpecies[s.num] || s.baseSpecies;
 	if (!s.forme) return baseKo;
 	let forme = FORME_KO[s.forme];
-	if (!forme && s.baseSpecies === 'Arceus') forme = TYPE_KO[s.forme] || s.forme;
+	if (!forme && ['Arceus', 'Silvally'].includes(s.baseSpecies)) forme = TYPE_KO[s.forme] || s.forme;
+	if (s.id === 'zaciancrowned') forme = '검왕';
+	if (s.id === 'zamazentacrowned') forme = '방패왕';
 	return `${baseKo}(${forme || s.forme})`;
 }
 
@@ -110,43 +127,50 @@ const result = {
 	text: {}, defaultText: {},
 };
 
-// ── 기술 ──
+// ── 기술 (9세대 내셔널 도감 기준: 과거 기술 포함, Z기술·다이맥스기술은 이름만) ──
+const GEN = 9;
+const dex9 = Dex.forGen(GEN);
+const BAD_NONSTD = new Set(['CAP', 'LGPE', 'Custom', 'Gigantamax']);
 const moveIds = [];
 const moveIndex = {};
-const d9 = Dex.forGen(9);
-for (const gen of [4, 5]) {
-	const dex = Dex.forGen(gen);
-	for (const m of dex.moves.all()) {
-		if (m.isNonstandard || m.isZ || m.isMax || m.num <= 0) continue;
-		if (!(m.id in moveIndex)) {
-			moveIndex[m.id] = moveIds.length;
-			moveIds.push(m.id);
-			result.moves[m.id] = {
-				n: ko.moves[m.id]?.name || m.name,
-				d: flavor.moves[m.id] || '',
-				g: {},
-			};
-		}
-		result.moves[m.id].g[gen] = [m.type, m.category, m.basePower, m.accuracy === true ? 0 : m.accuracy,
-			m.pp, m.priority, m.target, m.flags.contact ? 1 : 0];
-	}
+for (const m of dex9.moves.all()) {
+	if (m.num <= 0 && !m.isMax) continue;
+	if (m.isNonstandard && BAD_NONSTD.has(m.isNonstandard) && !m.isMax) continue;
+	moveIndex[m.id] = moveIds.length;
+	moveIds.push(m.id);
+	result.moves[m.id] = {
+		n: ko.moves[m.id]?.name || m.name,
+		d: flavor.moves[m.id] || '',
+		g: { [GEN]: [m.type, m.category, m.basePower, m.accuracy === true ? 0 : m.accuracy, m.pp, m.priority, m.target, m.flags.contact ? 1 : 0] },
+		z: m.isZ ? 1 : undefined, x: m.isMax ? 1 : undefined,
+	};
 }
-void d9;
 
 // ── 특성 ──
-for (const a of Dex.forGen(5).abilities.all()) {
-	if (a.isNonstandard || a.num <= 0) continue;
+for (const a of dex9.abilities.all()) {
+	if (a.num <= 0 || (a.isNonstandard && a.isNonstandard !== 'Past' && a.isNonstandard !== 'Unobtainable')) continue;
 	result.abilities[a.id] = { n: ko.abilities[a.id]?.name || a.name, d: flavor.abilities[a.id] || '', gen: a.gen };
 }
 
-// ── 도구 ──
-for (const gen of [4, 5]) {
-	for (const it of Dex.forGen(gen).items.all()) {
-		if (it.isNonstandard || it.num <= 0 || it.isPokeball) continue;
-		if (it.zMove || it.megaStone) continue;
-		const e = result.items[it.id] ||= { n: ko.items[it.id]?.name || it.name, d: flavor.items[it.id] || '', gens: [] };
-		e.gens.push(gen);
+// ── 도구 (메가스톤·Z크리스탈 포함) ──
+for (const it of dex9.items.all()) {
+	if (it.num <= 0 || it.isPokeball || it.isGem && false) continue;
+	if (it.isNonstandard && !['Past', 'Unobtainable'].includes(it.isNonstandard)) continue;
+	if (/^tr\d|^tm\d|^hm\d/.test(it.id) || it.id.endsWith('mail')) continue;
+	let itemName = ko.items[it.id]?.name;
+	if (!itemName && it.megaStone) {
+		const from = (Array.isArray(it.megaEvolves) ? it.megaEvolves[0] : it.megaEvolves) ||
+			(typeof it.megaStone === 'object' ? Object.keys(it.megaStone)[0] : null) || it.itemUser?.[0] || '';
+		const suffix = / X$/.test(it.name) ? 'X' : / Y$/.test(it.name) ? 'Y' : '';
+		itemName = (ko.pokedex[toID(from)]?.name || from) + '나이트' + suffix;
 	}
+	result.items[it.id] = {
+		n: itemName || it.name, d: flavor.items[it.id] || '', gens: [GEN],
+		mega: it.megaStone ? (typeof it.megaStone === 'string' ? it.megaStone : Object.values(it.megaStone)[0]) : undefined,
+		megaFrom: it.megaStone ? (typeof it.megaStone === 'object' ? Object.keys(it.megaStone) : (it.itemUser || [])) : undefined,
+		zt: it.zMoveType || undefined, zf: it.zMoveFrom ? (Array.isArray(it.zMoveFrom) ? it.zMoveFrom : [it.zMoveFrom]) : undefined,
+		zu: it.itemUser || undefined,
+	};
 }
 
 // ── 포켓몬 ──
@@ -161,7 +185,7 @@ function learnable(dex, species, gen) {
 		if (!ls && s.baseSpecies !== s.name) ls = dex.species.getLearnsetData(dex.species.get(s.baseSpecies).id).learnset;
 		if (ls) {
 			for (const moveid in ls) {
-				if (ls[moveid].some(src => { const g = +src.charAt(0); return g >= 3 && g <= gen; })) out.add(moveid);
+				out.add(moveid); // 내셔널 도감: 모든 세대에서 배운 기술 허용
 			}
 		}
 		s = s.prevo ? dex.species.get(s.prevo) : null;
@@ -176,38 +200,42 @@ function learnable(dex, species, gen) {
 			if (moveIndex[id] !== undefined) out.add(id);
 		}
 	}
-	return [...out].filter(id => moveIndex[id] !== undefined && !dex.moves.get(id).isNonstandard)
+	return [...out].filter(id => moveIndex[id] !== undefined && !result.moves[id].z && !result.moves[id].x)
 		.map(id => moveIndex[id]).sort((a, b) => a - b);
 }
 
-const BATTLE_ONLY = new Set(['Castform', 'Cherrim', 'Darmanitan', 'Meloetta']);
-for (const gen of [4, 5]) {
-	const dex = Dex.forGen(gen);
-	for (const s of dex.species.all()) {
-		if (s.isNonstandard || s.num <= 0) continue;
-		const isBattleOnly = s.battleOnly || (s.forme && BATTLE_ONLY.has(s.baseSpecies));
-		const e = result.species[s.id] ||= {
-			n: speciesName(s, dex), en: s.name, num: s.num, base: s.baseSpecies !== s.name ? Dex.species.get(s.baseSpecies).id : undefined,
-			tags: s.tags.length ? s.tags : undefined, g: {},
-		};
-		e.g[gen] = {
+const BATTLE_ONLY = new Set(['Castform', 'Cherrim', 'Darmanitan', 'Meloetta', 'Aegislash', 'Wishiwashi', 'Minior', 'Mimikyu',
+	'Cramorant', 'Eiscue', 'Morpeko', 'Palafin', 'Terapagos']);
+for (const s of dex9.species.all()) {
+	if (s.num <= 0) continue;
+	if (s.isNonstandard && ['CAP', 'LGPE', 'Custom', 'Pokestar', 'Future'].includes(s.isNonstandard)) continue;
+	if (s.forme && /Gmax|Totem|Starter|Artisan|Masterpiece/.test(s.forme)) continue;
+	if (s.baseSpecies === 'Pikachu' && s.forme) continue; // 모자·옷 피카츄 제외
+	if (s.forme && ['Vivillon', 'Alcremie', 'Pichu'].includes(s.baseSpecies)) continue; // 겉모습만 다른 폼
+	if (s.baseSpecies === 'Minior' && s.forme !== 'Meteor') continue;
+	const isBattleOnly = !!s.battleOnly || (s.forme && BATTLE_ONLY.has(s.baseSpecies) && !s.forme.startsWith('Galar') && s.forme !== 'Galar') ||
+		/^Mega|^Primal/.test(s.forme) || s.name === 'Necrozma-Ultra' || s.forme === 'Crowned' && false;
+	result.species[s.id] = {
+		n: speciesName(s, dex9), en: s.name, num: s.num, base: s.baseSpecies !== s.name ? Dex.species.get(s.baseSpecies).id : undefined,
+		tags: s.tags.length ? s.tags : undefined, tier: s.natDexTier || s.tier,
+		g: { [GEN]: {
 			t: s.types, bs: [s.baseStats.hp, s.baseStats.atk, s.baseStats.def, s.baseStats.spa, s.baseStats.spd, s.baseStats.spe],
-			ab: Object.values(s.abilities).map(a => dex.abilities.get(a).id),
+			ab: Object.values(s.abilities).map(a => dex9.abilities.get(a).id),
 			fe: s.nfe ? 0 : 1,
 			bo: isBattleOnly ? 1 : undefined,
 			gr: s.gender || undefined,
-			req: s.requiredItem ? dex.items.get(s.requiredItem).id : undefined,
+			req: s.requiredItem ? dex9.items.get(s.requiredItem).id : (s.requiredItems ? dex9.items.get(s.requiredItems[0]).id : undefined),
 			wt: s.weightkg,
-			ls: isBattleOnly ? undefined : learnable(dex, s, gen),
-		};
-	}
+			ls: isBattleOnly ? undefined : learnable(dex9, s, GEN),
+		} },
+	};
 }
 
 // ── 성격·타입 ──
 for (const n of Dex.natures.all()) {
 	result.natures[n.id] = { n: ko.names.NatureNames[n.name] || n.name, en: n.name, p: n.plus || '', m: n.minus || '' };
 }
-for (const t of Dex.forGen(5).types.all()) {
+for (const t of Dex.forGen(9).types.all()) {
 	result.types[t.name] = TYPE_KO[t.name] || t.name;
 }
 

@@ -3,8 +3,8 @@ import { Battle } from '../../sim/battle';
 import { chooseAI } from '../src/ai';
 import { randomTeam, toSimTeam } from '../src/sets';
 import { KoreanText, parseLine } from '../src/text';
-(window as any).selfplay = (n: number, gen: 4 | 5, doubles: boolean, skillA: number, skillB: number) => {
-	const res = { aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
+(window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number) => {
+	const res = { gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
 	for (let k = 0; k < n; k++) {
 		const reqs: any = {};
 		const lines: string[] = [];
@@ -12,8 +12,8 @@ import { KoreanText, parseLine } from '../src/text';
 			if (t === 'sideupdate') { const s = String(d); const side = s.slice(0, 2); const r = s.slice(3); if (r.startsWith('|request|')) reqs[side] = JSON.parse(r.slice(9)); }
 			if (t === 'update') lines.push(...(Array.isArray(d) ? d : String(d).split('\n')));
 		} } as any);
-		b.setPlayer('p1', { name: 'A', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450 })) } as any);
-		b.setPlayer('p2', { name: 'B', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450 })) } as any);
+		b.setPlayer('p1', { name: 'A', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
+		b.setPlayer('p2', { name: 'B', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
 		b.sendUpdates();
 		let guard = 0;
 		const done: any = {};
@@ -26,7 +26,7 @@ import { KoreanText, parseLine } from '../src/text';
 				let c = 'default';
 				try { c = chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
 				try {
-					if (!b.choose(side, c)) { res.errors.push(`bad choice ${side}: ${c}`); b.choose(side, 'default'); }
+					if (!b.choose(side, c)) { res.errors.push(`bad choice ${side}: ${c} :: ${(b as any)[side].choice.error}`); b.choose(side, 'default'); }
 				} catch (e: any) { res.errors.push('SIM ' + e.message + '\n' + b.log.slice(-25).join('\n')); guard = 9999; break; }
 				b.sendUpdates();
 				acted = true;
@@ -41,6 +41,8 @@ import { KoreanText, parseLine } from '../src/text';
 			if (l.startsWith('|split|')) { i++; continue; }
 			const p = parseLine(l);
 			if (!p) continue;
+			for (const k of ['-mega', '-zpower', '-terastallize']) if (p.cmd === k) res.gm[k] = (res.gm[k] || 0) + 1;
+			if (p.cmd === '-start' && p.args[2] === 'Dynamax') res.gm.dynamax = (res.gm.dynamax || 0) + 1;
 			if (p.cmd === 'bigerror' || p.cmd === 'error') res.errors.push(l);
 			try {
 				const t = kt.render(p, null);

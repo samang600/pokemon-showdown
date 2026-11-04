@@ -1,19 +1,21 @@
 /** 빌드 시 만든 dex.json 을 감싸는 도우미 */
 import DEX from './gen/dex.json';
 
-export type Gen = 4 | 5;
+/** 배틀 규칙 세대 — 9세대 내셔널 도감 고정 */
+export type Gen = 9;
+export const GEN: Gen = 9;
 export type StatID = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe';
 export const STATS: StatID[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
 
 interface SpeciesGen { t: string[]; bs: number[]; ab: string[]; fe: number; bo?: number; gr?: string; req?: string; wt: number; ls?: number[] }
-export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; g: { [gen: string]: SpeciesGen } }
-interface MoveEntry { n: string; d: string; g: { [gen: string]: [string, string, number, number, number, number, string, number] } }
+export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; tier?: string; g: { [gen: string]: SpeciesGen } }
+interface MoveEntry { n: string; d: string; z?: number; x?: number; g: { [gen: string]: [string, string, number, number, number, number, string, number] } }
 
 const D = DEX as any as {
 	species: { [id: string]: SpeciesEntry };
 	moves: { [id: string]: MoveEntry };
 	abilities: { [id: string]: { n: string; d: string; gen: number } };
-	items: { [id: string]: { n: string; d: string; gens: number[] } };
+	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[] } };
 	natures: { [id: string]: { n: string; en: string; p: string; m: string } };
 	types: { [en: string]: string };
 	stats: { [id: string]: string };
@@ -40,7 +42,7 @@ export function typeKo(t: string) { return D.types[t] || t; }
 export function speciesData(id: string, gen: Gen) {
 	const s = D.species[toID(id)];
 	if (!s) return null;
-	const g = s.g[gen] || s.g[5] || s.g[4];
+	const g = s.g[gen] || s.g[9];
 	return { id: toID(id), ...s, ...g };
 }
 export function speciesKo(nameOrId: string) {
@@ -68,7 +70,7 @@ export function moveData(id: string, gen: Gen) {
 	if (/^return\d+$/.test(id)) id = 'return';
 	const m = D.moves[id];
 	if (!m) return null;
-	const g = m.g[gen] || m.g[5] || m.g[4];
+	const g = m.g[gen] || m.g[9];
 	return {
 		id, name: m.n, desc: m.d, type: g[0], category: g[1] as 'Physical' | 'Special' | 'Status', basePower: g[2],
 		accuracy: g[3], pp: g[4], priority: g[5], target: g[6], contact: !!g[7],
@@ -169,3 +171,20 @@ const ITEM_DESC: { [id: string]: string } = {
 	muscleband: '물리 기술의 위력이 조금 올라간다.',
 	wiseglasses: '특수 기술의 위력이 조금 올라간다.',
 };
+
+/** 이 종족이 쓸 수 있는 메가스톤 */
+export function megaStonesFor(speciesId: string): string[] {
+	const en = D.species[toID(speciesId)]?.en;
+	if (!en) return [];
+	return Object.entries(D.items).filter(([, it]) => it.mega && it.megaFrom?.includes(en)).map(([id]) => id);
+}
+/** 타입 Z크리스탈 (전용 Z크리스탈 제외) */
+export function zCrystalForType(type: string): string | null {
+	for (const [id, it] of Object.entries(D.items)) if (it.zt === type && !it.zf) return id;
+	return null;
+}
+export const ALL_TYPES = ['Normal', 'Fire', 'Water', 'Electric', 'Grass', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic',
+	'Bug', 'Rock', 'Ghost', 'Dragon', 'Dark', 'Steel', 'Fairy', 'Stellar'];
+
+/** 배틀 중 부르는 이름 (폼 표기 없이) */
+export function nickKo(id: string) { return speciesKo(id).replace(/\s*\(.*\)$/, ''); }

@@ -430,7 +430,8 @@ function moveOptions(battle: Battle, user: Pokemon, reqActive: any, flags: AIFla
 		if (m.disabled || (m.pp !== undefined && m.pp <= 0 && m.id !== 'struggle')) return;
 		const move = battle.dex.moves.get(m.id);
 		const num = i + 1;
-		const tt = m.target || move.target;
+		const locked = m.pp === undefined && m.maxpp === undefined; // 모으기·난동 등으로 고정된 기술 (대상 지정 불가)
+		const tt = locked ? 'self' : user.volatiles['dynamax'] ? (reqActive.maxMoves?.maxMoves?.[i]?.target || 'adjacentFoe') : (m.target || move.target);
 		const damaging = move.category !== 'Status';
 		const add = (choice: string, score: number) => opts.push({ choice, score, moveId: move.id, damaging });
 		if (!doubles) {
@@ -547,6 +548,47 @@ function pickBest(opts: Option[], skill: number): Option | undefined {
 	return top[Math.floor(Math.random() * top.length)];
 }
 
+/** 메가진화 · Z기술 · 테라스탈 · 다이맥스 사용 판단 (한 행동에 하나) */
+function gimmickFor(battle: Battle, user: Pokemon, reqActive: any, best: Option, skill: number, used: { [k: string]: boolean }): string {
+	const r = (k: string, v: string) => { used[k] = true; return v; };
+	const m = /^move (\d+)/.exec(best.choice);
+	if (!m) return '';
+	const idx = parseInt(m[1], 10) - 1;
+	const moveId = reqActive.moves[idx]?.id;
+	const move = moveId ? battle.dex.moves.get(moveId) : null;
+	const foes = foesOf(user);
+	const target = foes[0];
+	const hpFrac = user.hp / user.maxhp;
+	// 메가진화는 손해가 없으니 항상
+	if (!used.mega) {
+		if (reqActive.canMegaEvo) return r('mega', ' mega');
+		if (reqActive.canMegaEvoX) return r('mega', ' megax');
+		if (reqActive.canMegaEvoY) return r('mega', ' megay');
+		if (reqActive.canUltraBurst) return r('mega', ' ultra');
+	}
+	// Z기술: 쓰러뜨릴 수 있거나, 체력이 줄었거나, 가끔
+	const z = reqActive.canZMove?.[idx];
+	if (z && !used.z && move && move.category !== 'Status' && target) {
+		const zbp = move.zMove?.basePower || 100;
+		const zd = estimateDamage(battle, user, target, { ...move, basePower: zbp, multihit: undefined, flags: { ...move.flags, charge: 0 } });
+		const normal = estimateDamage(battle, user, target, move);
+		if ((zd >= 1 && normal < 1) || hpFrac < 0.45 || Math.random() < 0.15 * skill) return r('z', ' zmove');
+	}
+	// 테라스탈: 기술 타입과 같은 테라 타입이면 공격용, 위험할 때 방어용
+	if (reqActive.canTerastallize && !used.tera && move) {
+		const tera = reqActive.canTerastallize;
+		if (move.category !== 'Status' && move.type === tera) return r('tera', ' terastallize');
+		const threat = foes.reduce((mx, f) => Math.max(mx, bestDamage(battle, f, user)), 0);
+		if (threat >= 0.8 && hpFrac > 0.5 && foes.every(f => {
+			const pred = predictedMove(battle, f, user).move;
+			return !pred || battle.dex.getEffectiveness(pred.type, tera) < 0;
+		})) return r('tera', ' terastallize');
+	}
+	// 다이맥스: 체력이 넉넉할 때
+	if (reqActive.canDynamax && !used.dmax && move && move.category !== 'Status' && hpFrac > 0.7 && Math.random() < 0.35 + skill * 0.3) return r('dmax', ' dynamax');
+	return '';
+}
+
 export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skill: number): string {
 	const side = battle[sideid];
 	const flags = flagsFor(skill);
@@ -577,6 +619,7 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 	if (request.active) {
 		const parts: string[] = [];
 		const chosenSwitch = new Set<number>();
+		const used: { [k: string]: boolean } = {};
 		request.active.forEach((reqActive: any, slot: number) => {
 			const user = side.active[slot];
 			if (!user || user.fainted) return;
@@ -591,7 +634,18 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 				}
 			}
 			const best = pickBest(opts, skill) || { choice: 'move 1', score: 0 };
-			parts.push(best.choice);
+			let gm = gimmickFor(battle, user, reqActive, best, skill, used);
+			let choice = best.choice;
+			// 더블: Z기술·다이맥스기술은 단일 대상이 되므로 대상 번호가 필요
+			const mIdx = parseInt(/^move (\d+)/.exec(choice)?.[1] || '0', 10) - 1;
+			const maxT = reqActive.maxMoves?.maxMoves?.[mIdx]?.target;
+			const needT = gm === ' zmove' || ((gm === ' dynamax' || user.volatiles['dynamax']) && (!maxT || ['normal', 'adjacentFoe', 'any'].includes(maxT)));
+			if (battle.gameType === 'doubles' && needT && /^move \d+$/.test(choice)) {
+				const foe = foesOf(user)[0];
+				if (foe) choice += ` ${foe.position + 1}`;
+				else gm = '';
+			}
+			parts.push(choice + gm);
 		});
 		return parts.join(', ') || 'default';
 	}

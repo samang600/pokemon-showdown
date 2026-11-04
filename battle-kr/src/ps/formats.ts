@@ -1,16 +1,21 @@
-/** 앱에서 쓰는 배틀 규칙(포맷) 목록 — config/formats.ts 대신 사용 */
+/** 앱에서 쓰는 배틀 규칙 — 9세대 내셔널 도감 (메가진화·Z기술·다이맥스·테라스탈 모두 사용 가능) */
 const common = {
 	searchShow: false,
 	debug: true,
 	battle: { trunc: Math.trunc },
-	ruleset: ['Max Team Size = 24', 'Max Move Count = 24', 'Max Level = 9999', 'Default Level = 50'],
+	ruleset: ['NatDex Mod', 'Max Team Size = 24', 'Max Move Count = 24', 'Max Level = 9999', 'Default Level = 50'],
+	onBegin(this: any) {
+		// 9세대에서는 기본적으로 다이맥스를 막아 두므로 다시 허용 (팀당 1회)
+		for (const side of this.sides) {
+			side.dynamaxUsed = false;
+			side.canDynamaxNow = function (this: any) { return !this.dynamaxUsed; };
+		}
+	},
 };
 
 export const Formats = [
-	{ name: "[Gen 4] KR Singles", mod: 'gen4', gameType: 'singles', ...common },
-	{ name: "[Gen 4] KR Doubles", mod: 'gen4', gameType: 'doubles', ...common },
-	{ name: "[Gen 5] KR Singles", mod: 'gen5', gameType: 'singles', ...common },
-	{ name: "[Gen 5] KR Doubles", mod: 'gen5', gameType: 'doubles', ...common },
-	{ name: "[Gen 4] Random Battle", mod: 'gen4', team: 'random', ...common },
-	{ name: "[Gen 5] Random Battle", mod: 'gen5', team: 'random', ...common },
+	{ name: "[Gen 9] KR Singles", mod: 'gen9', gameType: 'singles', ...common },
+	{ name: "[Gen 9] KR Doubles", mod: 'gen9', gameType: 'doubles', ...common },
+	{ name: "[Gen 9] Random Battle", mod: 'gen9', team: 'random', ...common },
+	{ name: "[Gen 9] Random Doubles Battle", mod: 'gen9', gameType: 'doubles', team: 'random', ...common },
 ];
