@@ -35,7 +35,7 @@ const shimPlugin = {
 	},
 };
 
-fs.rmSync(OUT, { recursive: true, force: true });
+if (!args.has('--test')) fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const result = await esbuild.build({
 	entryPoints: [path.join(HERE, args.has('--test') ? 'test/selfplay.ts' : 'src/main.tsx')],
@@ -66,15 +66,13 @@ const html = template
 	.replace('/*__JS__*/', () => js.replace(/<\/script/gi, '<\\/script'));
 if (args.has('--test')) { fs.writeFileSync(path.join(HERE, 'test/selfplay.html'), html); console.log('test/selfplay.html'); process.exit(0); }
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
-for (const f of fs.readdirSync(path.join(HERE, 'public'))) {
-	fs.copyFileSync(path.join(HERE, 'public', f), path.join(OUT, f));
-}
+fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true });
 console.log(`battle-kr/dist/index.html ${(html.length / 1024 / 1024).toFixed(2)} MB`);
 
 if (args.has('--android')) {
 	const assets = path.join(HERE, 'android/app/src/main/assets/www');
 	fs.rmSync(assets, { recursive: true, force: true });
 	fs.mkdirSync(assets, { recursive: true });
-	for (const f of fs.readdirSync(OUT)) fs.copyFileSync(path.join(OUT, f), path.join(assets, f));
+	fs.cpSync(OUT, assets, { recursive: true });
 	console.log('→ android/app/src/main/assets/www 에 복사');
 }

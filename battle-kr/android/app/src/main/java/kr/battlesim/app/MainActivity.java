@@ -55,6 +55,20 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        web.evaluateJavascript("window.onAndroidPause && window.onAndroidPause()", null);
+        web.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.onResume();
+        web.evaluateJavascript("window.onAndroidResume && window.onAndroidResume()", null);
+    }
+
+    @Override
     public void onBackPressed() {
         // 앱 안의 뒤로가기(모달 닫기·이전 화면)를 먼저 시도
         web.evaluateJavascript("(window.onAndroidBack && window.onAndroidBack()) ? 'y' : 'n'", v -> {

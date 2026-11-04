@@ -548,7 +548,14 @@ function pickBest(opts: Option[], skill: number): Option | undefined {
 	return top[Math.floor(Math.random() * top.length)];
 }
 
-/** 메가진화 · Z기술 · 테라스탈 · 다이맥스 사용 판단 (한 행동에 하나) */
+/**
+ * 메가진화 · Z기술 · 테라스탈 · 다이맥스 사용 판단
+ * (CFRU 의 ShouldAIDynamax / Z-move 판단을 참고: "결과가 바뀔 때"만 쓴다)
+ *  - 쓰면 이번 턴에 쓰러뜨릴 수 있게 되는가 (없으면 못 쓰러뜨림)
+ *  - 쓰면 상대의 예상 공격을 버티게 되는가 (안 쓰면 쓰러짐)
+ *  - 남은 포켓몬이 적고 이 포켓몬이 팀에서 가장 강한 공격수인가
+ * 한 배틀에 한 종류만 쓸 수 있으므로, 더 좋은 기회(에이스)를 위해 아껴 두기도 한다.
+ */
 function gimmickFor(battle: Battle, user: Pokemon, reqActive: any, best: Option, skill: number, used: { [k: string]: boolean }): string {
 	const r = (k: string, v: string) => { used[k] = true; return v; };
 	const m = /^move (\d+)/.exec(best.choice);
@@ -556,36 +563,99 @@ function gimmickFor(battle: Battle, user: Pokemon, reqActive: any, best: Option,
 	const idx = parseInt(m[1], 10) - 1;
 	const moveId = reqActive.moves[idx]?.id;
 	const move = moveId ? battle.dex.moves.get(moveId) : null;
+	if (!move) return '';
 	const foes = foesOf(user);
 	const target = foes[0];
+	if (!target) return '';
 	const hpFrac = user.hp / user.maxhp;
-	// 메가진화는 손해가 없으니 항상
+	const side = user.side;
+	const alive = side.pokemon.filter((p: Pokemon) => !p.fainted);
+	const isLast = alive.length <= 1;
+	const myDmg = estimateDamage(battle, user, target, move);
+	const pred = predictedMove(battle, target, user);
+	const foeKOsMe = pred.damage >= 1 && outspeeds(battle, target, user);
+	const foeKOsMeAny = pred.damage >= 1;
+	// 팀에서 가장 강한 공격수인가 (상대 전원 상대로 최대 데미지 합)
+	const power = (p: Pokemon) => foes.reduce((a, f) => a + bestDamage(battle, p, f), 0) * (p.hp / p.maxhp);
+	const myPower = power(user);
+	const isAce = alive.every((p: Pokemon) => p === user || power(p) <= myPower + 0.05);
+	const careless = Math.random() > skill; // 실력이 낮으면 가끔 아무렇게나
+
+	// 메가진화: 손해가 없으므로 바로 (울트라버스트 포함)
 	if (!used.mega) {
 		if (reqActive.canMegaEvo) return r('mega', ' mega');
 		if (reqActive.canMegaEvoX) return r('mega', ' megax');
 		if (reqActive.canMegaEvoY) return r('mega', ' megay');
 		if (reqActive.canUltraBurst) return r('mega', ' ultra');
 	}
-	// Z기술: 쓰러뜨릴 수 있거나, 체력이 줄었거나, 가끔
+
+	type Cand = { k: string; v: string; score: number };
+	const cands: Cand[] = [];
+
+	// Z기술: 이번 턴 KO 가능해지는가
 	const z = reqActive.canZMove?.[idx];
-	if (z && !used.z && move && move.category !== 'Status' && target) {
+	if (z && !used.z && move.category !== 'Status') {
 		const zbp = move.zMove?.basePower || 100;
 		const zd = estimateDamage(battle, user, target, { ...move, basePower: zbp, multihit: undefined, flags: { ...move.flags, charge: 0 } });
-		const normal = estimateDamage(battle, user, target, move);
-		if ((zd >= 1 && normal < 1) || hpFrac < 0.45 || Math.random() < 0.15 * skill) return r('z', ' zmove');
+		let sc = 0;
+		if (zd >= 1 && myDmg < 1) sc += 3;           // 못 쓰러뜨리던 걸 쓰러뜨림
+		if (zd >= 1 && foeKOsMe) sc += 1;            // 어차피 당하기 전 마지막 한 방
+		if (zd >= 0.6 && myDmg < 0.4) sc += 1;
+		if (isLast && zd > myDmg) sc += 1;
+		if (zd <= myDmg + 0.05) sc = -1;
+		if (careless) sc += 1;
+		cands.push({ k: 'z', v: ' zmove', score: sc });
 	}
-	// 테라스탈: 기술 타입과 같은 테라 타입이면 공격용, 위험할 때 방어용
-	if (reqActive.canTerastallize && !used.tera && move) {
-		const tera = reqActive.canTerastallize;
-		if (move.category !== 'Status' && move.type === tera) return r('tera', ' terastallize');
-		const threat = foes.reduce((mx, f) => Math.max(mx, bestDamage(battle, f, user)), 0);
-		if (threat >= 0.8 && hpFrac > 0.5 && foes.every(f => {
-			const pred = predictedMove(battle, f, user).move;
-			return !pred || battle.dex.getEffectiveness(pred.type, tera) < 0;
-		})) return r('tera', ' terastallize');
+
+	// 테라스탈
+	if (reqActive.canTerastallize && !used.tera) {
+		const tera: string = reqActive.canTerastallize;
+		let sc = 0;
+		// 공격: 기술 타입이 테라 타입이면 자속 보정 상승
+		if (move.category !== 'Status' && move.type === tera) {
+			const mult = user.hasType(tera) ? 2 / 1.5 : 1.5;
+			const td = myDmg * mult;
+			if (td >= 1 && myDmg < 1) sc += 3;
+			else if (td >= 0.5 && myDmg < 0.35) sc += 1;
+		}
+		// 방어: 상대 예상 기술의 상성이 좋아지는가
+		if (pred.move) {
+			const before = typeEff(battle, pred.move.type, user);
+			const after = Math.pow(2, battle.dex.getEffectiveness(pred.move.type, tera));
+			const afterImmune = !battle.dex.getImmunity(pred.move.type, tera) ? 0 : after;
+			if (foeKOsMeAny && pred.damage * (afterImmune / Math.max(0.25, before)) < 0.9) sc += 3; // 쓰러질 걸 버팀
+			else if (before > 1 && afterImmune < 1) sc += 1;
+			// 테라 후 약점이 생기면 감점 (상대가 그 타입 기술을 가짐)
+			const foeTypes = new Set<string>(target.moveSlots.map((ms: any) => battle.dex.moves.get(ms.id)).filter((mv: any) => mv.category !== 'Status').map((mv: any) => mv.type));
+			for (const t of foeTypes) if (battle.dex.getEffectiveness(t, tera) > 0 && typeEff(battle, t, user) <= 1) sc -= 1;
+		}
+		if (isAce && alive.length <= 2 && sc >= 0 && move.category !== 'Status' && move.type === tera) sc += 1;
+		if (careless) sc += 1;
+		cands.push({ k: 'tera', v: ' terastallize', score: sc });
 	}
-	// 다이맥스: 체력이 넉넉할 때
-	if (reqActive.canDynamax && !used.dmax && move && move.category !== 'Status' && hpFrac > 0.7 && Math.random() < 0.35 + skill * 0.3) return r('dmax', ' dynamax');
+
+	// 다이맥스: HP 2배 + 다이맥스 기술. 가장 강한 포켓몬에게, 체력이 넉넉할 때
+	if (reqActive.canDynamax && !used.dmax && move.category !== 'Status') {
+		let sc = 0;
+		const maxBp = reqActive.maxMoves?.maxMoves?.[idx] ? Math.max(90, Math.min(150, (move.basePower || 60) + 40)) : move.basePower;
+		const dd = estimateDamage(battle, user, target, { ...move, basePower: maxBp, multihit: undefined, accuracy: true, flags: { ...move.flags, charge: 0 } });
+		if (dd >= 1 && myDmg < 1) sc += 2;
+		if (pred.damage >= 1 && pred.damage < 1.9 && hpFrac > 0.5) sc += 2; // 2배 HP 로 버팀
+		if (isAce) sc += 1;
+		if (hpFrac >= 0.75) sc += 1;
+		if (hpFrac < 0.4) sc -= 2;
+		if (alive.length >= 3 && !isAce) sc -= 2;   // 아직 더 좋은 기회가 있을 수 있음
+		if (pred.damage >= 2.2 && !outspeeds(battle, user, target)) sc -= 3; // 다이맥스해도 한 방에 쓰러짐
+		if (target.volatiles['dynamax'] && hpFrac > 0.5) sc += 1; // 상대 다이맥스 맞대응
+		if (careless) sc += 2;
+		cands.push({ k: 'dmax', v: ' dynamax', score: sc });
+	}
+
+	if (!cands.length) return '';
+	cands.sort((a, b) => b.score - a.score);
+	const top = cands[0];
+	const threshold = isLast ? 1 : 2;
+	if (top.score >= threshold) return r(top.k, top.v);
 	return '';
 }
 

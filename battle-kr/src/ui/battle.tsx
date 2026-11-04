@@ -10,7 +10,7 @@ import { loadSettings, updateRecords } from '../store';
 import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox } from './core';
 import { MonSheet, type LiveInfo } from './screens';
 import * as FX from '../fx';
-import { sfx, moveSound, playMusic, stopMusic } from '../sound';
+import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries } from '../sound';
 import { SPRITE_URL } from '../trainer-lines';
 
 export interface BattleSetup {
@@ -161,25 +161,31 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		const a = arena.getBoundingClientRect(), r = el.getBoundingClientRect();
 		return { x: r.left - a.left, y: r.top - a.top - (own ? 34 : 26) * scale * (setup.doubles ? 0.8 : 1) };
 	}
-	function moveFx(p: ParsedLine) {
-		const layer = fxRef.current;
+	const pendingHitRef = useRef<{ at: number; sound: string } | null>(null);
+	function moveFx(p: ParsedLine): number {
+		const layer = fxRef.current, arena = arenaRef.current;
 		const [, user, moveName, target] = p.args;
-		const md = moveData(toID(moveName), gen);
-		const type = md?.type || 'Normal', cat = md?.category || 'Physical';
+		const mid = toID(moveName);
+		const simMove = sessionRef.current?.battle.dex.moves.get(mid);
+		const md = moveData(mid, gen);
+		const type = simMove?.type || md?.type || 'Normal', cat = simMove?.category || md?.category || 'Physical';
 		moveSound(type, cat);
-		if (!layer || p.kw.still && !md) return;
+		if (!layer || !arena || p.kw.still) return 0;
 		const from = slotPoint(user);
-		const to = slotPoint(target || '') || from;
-		if (!from || !to) return;
-		if (p.kw.miss || p.kw.notarget) return;
-		if (cat === 'Status') {
-			FX.sparkle(layer, target && !target.startsWith(user.slice(0, 3)) ? to : from, type, scale, md?.target !== 'self' && !!target && target.slice(0, 2) !== user.slice(0, 2));
-		} else if (cat === 'Special' && to !== from) {
-			const t = FX.projectile(layer, from, to, type, scale);
-			setTimeout(() => FX.burst(layer, to, type, scale), Math.max(200, t - 150));
-		} else {
-			setTimeout(() => FX.burst(layer, to, type, scale), 180);
+		if (!from) return 0;
+		if (p.kw.miss || p.kw.notarget) return 0;
+		const tt = simMove?.target || md?.target || 'normal';
+		let hits: FX.Pt[] = [];
+		const foeSide = user.startsWith('p1') ? 'p2' : 'p1';
+		if (['allAdjacentFoes', 'allAdjacent', 'all', 'foeSide'].includes(tt)) {
+			sceneRef.current[foeSide].active.forEach((m, i) => { if (m && !m.fainted) { const pt = slotPoint(`${foeSide}${'ab'[i]}: x`); if (pt) hits.push(pt); } });
 		}
+		const to = slotPoint(target || '') || hits[0] || from;
+		if (!hits.length) hits = [to];
+		const impact = FX.playMove(layer, arena, { id: mid, type, category: cat, flags: simMove?.flags || {}, target: tt, basePower: simMove?.basePower }, from, to, scale, hits);
+		const hitSound = RXp(/explosion|selfdestruct|boomburst|eruption|mindblown/, mid) ? 'hitExplode' : RXp(/punch|fist|kick|slam|smash|hammer|tackle|headbutt|rush|charge|press|chop/, mid) ? 'hitPunch' : RXp(/slash|cut|claw|blade|sword|edge|scissor|wing|razor|fang|bite|crunch/, mid) ? 'hitSlash' : 'hit';
+		pendingHitRef.current = { at: impact, sound: hitSound };
+		return impact;
 	}
 
 	/** 줄 하나를 화면 상태에 반영. 연출 대기시간(ms) 반환 */
@@ -200,21 +206,32 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			mon.hp = hp.hp; mon.maxhp = hp.maxhp || mon.maxhp; mon.status = hp.status === 'fnt' ? '' : hp.status;
 			mon.fainted = false; mon.boosts = {}; mon.vol = new Set();
 			side.active[slot] = mon;
+			const own = ident.startsWith('p1');
+			const layer = fxRef.current;
+			const to = slotPoint(ident);
+			if (layer && to && cmd !== 'replace') {
+				const from = { x: own ? -10 : layer.clientWidth + 10, y: to.y - 30 * scale };
+				mon.hidden = true;
+				sfx('ballThrow');
+				const t = FX.ballOut(layer, from, to, scale);
+				setTimeout(() => { mon.hidden = false; mon.anim = 'enter'; rerender(); sfx('ballOpen'); cry(toID(mon.species)); setTimeout(() => { if (mon.anim === 'enter') { mon.anim = ''; rerender(); } }, 500); }, t);
+				return t + 450;
+			}
 			animate(mon, 'enter', 600);
-			sfx('ball');
+			cry(toID(mon.species));
 			return 350;
 		}
 		case 'faint': {
 			const mon = activeMon(args[1]);
-			if (mon) { mon.fainted = true; mon.hp = 0; animate(mon, 'faint', 900); }
+			if (mon) { mon.fainted = true; mon.hp = 0; animate(mon, 'faint', 900); cry(toID(mon.species), { faint: true }); }
 			sfx('faint');
-			return 500;
+			return 700;
 		}
 		case 'move': {
 			const mon = activeMon(args[1]);
 			animate(mon, args[1].startsWith('p1') ? 'attack-own' : 'attack-foe', 450);
-			moveFx(p);
-			return 550;
+			const impact = moveFx(p);
+			return Math.max(500, impact + 300);
 		}
 		case '-damage': case '-heal': case '-sethp': {
 			const mon = activeMon(args[1]);
@@ -225,7 +242,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (hp.maxhp) mon.maxhp = hp.maxhp;
 			if (hp.status === 'fnt') { mon.hp = 0; }
 			else mon.status = hp.status;
-			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); sfx('hit'); }
+			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); sfx(pendingHitRef.current?.sound || 'hit'); }
 			if (cmd === '-heal' && !kw.silent && fxRef.current) { const pt = slotPoint(args[1]); if (pt) FX.sparkle(fxRef.current, pt, 'Grass', scale); sfx('heal'); }
 			return before !== mon.hp ? 550 : 0;
 		}
@@ -335,6 +352,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		case '-mega': case '-primal': case '-burst': {
 			const m = activeMon(args[1]); animate(m, 'enter', 600);
 			sfx('mega'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, '#ff80ff', scale);
+			if (m) cry(toID(m.species), { delay: 600 });
 			return 900;
 		}
 		case '-item': { const m = activeMon(args[1]); if (m) m.item = args[2]; return 0; }
@@ -385,7 +403,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				showMsg(msgs.shift()!);
 				const side = sceneRef.current[p.args[1].slice(0, 2) as 'p1' | 'p2'];
 				const cur = side.active[slotOf(p.args[1])];
-				if (cur) animate(cur, 'leave', 500);
+				if (cur) { animate(cur, 'leave', 500); const pt = slotPoint(p.args[1]); if (pt && fxRef.current) FX.ballIn(fxRef.current, pt, scale); }
 				rerender();
 				await wait(SPEED_MS[settings.speed] * 0.7);
 			}
@@ -506,7 +524,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		});
 		// 내 팀은 미리 등록 (교체 화면용)
 		const lines = s.start();
-		playMusic(setup.bg === 'champion' ? 'boss' : 'battle');
+		playMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle');
+		preloadCries([...setup.p1.team, ...setup.p2.team].map(x => toID(x.species)));
 		(async () => {
 			// 트레이너 등장 (양쪽 트레이너가 발판에 나타난 뒤 포켓몬을 내보냄)
 			setTrainerVis({ own: true, foe: true });
@@ -575,20 +594,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!activeReq) return null;
 		const focusM = activeReq.moves[focus] || activeReq.moves[0];
 		const fi = focusM ? moveInfo(focusM) : null;
-		const usedG = parts.join(' ');
-		const g: [string, string][] = [];
-		if (!/ mega| ultra/.test(usedG)) {
-			if (activeReq.canMegaEvo) g.push(['mega', '메가진화']);
-			if (activeReq.canMegaEvoX) g.push(['megax', '메가진화 X']);
-			if (activeReq.canMegaEvoY) g.push(['megay', '메가진화 Y']);
-			if (activeReq.canUltraBurst) g.push(['ultra', '울트라버스트']);
-		}
-		if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워']);
-		if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스']);
-		if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈(${typeKo(activeReq.canTerastallize)})`]);
 		return <div class="move-panel">
-			{g.length > 0 && <div class="gimmicks">{g.map(([k, label]) =>
-				<button class={'btn small gm gm-' + k + (gimmick === k ? ' on' : '')} onClick={() => setGimmick(gimmick === k ? '' : k)}>{gimmick === k ? '✔ ' : ''}{label}</button>)}</div>}
 			<div class="move-grid win-dark">
 				{activeReq.moves.map((m: any, i: number) => {
 					const { type, name, eff } = moveInfo(m, i);
@@ -694,9 +700,23 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				else if (menu !== 'main' && !req.forceSwitch) setMenu('main');
 				else cancelChoice();
 			}}>◀ 뒤로</button> : null;
+		const usedG = parts.join(' ');
+		const g: [string, string][] = [];
+		if (activeReq && menu === 'moves') {
+			if (!/ mega| ultra/.test(usedG)) {
+				if (activeReq.canMegaEvo) g.push(['mega', '메가진화']);
+				if (activeReq.canMegaEvoX) g.push(['megax', '메가 X']);
+				if (activeReq.canMegaEvoY) g.push(['megay', '메가 Y']);
+				if (activeReq.canUltraBurst) g.push(['ultra', '울트라버스트']);
+			}
+			if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워']);
+			if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스']);
+			if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈 ${typeKo(activeReq.canTerastallize)}`]);
+		}
 		return <div class="controls">
 			<div class="ctl-head">
-				<span>{req.forceSwitch ? '교체할 포켓몬을 고르세요' : curMon ? `${curMon.nick}의 행동` : ''}{setup.doubles && !req.forceSwitch ? ` · ${slotIdx + 1}번째` : ''}</span>
+				<span class="ctl-title">{req.forceSwitch ? '교체할 포켓몬' : curMon ? `${curMon.nick}` : ''}{setup.doubles && !req.forceSwitch ? ` (${slotIdx + 1})` : ''}</span>
+				{g.map(([k, label]) => <button class={'gm gm-' + k + (gimmick === k ? ' on' : '')} onClick={() => setGimmick(gimmick === k ? '' : k)}>{gimmick === k ? '✔' : ''}{label}</button>)}
 				{back}
 			</div>
 			{menu === 'main' && <div class="cmd-grid win-dark">
@@ -736,7 +756,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	const spriteSlot = (mon: Mon | null, own: boolean, i: number) => {
 		const pos = (own ? 'own' : 'foe') + ' s' + i;
-		if (!mon || (mon.fainted && !mon.anim)) return <div class={'slot ' + pos} key={i} />;
+		if (!mon || (mon.fainted && !mon.anim) || mon.hidden) return <div class={'slot ' + pos} key={i} />;
 		return <div class={'slot ' + pos + ' ' + (mon.anim || '') + (mon.vol.has('dynamax') ? ' dmax' : '') + (mon.tera ? ' tera' : '')} key={i}
 			style={mon.tera ? { '--tera': TYPE_COLOR[mon.tera] } as any : undefined} onClick={() => setDetail({ mon, own })}>
 			{mon.vol.has('substitute') ? <div class="sub-doll">대타</div> :
@@ -840,6 +860,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		})() : <MonDetail mon={detail.mon} own={detail.own} gen={gen} session={sessionRef.current!} onClose={() => setDetail(null)} />)}
 	</div>;
 }
+
+const RXp = (re: RegExp, id: string) => re.test(id);
 
 function josaSubject(word: string) {
 	const ch = word.charCodeAt(word.length - 1);

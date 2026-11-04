@@ -362,21 +362,46 @@ export async function runNamed() {
 
 // ───────────── 프리 배틀 ─────────────
 export async function runFree() {
-	const opt = await ask<{ gen: Gen; fmt: Fmt } | typeof BACK>(r => <ChoiceScreen title="프리 배틀" onBack={() => r(BACK)}
-		intro={<p class="hint">무작위 팀끼리 6vs6으로 바로 싸웁니다. 기록에는 남지 않아요.</p>}
+	const fmt = await chooseFormat('프리 배틀', '내 팀으로, 내가 만든 다른 팀이나 무작위 팀과 바로 대전합니다. 기록에는 남지 않아요.');
+	if (fmt === BACK) return;
+	const my = await chooseTeam(9, '내 팀');
+	if (my === BACK) return;
+	// 상대 팀: 저장된 팀 / 무작위
+	const teams = loadTeams().filter(t => t.sets.length >= 1);
+	const oppPick = await ask<SavedTeam | 'random' | 'strong' | typeof BACK>(r => <ChoiceScreen title="상대 팀" onBack={() => r(BACK)}
 		options={[
-			{ value: { gen: 9 as Gen, fmt: 'singles' as Fmt }, label: '싱글배틀', icon: '①' },
-			{ value: { gen: 9 as Gen, fmt: 'doubles' as Fmt }, label: '더블배틀', icon: '②' },
+			{ value: 'random' as const, label: '무작위 팀', desc: '일반 트레이너의 무작위 6마리', icon: '🎲' },
+			{ value: 'strong' as const, label: '강한 무작위 팀', desc: '준전설 포함 · 메가·Z 소지', icon: '🔥' },
+			...teams.map(t => ({ value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '),
+				icon: <span class="mini"><img class="sprite" src={`https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span> })),
 		]} onPick={r} />);
-	if (opt === BACK) return;
-	const src = await chooseTeam(opt.gen, '내 팀');
-	if (src === BACK) return;
+	if (oppPick === BACK) return;
+	const level = await ask<'s' | 'n' | 'h' | typeof BACK>(r => <ChoiceScreen title="상대 AI 실력" onBack={() => r(BACK)} options={[
+		{ value: 'n' as const, label: '보통', desc: '체육관 관장 수준', icon: '●' },
+		{ value: 'h' as const, label: '강함', desc: '챔피언 수준 — 기믹과 교체를 가장 잘 씀', icon: '◆' },
+		{ value: 's' as const, label: '약함', desc: '실수가 잦음', icon: '○' },
+	]} onPick={r} />);
+	if (level === BACK) return;
+	const skill = level === 'h' ? 0.97 : level === 'n' ? 0.85 : 0.5;
+	const n = fmt === 'doubles' ? 4 : 3;
 	while (true) {
 		const tr = randomTrainer();
-		const opp = randomTeam({ gen: opt.gen, size: 6, minBst: 470, maxBst: 600 });
+		let oppTeam: PSet[];
+		let oppName = tr.name, oppTitle = tr.className, oppSprite = tr.sprite, oppLines: any = tr.lines;
+		if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
+		else if (oppPick === 'strong') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: fmt === 'doubles' });
+		else { oppTeam = withLevel(oppPick.sets.map(cloneSet), 50); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
+		const myTeam = withLevel(my, 50);
+		const size = await ask<number>(r => <ChoiceScreen title="참가 마릿수" options={[
+			{ value: n, label: `${n}마리 (${fmt === 'doubles' ? '더블' : '싱글'} 표준)`, desc: '상대 팀을 보고 고릅니다', icon: String(n) },
+			{ value: 6, label: '풀배틀 6마리', desc: '전원 참가', icon: '6' },
+		]} onPick={r} />);
+		const picked = size < myTeam.length ? await ask<PSet[]>(r => <PickScreen title="참가 포켓몬" team={myTeam} gen={9} count={size}
+			opponent={{ name: oppName, team: oppTeam }} onDone={r} />) : myTeam;
+		const oppSel = size < oppTeam.length ? rng.shuffle(oppTeam).slice(0, size) : oppTeam;
 		const res = await battle({
-			gen: opt.gen, doubles: opt.fmt === 'doubles', aiSkill: 0.8, bg: 'field', label: '프리 배틀',
-			p1: { name: playerName(), team: withLevel(src, 50), sprite: playerSprite() }, p2: { name: tr.name, title: tr.className, team: opp, sprite: tr.sprite, lines: tr.lines },
+			gen: 9, doubles: fmt === 'doubles', aiSkill: skill, bg: 'field', label: '프리 배틀',
+			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: oppName, title: oppTitle, team: oppSel, sprite: oppSprite, lines: oppLines },
 		});
 		const again = await ask<boolean>(r => <InfoScreen title="프리 배틀" heading={res.win ? '승리!' : '패배…'}
 			actions={[{ label: '한 번 더', onClick: () => r(true) }, { label: '메뉴로', kind: 'ghost', onClick: () => r(false) }]} />);

@@ -6,7 +6,7 @@ export interface NamedTrainer {
 	id: string;
 	name: string;
 	title: string; // 예: '회색체육관 관장'
-	region: '관동' | '성도' | '호연' | '신오' | '하나';
+	region: '관동' | '성도' | '호연' | '신오' | '하나' | '칼로스' | '알로라' | '가라르' | '팔데아';
 	role: 'leader' | 'elite' | 'champion';
 	team: string[]; // 종족 ID 6마리 (앞쪽이 에이스 순서 아님)
 	ace: string; // 마지막에 나오는 에이스
@@ -83,9 +83,59 @@ export const NAMED: NamedTrainer[] = [
 	T('drayden', '사간', '하나 체육관 관장 · 드래곤', '하나', 'leader', ['druddigon', 'altaria', 'flygon', 'dragonite', 'salamence', 'haxorus'], '드래곤의 긍지를 걸고!'),
 	T('alder', '노간주', '하나 챔피언', '하나', 'champion', ['bouffalant', 'accelgor', 'vanilluxe', 'escavalier', 'druddigon', 'volcarona'], '포켓몬과의 승부, 즐겨 보자!'),
 	T('iris', '아이리스', '하나 챔피언', '하나', 'champion', ['archeops', 'lapras', 'aggron', 'dragonite', 'hydreigon', 'haxorus'], '드래곤 포켓몬과 함께, 진심으로 갈게!'),
+	// ── 칼로스 ──
+	T('viola', '비올라', '칼로스 체육관 관장 · 벌레', '칼로스', 'leader', ['masquerain', 'vivillon', 'scizor', 'galvantula', 'volcarona', 'pinsir'], '렌즈 너머의 승부, 찰칵!'),
+	T('grant', '자크로', '칼로스 체육관 관장 · 바위', '칼로스', 'leader', ['amaura', 'aerodactyl', 'barbaracle', 'aurorus', 'tyrantrum', 'lycanroc'], '벽을 오르듯 한 걸음씩!'),
+	T('korrina', '코르니', '칼로스 체육관 관장 · 격투', '칼로스', 'leader', ['mienshao', 'hawlucha', 'machamp', 'medicham', 'hitmontop', 'lucario'], '롤러 타고 승부다!'),
+	T('ramos', '후쿠지', '칼로스 체육관 관장 · 풀', '칼로스', 'leader', ['jumpluff', 'weepinbell', 'gogoat', 'trevenant', 'amoonguss', 'venusaur'], '정원사의 끈기를 보여주지.'),
+	T('clemont', '시트론', '칼로스 체육관 관장 · 전기', '칼로스', 'leader', ['emolga', 'magneton', 'rotomwash', 'ampharos', 'luxray', 'heliolisk'], '과학의 힘으로 승부!'),
+	T('valerie', '마슈', '칼로스 체육관 관장 · 페어리', '칼로스', 'leader', ['mawile', 'mrmime', 'azumarill', 'florges', 'togekiss', 'sylveon'], '요정의 꿈 같은 승부를.'),
+	T('olympia', '고조', '칼로스 체육관 관장 · 에스퍼', '칼로스', 'leader', ['sigilyph', 'slowking', 'gothitelle', 'malamar', 'gardevoir', 'meowstic'], '별이 알려준 운명을 따르겠다.'),
+	T('wulfric', '우르프', '칼로스 체육관 관장 · 얼음', '칼로스', 'leader', ['abomasnow', 'cryogonal', 'walrein', 'glalie', 'mamoswine', 'avalugg'], '얼음처럼 우직하게 간다!'),
+	T('malva', '파키라', '칼로스 사천왕 · 불꽃', '칼로스', 'elite', ['pyroar', 'torkoal', 'chandelure', 'houndoom', 'blaziken', 'talonflame'], '뜨겁게 태워 주지.'),
+	T('siebold', '즈미', '칼로스 사천왕 · 물', '칼로스', 'elite', ['clawitzer', 'starmie', 'gyarados', 'milotic', 'kingdra', 'barbaracle'], '요리처럼 섬세한 승부를.'),
+	T('wikstrom', '감피', '칼로스 사천왕 · 강철', '칼로스', 'elite', ['klefki', 'probopass', 'scizor', 'metagross', 'bisharp', 'aegislash'], '기사의 이름을 걸고!'),
+	T('drasna', '도라세나', '칼로스 사천왕 · 드래곤', '칼로스', 'elite', ['dragalge', 'altaria', 'druddigon', 'kingdra', 'goodra', 'noivern'], '드래곤과 함께 춤추자.'),
+	T('diantha', '카르네', '칼로스 챔피언', '칼로스', 'champion', ['hawlucha', 'tyrantrum', 'aurorus', 'gourgeist', 'goodra', 'gardevoir'], '멋진 승부를 기대할게요.'),
+	// ── 알로라 ──
+	T('hala', '하라', '알로라 섬의 왕 · 격투', '알로라', 'leader', ['hariyama', 'primeape', 'bewear', 'poliwrath', 'crabominable', 'machamp'], '섬의 왕 하라, 받아 주마!'),
+	T('olivia', '라이치', '알로라 섬의 여왕 · 바위', '알로라', 'leader', ['probopass', 'gigalith', 'relicanth', 'carbink', 'golem', 'lycanroc'], '바위처럼 단단한 마음으로!'),
+	T('nanu', '쿠지', '알로라 섬의 왕 · 악', '알로라', 'leader', ['sableye', 'krokorok', 'honchkrow', 'absol', 'persianalola', 'incineroar'], '…귀찮지만 상대해 주지.'),
+	T('hapu', '하푸', '알로라 섬의 여왕 · 땅', '알로라', 'leader', ['dugtrioalola', 'gastrodon', 'flygon', 'hippowdon', 'palossand', 'mudsdale'], '땅의 힘을 보여줄게!'),
+	T('molayne', '마리', '알로라 사천왕 · 강철', '알로라', 'elite', ['klefki', 'bisharp', 'magnezone', 'metagross', 'bronzong', 'dugtrioalola'], '강철의 수호자다.'),
+	T('acerola', '아세로라', '알로라 사천왕 · 고스트', '알로라', 'elite', ['banette', 'drifblim', 'froslass', 'dhelmise', 'mimikyu', 'palossand'], '유령 친구들과 함께 놀자~!'),
+	T('kahili', '카히리', '알로라 사천왕 · 비행', '알로라', 'elite', ['braviary', 'oricorio', 'mandibuzz', 'crobat', 'hawlucha', 'toucannon'], '바람을 타고 간다!'),
+	T('kukui', '쿠쿠이', '알로라 챔피언 방어전', '알로라', 'champion', ['lycanroc', 'ninetalesalola', 'braviary', 'magnezone', 'snorlax', 'incineroar'], '승부의 열기, 느껴 보자고!'),
+	T('hau', '하우', '알로라 챔피언', '알로라', 'champion', ['raichualola', 'tauros', 'crabominable', 'noivern', 'flareon', 'decidueye'], '즐겁게 승부하자!'),
+	// ── 가라르 ──
+	T('milo', '터너', '가라르 체육관 관장 · 풀', '가라르', 'leader', ['gossifleur', 'eldegoss', 'tsareena', 'appletun', 'flapple', 'rillaboom'], '느긋하게, 하지만 확실하게!'),
+	T('nessa', '루리나', '가라르 체육관 관장 · 물', '가라르', 'leader', ['golisopod', 'pelipper', 'barraskewda', 'seaking', 'toxapex', 'drednaw'], '파도처럼 밀어붙일게!'),
+	T('kabu', '카브', '가라르 체육관 관장 · 불꽃', '가라르', 'leader', ['ninetales', 'arcanine', 'torkoal', 'coalossal', 'salazzle', 'centiskorch'], '불타는 투지로!'),
+	T('bea', '채두', '가라르 체육관 관장 · 격투', '가라르', 'leader', ['hitmontop', 'pangoro', 'sirfetchd', 'falinks', 'grapploct', 'machamp'], '흔들리지 않는 마음으로.'),
+	T('allister', '어니언', '가라르 체육관 관장 · 고스트', '가라르', 'leader', ['mimikyu', 'cursola', 'polteageist', 'dusknoir', 'runerigus', 'gengar'], '…가면 뒤에서, 승부.'),
+	T('opal', '포플러', '가라르 체육관 관장 · 페어리', '가라르', 'leader', ['weezinggalar', 'mawile', 'togekiss', 'hatterene', 'grimmsnarl', 'alcremie'], '핑크빛 승부의 시간이란다.'),
+	T('gordie', '마쿠와', '가라르 체육관 관장 · 바위', '가라르', 'leader', ['barbaracle', 'shuckle', 'stonjourner', 'tyranitar', 'gigalith', 'coalossal'], '바위의 광채를 보여주지!'),
+	T('melony', '멜로니', '가라르 체육관 관장 · 얼음', '가라르', 'leader', ['frosmoth', 'darmanitangalar', 'eiscue', 'glaceon', 'froslass', 'lapras'], '차갑지만 따뜻한 승부를.'),
+	T('piers', '두송', '가라르 체육관 관장 · 악', '가라르', 'leader', ['scrafty', 'malamar', 'skuntank', 'toxicroak', 'grimmsnarl', 'obstagoon'], '…락은 멈추지 않아.'),
+	T('raihan', '금랑', '가라르 체육관 관장 · 드래곤', '가라르', 'leader', ['gigalith', 'flygon', 'sandaconda', 'turtonator', 'goodra', 'duraludon'], '날씨까지 내 편이다!'),
+	T('leon', '단델', '가라르 챔피언', '가라르', 'champion', ['aegislash', 'dragapult', 'haxorus', 'seismitoad', 'rillaboom', 'charizard'], '챔피언 타임이다!'),
+	// ── 팔데아 ──
+	T('katy', '비파', '팔데아 체육관 관장 · 벌레', '팔데아', 'leader', ['vivillon', 'heracross', 'scizor', 'lokix', 'spidops', 'teddiursa'], '달콤한 승부, 시작할게요!'),
+	T('brassius', '콜사', '팔데아 체육관 관장 · 풀', '팔데아', 'leader', ['breloom', 'tsareena', 'arboliva', 'toedscruel', 'brambleghast', 'sudowoodo'], '예술은… 폭발이다!'),
+	T('iono', '나나', '팔데아 체육관 관장 · 전기', '팔데아', 'leader', ['wattrel', 'kilowattrel', 'luxray', 'electrode', 'mismagius', 'bellibolt'], '채널 구독, 좋아요 부탁해~!'),
+	T('kofu', '하이다이', '팔데아 체육관 관장 · 물', '팔데아', 'leader', ['veluza', 'wugtrio', 'clawitzer', 'pelipper', 'quaquaval', 'crabominable'], '신선한 승부 한 접시!'),
+	T('larry', '청목', '팔데아 체육관 관장 · 노말', '팔데아', 'leader', ['komala', 'dudunsparce', 'oinkologne', 'braviary', 'altaria', 'staraptor'], '…평범하게 하겠습니다.'),
+	T('ryme', '라임', '팔데아 체육관 관장 · 고스트', '팔데아', 'leader', ['banette', 'mimikyu', 'houndstone', 'annihilape', 'skeledirge', 'toxtricity'], '비트에 맞춰 승부다, 요!'),
+	T('tulip', '튤립', '팔데아 체육관 관장 · 에스퍼', '팔데아', 'leader', ['farigiraf', 'gardevoir', 'espathra', 'florges', 'armarouge', 'oranguru'], '아름다움은 힘이야.'),
+	T('grusha', '그루샤', '팔데아 체육관 관장 · 얼음', '팔데아', 'leader', ['frosmoth', 'beartic', 'cetitan', 'weavile', 'glalie', 'altaria'], '…차갑게 끝내 주지.'),
+	T('rika', '치리', '팔데아 사천왕 · 땅', '팔데아', 'elite', ['whiscash', 'camerupt', 'donphan', 'dugtrio', 'hippowdon', 'clodsire'], '자, 면접 시작할까?'),
+	T('poppy', '포피', '팔데아 사천왕 · 강철', '팔데아', 'elite', ['copperajah', 'magnezone', 'bronzong', 'corviknight', 'kingambit', 'tinkaton'], '포피, 열심히 할게요!'),
+	T('hassel', '하설', '팔데아 사천왕 · 드래곤', '팔데아', 'elite', ['noivern', 'dragalge', 'haxorus', 'flapple', 'garchomp', 'baxcalibur'], '드래곤의 예술을 보여주마!'),
+	T('geeta', '오모달', '팔데아 톱 챔피언', '팔데아', 'champion', ['espathra', 'avalugg', 'kingambit', 'veluza', 'gogoat', 'glimmora'], '전력으로, 승부하죠.'),
+	T('kieran', '카지', '키타카미 챔피언', '팔데아', 'champion', ['dipplin', 'ursalunabloodmoon', 'incineroar', 'dragonite', 'porygonz', 'hydrapple'], '…이번엔 절대 안 져.'),
 ];
 
-export const REGIONS: NamedTrainer['region'][] = ['관동', '성도', '호연', '신오', '하나'];
+export const REGIONS: NamedTrainer['region'][] = ['관동', '성도', '호연', '신오', '하나', '칼로스', '알로라', '가라르', '팔데아'];
 export const ROLE_KO = { leader: '체육관 관장', elite: '사천왕', champion: '챔피언' };
 
 // ── 일반 트레이너 ──
@@ -127,6 +177,10 @@ export const CUPS: Cup[] = [
 	{ id: 'hoenn', name: '호연 리더스', desc: '호연 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('호연') },
 	{ id: 'sinnoh', name: '신오 리더스', desc: '신오 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('신오') },
 	{ id: 'unova', name: '하나 리더스', desc: '하나 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('하나') },
+	{ id: 'kalos', name: '칼로스 리더스', desc: '칼로스 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('칼로스') },
+	{ id: 'alola', name: '알로라 섬의 왕', desc: '알로라의 섬의 왕·여왕이 참가합니다.', trainers: () => byRegionLeaders('알로라') },
+	{ id: 'galar', name: '가라르 리더스', desc: '가라르 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('가라르') },
+	{ id: 'paldea', name: '팔데아 리더스', desc: '팔데아 지방 체육관 관장들이 참가합니다.', trainers: () => byRegionLeaders('팔데아') },
 	{ id: 'world', name: '월드 리더스', desc: '모든 지방의 관장들 중 무작위로 참가합니다.', trainers: () => rng.shuffle(NAMED.filter(t => t.role === 'leader').map(t => t.id)) },
 	{ id: 'elite', name: '사천왕 대회', desc: '각 지방의 사천왕이 모였습니다.', trainers: () => rng.shuffle(NAMED.filter(t => t.role === 'elite').map(t => t.id)) },
 	{ id: 'champions', name: '챔피언스', desc: '역대 챔피언들이 모인 최강의 대회.', trainers: () => rng.shuffle(NAMED.filter(t => t.role === 'champion').map(t => t.id)) },

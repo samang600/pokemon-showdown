@@ -19,6 +19,8 @@ export class Session {
 	p1Request: any = null;
 	p2Request: any = null;
 	private p2Answered: any = null;
+	/** 각 진영이 이번 배틀에 쓴 기믹 (mega/zmove/dynamax/tera) — 한 종류만 허용 */
+	gimmickUsed: { p1: string; p2: string } = { p1: '', p2: '' };
 	ended = false;
 	winner = '';
 	lastError = '';
@@ -44,6 +46,12 @@ export class Session {
 					continue;
 				}
 				this.pending.push(line);
+				const gm = /^\|(-mega|-primal|-burst|-zpower|-terastallize)\|(p[12])/.exec(line) || /^\|-start\|(p[12])[a-c]: [^|]*\|Dynamax/.exec(line);
+				if (gm) {
+					const side = (gm[2] || gm[1]) as 'p1' | 'p2';
+					const kind = line.includes('-zpower') ? 'zmove' : line.includes('-terastallize') ? 'tera' : line.includes('Dynamax') ? 'dynamax' : 'mega';
+					if (!this.gimmickUsed[side]) this.gimmickUsed[side] = kind;
+				}
 				if (line.startsWith('|win|')) { this.ended = true; this.winner = line.slice(5); }
 				if (line === '|tie') { this.ended = true; this.winner = ''; }
 			}
@@ -54,6 +62,7 @@ export class Session {
 			const rest = str.slice(nl + 1);
 			if (rest.startsWith('|request|')) {
 				const req = JSON.parse(rest.slice(9));
+				this.applyGimmickRule(req, side as 'p1' | 'p2');
 				if (side === 'p1') this.p1Request = req;
 				else if (side === 'p2') this.p2Request = req;
 			} else if (rest.startsWith('|error|')) {
@@ -61,6 +70,24 @@ export class Session {
 			}
 		} else if (type === 'end') {
 			this.ended = true;
+		}
+	}
+
+	/** 이미 한 종류의 기믹을 썼으면 다른 기믹 선택지를 없앤다 (다이맥스 중엔 다이맥스 기술은 유지) */
+	private applyGimmickRule(req: any, side: 'p1' | 'p2') {
+		const used = this.gimmickUsed[side];
+		if (!used || !req.active) return;
+		for (const a of req.active) {
+			if (!a) continue;
+			if (used !== 'mega') { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; }
+			if (used !== 'zmove') delete a.canZMove;
+			if (used !== 'dynamax') { delete a.canDynamax; if (!this.battle[side].active.some((p: any) => p?.volatiles['dynamax'])) delete a.maxMoves; }
+			if (used !== 'tera') delete a.canTerastallize;
+			// 같은 종류라도 1회뿐 (메가·Z·테라는 시뮬레이터가 스스로 막고, 다이맥스도 1회)
+			if (used === 'mega') { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; }
+			if (used === 'zmove') delete a.canZMove;
+			if (used === 'tera') delete a.canTerastallize;
+			if (used === 'dynamax') delete a.canDynamax;
 		}
 	}
 
