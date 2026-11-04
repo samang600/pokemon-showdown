@@ -16,6 +16,7 @@ export default configure({
 		'tools/set-import/sets',
 		'tools/modlog/converter.js',
 		'server/global-variables.d.ts',
+		'battle-kr/',
 	],
 	overrides: [
 		{
