@@ -277,6 +277,20 @@ for (const id in en.default) {
 
 result.moveIds = moveIds;
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
+// ── 싸라기눈 → 설경 (9세대 명칭으로 통일: 설명·메시지·날씨 이름 모두) ──
+if (result.text.hail && result.text.snowscape) {
+	for (const k of ['start', 'end', 'upkeep']) if (result.text.snowscape[k]) result.text.hail[k] = result.text.snowscape[k];
+	result.text.hail.weatherName = '설경';
+	if (result.text.hail.damage) result.text.hail.damage = result.text.hail.damage.replace('싸라기눈이', '눈보라가');
+}
+(function walk(o) {
+	for (const k of Object.keys(o)) {
+		const v = o[k];
+		if (typeof v === 'string') { if (v.includes('싸라기눈')) o[k] = v.replace(/싸라기눈/g, '설경'); }
+		else if (v && typeof v === 'object') walk(v);
+	}
+})(result);
+if (result.moves.hail) result.moves.hail.n = '설경 (싸라기눈)'; // 옛 기술 '싸라기눈'은 9세대 '설경'과 구분
 fs.writeFileSync(OUT, JSON.stringify(result));
 console.log(`dex.json: 포켓몬 ${Object.keys(result.species).length}, 기술 ${moveIds.length}, 특성 ${Object.keys(result.abilities).length}, ` +
 	`도구 ${Object.keys(result.items).length}, ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB`);

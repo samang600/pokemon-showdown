@@ -54,7 +54,7 @@ const SIDE_KO: { [id: string]: string } = {
 	stealthrock: '스텔스록', spikes: '압정뿌리기', toxicspikes: '독압정', reflect: '리플렉터', lightscreen: '빛의장막',
 	tailwind: '순풍', safeguard: '신비의부적', mist: '흰안개', luckychant: '주술', wideguard: '와이드가드', quickguard: '퍼스트가드',
 };
-const WEATHER_KO: { [id: string]: string } = { raindance: '비', sunnyday: '쾌청', sandstorm: '모래바람', hail: '싸라기눈', snowscape: '눈', primordialsea: '강한 비', desolateland: '강한 햇살', deltastream: '난기류' };
+const WEATHER_KO: { [id: string]: string } = { raindance: '비', sunnyday: '쾌청', sandstorm: '모래바람', hail: '설경', snowscape: '설경', primordialsea: '강한 비', desolateland: '강한 햇살', deltastream: '난기류' };
 const PSEUDO_KO: { [id: string]: string } = { trickroom: '트릭룸', gravity: '중력', wonderroom: '원더룸', magicroom: '매직룸', mudsport: '흙놀이', watersport: '물놀이' };
 
 function parseDetails(details: string) {
@@ -145,6 +145,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		skipRef.current = () => { clearTimeout(t); skipRef.current = null; resolve(); };
 	});
 
+	/** 소리 기술(하이퍼보이스·울음소리·폭음파 등 sound 플래그)은 쓰는 포켓몬의 울음소리를 함께 냄 (같은 줄에 한 번만) */
+	const criedRef = useRef(new WeakSet<object>());
+	function soundMoveCry(p: { cmd: string; args: string[] }, mon: Mon | null) {
+		if (!mon || criedRef.current.has(p)) return;
+		try {
+			if (sessionRef.current?.battle.dex.moves.get(toID(p.args[2])).flags.sound) { criedRef.current.add(p); cry(toID(mon.species)); }
+		} catch { /* 무시 */ }
+	}
 	function findMon(ident: string, details?: string): Mon {
 		const scene = sceneRef.current;
 		const side = scene[ident.slice(0, 2) as 'p1' | 'p2'];
@@ -328,6 +336,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		case 'move': {
 			const mon = activeMon(args[1]);
 			if (mon && !mon.seen.includes(args[2])) mon.seen.push(args[2]);
+			// 소리 기술(하이퍼보이스·울음소리·폭음파 등 sound 플래그)은 쓰는 포켓몬의 울음소리를 함께 냄
+			soundMoveCry(p, mon);
 			animate(mon, args[1].startsWith('p1') ? 'attack-own' : 'attack-foe', 450);
 			if (animUsedRef.current === p) { animUsedRef.current = null; pendingHitRef.current = { at: 0, sound: '' }; return 150; }
 			const impact = settings.effects === false ? (moveSound(moveData(toID(args[2]), gen)?.type || 'Normal', moveData(toID(args[2]), gen)?.category || 'Physical'), 0) : moveFx(p);
@@ -536,6 +546,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				showMsg(msgs.shift()!);
 				const mon = activeMon(p.args[1]);
 				if (mon && !mon.seen.includes(p.args[2])) mon.seen.push(p.args[2]);
+				soundMoveCry(p, mon);
 				rerender();
 				const used = await tryRebornAnim(p);
 				if (!used) {
@@ -980,9 +991,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			{menu === 'main' && <div class="cmd-menu">
 				<button class="cmd-fight" onClick={() => { setFocus(0); setMenu('moves'); }}><span>싸운다</span></button>
 				<div class="cmd-row">
-					<button class="cmd-sub green" onClick={() => setMenu('switch')}>포켓몬</button>
 					<button class="cmd-sub yellow" onClick={() => setFieldOpen(true)}>필드</button>
 					<button class="cmd-sub blue" onClick={forfeit}>기권</button>
+					<button class="cmd-sub green" onClick={() => setMenu('switch')}>포켓몬</button>
 				</div>
 			</div>}
 			{g.length > 0 && <div class="gm-bar">{g.map(([k, label, col]) => <button class={'gmb' + (gimmick === k ? ' on' : '')} style={{ '--gc': col } as any}

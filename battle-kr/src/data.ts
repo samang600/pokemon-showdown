@@ -174,7 +174,7 @@ const ITEM_DESC: { [id: string]: string } = {
 	damprock: '비바라기의 효과가 8턴 지속된다.',
 	heatrock: '쾌청의 효과가 8턴 지속된다.',
 	smoothrock: '모래바람의 효과가 8턴 지속된다.',
-	icyrock: '싸라기눈의 효과가 8턴 지속된다.',
+	icyrock: '설경의 효과가 8턴 지속된다.',
 	lightball: '피카츄의 공격·특수공격이 2배가 된다.',
 	thickclub: '탕구리·텅구리의 공격이 2배가 된다.',
 	souldew: '라티아스·라티오스의 특수공격·특수방어가 올라간다.',
