@@ -43,13 +43,16 @@ export function deleteTeam(id: string) { saveTeams(loadTeams().filter(t => t.id 
 export function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 // ── 설정 ──
-export interface Settings { speed: 1 | 2 | 3 | 4; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string; fastForward: boolean; vibrate: boolean; ver: number }
+export interface Settings { speed: 1 | 2 | 3 | 4; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string; fastForward: boolean; vibrate: boolean; ver: number; moveSfx: 0 | 1 | 2 | 3; gimmickRule: GimmickRule }
+/** 기믹 규칙: one=한 배틀에 한 종류, free=종류마다 1번씩, 나머지는 그 기믹만 */
+export type GimmickRule = 'one' | 'free' | 'mega' | 'zmove' | 'dynamax' | 'tera' | 'none';
 export function loadSettings(): Settings {
 	const saved = load<Partial<Settings>>('settings', {});
 	// 설정 v2: 효과음·울음소리 기본값을 '작게'로 (이전 버전에서 저장된 값도 한 번 낮춤)
 	if ((saved.ver || 0) < 2) { saved.sfxVolume = 1; saved.ver = 2; save('settings', saved); }
+	if ((saved.ver || 0) < 3) { saved.moveSfx = 1; saved.ver = 3; save('settings', saved); }
 	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true,
-		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 2, ...saved };
+		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 3, moveSfx: 1, gimmickRule: 'one', ...saved };
 }
 export function saveSettings(s: Settings) { save('settings', s); }
 

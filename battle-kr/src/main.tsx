@@ -5,9 +5,9 @@ import { bindView, Screen, Sprite, toast } from './ui/core';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
-import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
+import { loadRecords, loadSettings, saveSettings, load, type Settings, type GimmickRule } from './store';
 import { CUPS, NAMED } from './trainers';
-import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, BGM_CHOICES } from './sound';
+import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume, BGM_CHOICES } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
 
 const MODES = [
@@ -89,6 +89,16 @@ function Records({ onBack }: { onBack: () => void }) {
 	</Screen>;
 }
 
+const GIMMICK_RULES: [GimmickRule, string, string][] = [
+	['one', '한 종류만', '메가진화·Z기술·다이맥스·테라스탈 중 한 배틀에 한 종류만, 한 번 쓸 수 있습니다(기본).'],
+	['free', '모두 허용', '네 가지 기믹을 종류마다 한 번씩 모두 쓸 수 있습니다.'],
+	['mega', '메가진화만', '메가진화만 쓸 수 있습니다(포켓몬 챔피언스 방식).'],
+	['zmove', 'Z기술만', 'Z기술만 쓸 수 있습니다.'],
+	['dynamax', '다이맥스만', '다이맥스만 쓸 수 있습니다.'],
+	['tera', '테라스탈만', '테라스탈만 쓸 수 있습니다.'],
+	['none', '사용 안 함', '기믹 없이 배틀합니다.'],
+];
+
 function SettingsScreen({ onBack }: { onBack: () => void }) {
 	const [s, setS] = useState<Settings>(loadSettings());
 	const up = (p: Partial<Settings>) => { const n = { ...s, ...p }; setS(n); saveSettings(n); };
@@ -106,16 +116,20 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.sound ? 'on' : ''} onClick={() => { up({ sound: !s.sound }); }}>효과음 {s.sound ? '켜짐' : '꺼짐'}</button>
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
-		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>음악 {['작게', '보통', '크게'][v - 1]}</button>)}</div>
-		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>효과음·울음 {['작게', '보통', '크게'][v - 1]}</button>)}</div>
+		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
+		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
+		<div class="set-row"><span>기술 효과음</span><div class="seg">{([0, 1, 2, 3] as const).map(v => <button class={s.moveSfx === v ? 'on' : ''} onClick={() => { up({ moveSfx: v }); setMoveSfxVolume(v); }}>{['끔', '작게', '보통', '크게'][v]}</button>)}</div></div>
 		<h3 class="sec">배틀 음악</h3>
 		<div class="seg wrap">{BGM_CHOICES.map(([k, l]) => <button class={s.battleBgm === k ? 'on' : ''} onClick={() => { up({ battleBgm: k }); if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); } }}>{l}</button>)}</div>
 		<p class="muted small">무작위면 배틀마다 상황에 맞는 곡 중 하나가 흐릅니다. 고르면 미리 들을 수 있어요.</p>
 		<h3 class="sec">창틀 디자인</h3>
-		<div class="seg">{([['stone', '돌'], ['silver', '은'], ['dark', '어두움']] as const).map(([k, l]) => <button class={s.frame === k ? 'on' : ''} onClick={() => { up({ frame: k }); applyTheme({ ...s, frame: k }); }}>{l}</button>)}</div>
+		<div class="seg">{([['stone', '블루'], ['silver', '레드'], ['dark', '블랙']] as const).map(([k, l]) => <button class={s.frame === k ? 'on' : ''} onClick={() => { up({ frame: k }); applyTheme({ ...s, frame: k }); }}>{l}</button>)}</div>
 		<h3 class="sec">메뉴 배경</h3>
 		<div class="seg wrap">{([['title', '밤하늘'], ['field', '초원'], ['tower', '타워'], ['factory', '팩토리'], ['pwt', '경기장'], ['champion', '챔피언']] as const).map(([k, l]) => <button class={s.homeBg === k ? 'on' : ''} onClick={() => { up({ homeBg: k }); applyTheme({ ...s, homeBg: k }); }}>{l}</button>)}</div>
 		<p class="muted small">효과음·배경음악은 이 앱에서 합성한 칩튠, 기술 효과음은 Pokémon Reborn 제작. 울음소리는 인터넷에서 받아 옵니다.</p>
+		<h3 class="sec">기믹 규칙</h3>
+		<div class="seg wrap">{GIMMICK_RULES.map(([k, l]) => <button class={s.gimmickRule === k ? 'on' : ''} onClick={() => up({ gimmickRule: k })}>{l}</button>)}</div>
+		<p class="muted small">{GIMMICK_RULES.find(x => x[0] === s.gimmickRule)?.[2]} 모든 모드의 나와 상대에게 똑같이 적용됩니다.</p>
 		<h3 class="sec">배틀 화면</h3>
 		<div class="seg">
 			<button class={s.effects ? 'on' : ''} onClick={() => up({ effects: !s.effects })}>기술 이펙트 {s.effects ? '켜짐' : '꺼짐'}</button>

@@ -16,6 +16,8 @@ export interface PlayCtx {
 	/** 사용자가 상대(오른쪽 위)면 true */
 	userIsFoe: boolean;
 	sfxVolume: number;
+	/** 재생 배속 (1 = 50ms/프레임) */
+	speed?: number;
 	onFrame?: (i: number) => void;
 }
 

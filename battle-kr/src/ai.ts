@@ -699,6 +699,8 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 		request.active.forEach((reqActive: any, slot: number) => {
 			const user = side.active[slot];
 			if (!user || user.fainted) return;
+			// 사령탑(Commander)으로 입 속에 들어간 싸리용은 시뮬레이터가 자동으로 넘김
+			if (user.volatiles['commanding'] || reqActive.commanding) return;
 			const opts = moveOptions(battle, user, reqActive, flags);
 			const canSwitch = !reqActive.trapped && !reqActive.maybeTrapped;
 			if (canSwitch && flags.switching) {
@@ -720,6 +722,20 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 				const foe = foesOf(user)[0];
 				if (foe) choice += ` ${foe.position + 1}`;
 				else gm = '';
+			}
+			// 더블 안전장치: 대상이 필요한 기술인데 대상 번호가 빠졌으면 채운다
+			if (battle.gameType === 'doubles' && /^move \d+$/.test(choice)) {
+				const rm = reqActive.moves[mIdx];
+				const locked = rm && rm.pp === undefined && rm.maxpp === undefined;
+				const tt = (gm === ' dynamax' || user.volatiles['dynamax']) ? maxT : rm?.target;
+				if (!locked && ['normal', 'any', 'adjacentFoe'].includes(tt)) {
+					const foe = foesOf(user)[0];
+					if (foe) choice += ` ${foe.position + 1}`;
+				} else if (!locked && tt === 'adjacentAllyOrSelf') choice += ` -${user.position + 1}`;
+				else if (!locked && tt === 'adjacentAlly') {
+					const ally = side.active.find((a: any) => a && a !== user && !a.fainted);
+					if (ally) choice += ` -${ally.position + 1}`;
+				}
 			}
 			parts.push(choice + gm);
 		});

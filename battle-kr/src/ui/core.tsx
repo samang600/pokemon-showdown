@@ -1,7 +1,7 @@
 /** 공용 UI 조각과 화면 전환 도우미 */
 import { h, render, type ComponentChildren, type VNode } from 'preact';
 import { useState } from 'preact/hooks';
-import { spriteId, typeKo, speciesData, toID, type Gen } from '../data';
+import { spriteId, typeKo, speciesData, toID, RAW, type Gen } from '../data';
 import { loadSettings } from '../store';
 
 // ── 화면 전환: 모드 진행 코드를 async 함수로 쓰기 위한 도우미 ──
@@ -29,6 +29,32 @@ export function TypeBadge({ type, small }: { type: string; small?: boolean }) {
 }
 
 const SPRITE_HOST = 'https://play.pokemonshowdown.com/sprites';
+
+/** 도구 아이콘 (쇼다운 아이템 아이콘 시트, 24×24) */
+export function ItemIcon({ item, size = 24 }: { item: string; size?: number }) {
+	const n = RAW.items[toID(item)]?.sp;
+	if (!item || n === undefined) return <span class="item-icon none" style={{ width: size, height: size }} />;
+	const k = size / 24;
+	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: `url(${SPRITE_HOST}/itemicons-sheet.png)`,
+		backgroundPosition: `${-(n % 16) * 24 * k}px ${-Math.floor(n / 16) * 24 * k}px`, backgroundSize: `${384 * k}px ${1152 * k}px` }} />;
+}
+
+/** 물리/특수/변화 아이콘 */
+export function CatIcon({ cat }: { cat: string }) {
+	const label = cat === 'Physical' ? '물리' : cat === 'Special' ? '특수' : '변화';
+	return <span class={'cat-icon ' + cat.toLowerCase()} title={label}>{label}</span>;
+}
+
+const preloaded: { [url: string]: HTMLImageElement } = {};
+/** 배틀 시작 전에 그림을 미리 받아 둔다 (교체 때 그림이 늦게 뜨는 것 방지) */
+export function preloadSprite(species: string, back: boolean, shiny?: boolean) {
+	const settings = loadSettings();
+	const id = spriteId(species);
+	const sh = shiny ? '-shiny' : '';
+	const url = settings.animatedSprites ? `${SPRITE_HOST}/ani${back ? '-back' : ''}${sh}/${id}.gif` : `${SPRITE_HOST}/gen5${back ? '-back' : ''}${sh}/${id}.png`;
+	if (preloaded[url]) return;
+	const im = new Image(); im.decoding = 'async'; im.src = url; preloaded[url] = im;
+}
 
 /** 포켓몬 그림 (인터넷 연결 시 쇼다운 스프라이트, 실패하면 이름 카드) */
 export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: {
@@ -62,9 +88,9 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 }
 
 /** 목록용 작은 아이콘 */
-export function MiniSprite({ species, gen = 5, size = 40 }: { species: string; gen?: Gen; size?: number }) {
+export function MiniSprite({ species, gen = 5, size = 40, shiny }: { species: string; gen?: Gen; size?: number; shiny?: boolean }) {
 	return <span class="mini" style={{ width: size, height: size }}>
-		<Sprite species={species} gen={gen} size={size} anim={false} />
+		<Sprite species={species} gen={gen} size={size} anim={false} shiny={shiny} />
 	</span>;
 }
 

@@ -83,7 +83,7 @@ export async function runTower() {
 	let state = load<TowerState | null>(TOWER_KEY(fmt), null);
 	if (state) {
 		const resume = await ask<'resume' | 'new' | typeof BACK>(r => <InfoScreen title="배틀타워" heading={`${state!.streak}연승 중인 도전이 있습니다`}
-			sprites={state!.team.map(s => s.species)} gen={9}
+			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			lines={['이어서 도전할까요? 새로 시작하면 지금 연승 기록은 사라집니다.']}
 			actions={[{ label: '이어서 도전', onClick: () => r('resume') }, { label: '새로 시작', kind: 'ghost', onClick: () => r('new') },
 				{ label: '돌아가기', kind: 'ghost', onClick: () => r(BACK) }]} />);
@@ -162,7 +162,7 @@ export async function runFactory() {
 	let state = load<FactoryState | null>(FACTORY_KEY(fmt, level), null);
 	if (state) {
 		const v = await ask<'resume' | 'new'>(r => <InfoScreen title="배틀팩토리" heading={`${state!.streak}연승 중인 도전이 있습니다`}
-			sprites={state!.team.map(s => s.species)} gen={9}
+			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '이어서 도전', onClick: () => r('resume') }, { label: '새로 시작', kind: 'ghost', onClick: () => r('new') }]} />);
 		if (v === 'new') state = null;
 	}
@@ -283,7 +283,7 @@ export async function runPWT() {
 	const rounds: string[][] = [slots, ['', '', '', ''], ['', ''], ['']];
 	let pool = order.map(i => entrants[i]);
 	if (cup.rental) {
-		await ask<void>(r => <InfoScreen title={cup.name} heading="렌탈 포켓몬을 받았다!" sprites={myTeam.map(s => s.species)} gen={9}
+		await ask<void>(r => <InfoScreen title={cup.name} heading="렌탈 포켓몬을 받았다!" sprites={myTeam.map(s => s.species)} sets={myTeam} gen={9}
 			actions={[{ label: '확인', onClick: () => r() }]} />);
 	}
 	// 1회전 상대 = slots[1], 다른 경기는 무작위 진행
@@ -330,7 +330,7 @@ export async function runPWT() {
 	}
 	updateRecords(r => { r.cups[cup.id] = (r.cups[cup.id] || 0) + 1; });
 	await ask<void>(r => <InfoScreen title={cup.name} banner="🏆 우승!" heading={`${cup.name} 우승을 축하합니다!`}
-		sprites={myTeam.map(s => s.species)} gen={9} actions={[{ label: '메뉴로', onClick: () => r() }]} />);
+		sprites={myTeam.map(s => s.species)} sets={myTeam} gen={9} actions={[{ label: '메뉴로', onClick: () => r() }]} />);
 	void pool; pool = [];
 }
 

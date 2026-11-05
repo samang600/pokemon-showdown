@@ -15,7 +15,7 @@ const D = DEX as any as {
 	species: { [id: string]: SpeciesEntry };
 	moves: { [id: string]: MoveEntry };
 	abilities: { [id: string]: { n: string; d: string; gen: number } };
-	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[] } };
+	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[]; sp?: number } };
 	natures: { [id: string]: { n: string; en: string; p: string; m: string } };
 	types: { [en: string]: string };
 	stats: { [id: string]: string };
@@ -119,6 +119,7 @@ export function spriteId(id: string) {
 	if (!s) return toID(id);
 	const en = s.en;
 	const dash = en.indexOf('-');
+	if (/^Nidoran-[MF]$/.test(en)) return toID(en);
 	if (dash < 0 || ['Ho-Oh', 'Porygon-Z', 'Jangmo-o', 'Hakamo-o', 'Kommo-o'].includes(en)) return toID(en);
 	return toID(en.slice(0, dash)) + '-' + toID(en.slice(dash + 1));
 }

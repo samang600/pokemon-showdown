@@ -1,16 +1,20 @@
 import '../src/ps/registry';
 import { Battle } from '../../sim/battle';
 import { chooseAI } from '../src/ai';
+import { filterGimmicks, gimmickOfLine } from '../src/engine';
+import { loadSettings } from '../src/store';
 import { randomTeam, toSimTeam } from '../src/sets';
 import { KoreanText, parseLine } from '../src/text';
 (window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number) => {
 	const res = { gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
 	for (let k = 0; k < n; k++) {
 		const reqs: any = {};
+		const used: any = { p1: '', p2: '' };
+		const rule = loadSettings().gimmickRule;
 		const lines: string[] = [];
 		const b = new Battle({ formatid: `gen${gen}kr${doubles ? 'doubles' : 'singles'}` as any, send: (t: string, d: any) => {
 			if (t === 'sideupdate') { const s = String(d); const side = s.slice(0, 2); const r = s.slice(3); if (r.startsWith('|request|')) reqs[side] = JSON.parse(r.slice(9)); }
-			if (t === 'update') lines.push(...(Array.isArray(d) ? d : String(d).split('\n')));
+			if (t === 'update') { const ls = Array.isArray(d) ? d : String(d).split('\n'); lines.push(...ls); for (const l of ls) { const g = gimmickOfLine(l); if (g && !used[g[0]]) used[g[0]] = g[1]; } }
 		} } as any);
 		b.setPlayer('p1', { name: 'A', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
 		b.setPlayer('p2', { name: 'B', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
@@ -23,6 +27,7 @@ import { KoreanText, parseLine } from '../src/text';
 				const r = reqs[side];
 				if (!r || r.wait || done[side] === r) continue;
 				done[side] = r;
+				filterGimmicks(r, rule, used[side], (b as any)[side].active.some((x: any) => x?.volatiles['dynamax']));
 				let c = 'default';
 				try { c = chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
 				try {

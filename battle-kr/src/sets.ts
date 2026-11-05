@@ -1,4 +1,5 @@
 /** 포켓몬 세트(기술·도구·노력치) 만들기 */
+import { loadSettings } from './store';
 import { Teams } from '../../sim/teams';
 import { RAW, speciesData, learnset, moveData, toID, bst, speciesKo, nickKo, megaStonesFor, zCrystalForType, type Gen, type StatID } from './data';
 import FACTORY_SETS from '../../data/random-battles/gen9/factory-sets.json';
@@ -276,7 +277,8 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 	}
 	const team = picked.map(id => {
 		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles);
-		if (o.ivs !== undefined) for (const k in set.ivs) (set.ivs as any)[k] = Math.min((set.ivs as any)[k] === 0 ? 0 : 31, o.ivs);
+		// 개체값이 없는 챔피언스 규칙: 초반 상대의 약함은 능력 포인트를 줄여서 표현
+		if (o.ivs !== undefined && o.ivs < 31) for (const k in set.evs) (set.evs as any)[k] = Math.floor((set.evs as any)[k] * Math.max(0, o.ivs) / 31);
 		return set;
 	});
 	if (o.gimmicks !== false) assignGimmicks(team);
@@ -285,7 +287,9 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 
 /** 팀에 메가스톤·Z크리스탈을 하나씩 (가능하면) 나눠 주고 테라스탈 타입을 정함 */
 export function assignGimmicks(team: PSet[], opts: { mega?: number; z?: number } = {}) {
-	const megaProb = opts.mega ?? 0.6, zProb = opts.z ?? 0.4;
+	const rule = loadSettings().gimmickRule || 'one';
+	const megaProb = ['one', 'free', 'mega'].includes(rule) ? (opts.mega ?? 0.6) * (rule === 'mega' ? 1.6 : 1) : 0;
+	const zProb = ['one', 'free', 'zmove'].includes(rule) ? (opts.z ?? 0.4) * (rule === 'zmove' ? 2 : 1) : 0;
 	const hasMega = team.some(s => RAW.items[s.item]?.mega);
 	const hasZ = team.some(s => RAW.items[s.item]?.zt);
 	if (!hasMega && Math.random() < megaProb) {
@@ -343,7 +347,33 @@ export function factoryTeam(tier: string, size: number, level: number, exclude =
 }
 
 /** 시뮬레이터에 넘길 형태로 */
+// ── 포켓몬 챔피언스 능력 포인트(SP) ──
+// 능력마다 0~32, 합계 66. 개체값은 없음(모두 최대). 레벨 50에서 1포인트 = 능력치 +1.
+// 시뮬레이터에는 같은 효과의 노력치로 바꿔 넣는다: 첫 1포인트 = 4, 이후 1포인트 = 8 (32포인트 = 252)
+export const SP_MAX = 32, SP_TOTAL = 66;
+export const STAT_KEYS: StatID[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+export function evToSp(ev: number) { return ev >= 4 ? Math.min(SP_MAX, 1 + Math.floor((ev - 4) / 8)) : 0; }
+export function spToEv(sp: number) { return sp > 0 ? Math.min(252, 4 + 8 * (Math.min(SP_MAX, sp) - 1)) : 0; }
+export function spOf(set: PSet) {
+	const o = {} as { [k in StatID]: number };
+	for (const k of STAT_KEYS) o[k] = evToSp(set.evs?.[k] || 0);
+	// 합계 66 초과분은 적게 투자된 능력부터 깎는다
+	let over = STAT_KEYS.reduce((a, k) => a + o[k], 0) - SP_TOTAL;
+	while (over > 0) {
+		const k = STAT_KEYS.filter(x => o[x] > 0).sort((a, b) => o[a] - o[b])[0];
+		const d = Math.min(over, o[k]); o[k] -= d; over -= d;
+	}
+	return o;
+}
+/** 노력치·개체값을 챔피언스 규칙(SP, 개체값 최대)에 맞춘다 */
+export function normalizeSP<T extends PSet>(set: T): T {
+	const sp = spOf(set);
+	for (const k of STAT_KEYS) { set.evs[k] = spToEv(sp[k]); set.ivs[k] = 31; }
+	return set;
+}
+
 export function toSimTeam(team: PSet[]) {
+	team = team.map(s => normalizeSP(cloneSet(s)));
 	return team.map(s => ({
 		name: s.name || speciesKo(s.species), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
 		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny,

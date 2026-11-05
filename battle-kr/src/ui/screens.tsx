@@ -2,7 +2,7 @@
 import { h, Fragment, type ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { speciesData, toID, moveKo, itemKo, abilityKo, natureKo, typeKo, STAT_SHORT, STAT_KO, STATS, moveData, natureData, abilityDesc, itemDesc, calcStat, type Gen } from '../data';
-import type { PSet } from '../sets';
+import { evToSp, spToEv, type PSet } from '../sets';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, HPBar, StatusBadge, TYPE_COLOR } from './core';
 
 /** 세트 요약 카드 */
@@ -37,7 +37,7 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 	return <Screen title={title} onBack={onBack}>
 		{opponent && <div class="preview">
 			<div class="preview-title">상대: {opponent.name}</div>
-			<div class="preview-row">{opponent.team.map(s => <MiniSprite species={s.species} gen={gen} size={44} />)}</div>
+			<div class="preview-row">{opponent.team.map(s => <MiniSprite species={s.species} gen={gen} size={44} shiny={s.shiny} />)}</div>
 		</div>}
 		<p class="hint">{hint || `${count}마리를 순서대로 고르세요. 처음 고른 포켓몬이 먼저 나갑니다.`} 카드를 누르면 능력치를 볼 수 있어요.</p>
 		<div class="card-list">
@@ -67,7 +67,7 @@ export function InfoScreen({ title, heading, lines, sprites, gen, actions, banne
 			{banner && <div class="banner">{banner}</div>}
 			{trainer && <img class="trainer-big" src={`https://play.pokemonshowdown.com/sprites/trainers/${trainer}.png`} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{heading && <h2>{heading}</h2>}
-			{sprites && <div class="preview-row big">{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} anim /></span>)}</div>}
+			{sprites && <div class="preview-row big">{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} anim shiny={sets?.[i]?.shiny} /></span>)}</div>}
 			{sets && <p class="muted small">포켓몬을 누르면 능력치를 볼 수 있어요.</p>}
 			{sets && view !== null && <MonSheet set={sets[view]} gen={gen || 9} onClose={() => setView(null)} actions={[{ label: '닫기', kind: 'ghost', onClick: () => setView(null) }]} />}
 			{lines?.map(l => <p class="pre">{l}</p>)}
@@ -161,14 +161,14 @@ export function MonSheet({ set, gen, live, actions, onClose, note }: {
 				{STATS.map((k, i) => {
 					const natMul = nat?.p === k ? 1.1 : nat?.m === k ? 0.9 : 1;
 					const base = sd?.bs[i] || 0;
-					const val = live?.stats?.[k] ?? (k === 'hp' && live ? live.maxhp : calcStat(base, set.evs[k] || 0, set.ivs?.[k] ?? 31, level, natMul, k === 'hp'));
+					const val = live?.stats?.[k] ?? (k === 'hp' && live ? live.maxhp : calcStat(base, spToEv(evToSp(set.evs[k] || 0)), 31, level, natMul, k === 'hp'));
 					const boost = live?.boosts?.[k] || 0;
 					return <div class="stat-bar">
 						<span class={'sb-label' + (natMul > 1 ? ' up' : natMul < 1 ? ' down' : '')}>{STAT_SHORT[k]}</span>
 						<span class="sb-track"><span class="sb-fill" style={{ width: Math.min(100, base / 180 * 100) + '%', background: base >= 120 ? '#40c8a0' : base >= 90 ? '#58d058' : base >= 60 ? '#e8c830' : '#e86030' }} /></span>
 						<span class="sb-base">{base}</span>
 						<b class="sb-val">{val}{boost ? <small class={boost > 0 ? 'up' : 'down'}> {boost > 0 ? '+' : ''}{boost}</small> : null}</b>
-						<span class="sb-ev">{set.evs[k] ? `노력 ${set.evs[k]}` : ''}</span>
+						<span class="sb-ev">{set.evs[k] ? `SP ${evToSp(set.evs[k])}` : ''}</span>
 					</div>;
 				})}
 			</div>
@@ -195,10 +195,10 @@ export function SetDetailModal({ set, gen, onClose }: { set: PSet; gen: Gen; onC
 	const sd = speciesData(toID(set.species), gen);
 	return <Modal title={set.name} onClose={onClose}>
 		<div class="detail">
-			<div class="detail-head"><Sprite species={set.species} gen={gen} size={96} />
+			<div class="detail-head"><Sprite species={set.species} gen={gen} size={96} shiny={set.shiny} />
 				<div>{sd?.t.map(t => <TypeBadge type={t} />)}<p class="muted">종족값 {sd?.bs.join('/')}</p></div></div>
 			<p>{abilityKo(set.ability)} · {itemKo(set.item)} · {natureKo(set.nature)}</p>
-			<p class="muted">노력치 {Object.entries(set.evs).filter(([, v]) => v).map(([k, v]) => `${STAT_SHORT[k]} ${v}`).join(' / ')}</p>
+			<p class="muted">능力 포인트 {Object.entries(set.evs).filter(([, v]) => v).map(([k, v]) => `${STAT_SHORT[k]} ${evToSp(v)}`).join(' / ')}</p>
 			<ul class="move-list">{set.moves.map(m => <li>{moveKo(m)}</li>)}</ul>
 		</div>
 	</Modal>;

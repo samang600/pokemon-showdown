@@ -2,6 +2,7 @@
 import { Battle } from '../../sim/battle';
 import type { PokemonSet } from '../../sim/teams';
 import { chooseAI } from './ai';
+import { loadSettings, type GimmickRule } from './store';
 
 export interface SideConfig { name: string; team: PokemonSet[] }
 export interface SessionConfig {
@@ -11,6 +12,7 @@ export interface SessionConfig {
 	p2: SideConfig;
 	aiSkill: number; // 0~1
 	seed?: [number, number, number, number];
+	gimmickRule?: GimmickRule;
 }
 
 export class Session {
@@ -25,7 +27,10 @@ export class Session {
 	winner = '';
 	lastError = '';
 
+	rule: GimmickRule;
+
 	constructor(public cfg: SessionConfig) {
+		this.rule = cfg.gimmickRule || loadSettings().gimmickRule || 'one';
 		const formatid = `gen${cfg.gen}kr${cfg.doubles ? 'doubles' : 'singles'}`;
 		this.battle = new Battle({
 			formatid: formatid as any,
@@ -46,12 +51,8 @@ export class Session {
 					continue;
 				}
 				this.pending.push(line);
-				const gm = /^\|(-mega|-primal|-burst|-zpower|-terastallize)\|(p[12])/.exec(line) || /^\|-start\|(p[12])[a-c]: [^|]*\|Dynamax/.exec(line);
-				if (gm) {
-					const side = (gm[2] || gm[1]) as 'p1' | 'p2';
-					const kind = line.includes('-zpower') ? 'zmove' : line.includes('-terastallize') ? 'tera' : line.includes('Dynamax') ? 'dynamax' : 'mega';
-					if (!this.gimmickUsed[side]) this.gimmickUsed[side] = kind;
-				}
+				const gm = gimmickOfLine(line);
+				if (gm && !this.gimmickUsed[gm[0]]) this.gimmickUsed[gm[0]] = gm[1];
 				if (line.startsWith('|win|')) { this.ended = true; this.winner = line.slice(5); }
 				if (line === '|tie') { this.ended = true; this.winner = ''; }
 			}
@@ -73,22 +74,10 @@ export class Session {
 		}
 	}
 
-	/** 이미 한 종류의 기믹을 썼으면 다른 기믹 선택지를 없앤다 (다이맥스 중엔 다이맥스 기술은 유지) */
+	/** 기믹 규칙 적용 (설정의 '기믹 규칙')
+	 *  one: 한 배틀에 한 종류(처음 쓴 종류만, 1회) / free: 종류마다 1회 / mega·zmove·dynamax·tera: 그 기믹만 / none: 사용 불가 */
 	private applyGimmickRule(req: any, side: 'p1' | 'p2') {
-		const used = this.gimmickUsed[side];
-		if (!used || !req.active) return;
-		for (const a of req.active) {
-			if (!a) continue;
-			if (used !== 'mega') { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; }
-			if (used !== 'zmove') delete a.canZMove;
-			if (used !== 'dynamax') { delete a.canDynamax; if (!this.battle[side].active.some((p: any) => p?.volatiles['dynamax'])) delete a.maxMoves; }
-			if (used !== 'tera') delete a.canTerastallize;
-			// 같은 종류라도 1회뿐 (메가·Z·테라는 시뮬레이터가 스스로 막고, 다이맥스도 1회)
-			if (used === 'mega') { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; }
-			if (used === 'zmove') delete a.canZMove;
-			if (used === 'tera') delete a.canTerastallize;
-			if (used === 'dynamax') delete a.canDynamax;
-		}
+		filterGimmicks(req, this.rule, this.gimmickUsed[side], this.battle[side].active.some((p: any) => p?.volatiles['dynamax']));
 	}
 
 	private flush() {
@@ -140,4 +129,26 @@ export class Session {
 		this.battle.sendUpdates();
 		return this.flush();
 	}
+}
+
+/** 요청(request)에서 규칙상 쓸 수 없는 기믹 선택지를 지운다
+ *  one: 한 배틀에 한 종류(처음 쓴 종류만, 1회) / free: 종류마다 1회 / mega·zmove·dynamax·tera: 그 기믹만 / none: 사용 불가 */
+export function filterGimmicks(req: any, rule: GimmickRule, used: string, dmaxNow: boolean) {
+	if (!req?.active) return;
+	const allow = (k: string) => rule === 'free' ? true : rule === 'one' ? !used : rule === k;
+	for (const a of req.active) {
+		if (!a) continue;
+		if (!allow('mega')) { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; }
+		if (!allow('zmove')) delete a.canZMove;
+		if (!allow('dynamax')) { delete a.canDynamax; if (!dmaxNow) delete a.maxMoves; }
+		if (!allow('tera')) delete a.canTerastallize;
+	}
+}
+/** 로그 한 줄이 기믹 사용이면 [진영, 종류] */
+export function gimmickOfLine(line: string): ['p1' | 'p2', string] | null {
+	const gm = /^\|(-mega|-primal|-burst|-zpower|-terastallize)\|(p[12])/.exec(line) || /^\|-start\|(p[12])[a-c]: [^|]*\|Dynamax/.exec(line);
+	if (!gm) return null;
+	if (line.startsWith('|-primal')) return null; // 원시회귀는 자동
+	const side = (gm[2] || gm[1]) as 'p1' | 'p2';
+	return [side, line.includes('-zpower') ? 'zmove' : line.includes('-terastallize') ? 'tera' : line.includes('Dynamax') ? 'dynamax' : 'mega'];
 }

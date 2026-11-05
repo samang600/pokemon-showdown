@@ -178,6 +178,7 @@ for (const it of dex9.items.all()) {
 		megaFrom: it.megaStone ? (typeof it.megaStone === 'object' ? Object.keys(it.megaStone) : (it.itemUser || [])) : undefined,
 		zt: it.zMoveType || undefined, zf: it.zMoveFrom ? (Array.isArray(it.zMoveFrom) ? it.zMoveFrom : [it.zMoveFrom]) : undefined,
 		zu: it.itemUser || undefined,
+		sp: it.spritenum || 0,
 	};
 }
 

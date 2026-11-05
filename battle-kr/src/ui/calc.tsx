@@ -4,7 +4,7 @@ import { useMemo, useState } from 'preact/hooks';
 import { TypeChart } from '../../../data/typechart';
 import { speciesData, moveData, learnset, toID, abilityKo, itemKo, natureKo, natureData, calcStat, STAT_KO, STAT_SHORT, STATS, speciesKo,
 	nickKo, allSpecies, typeKo, RAW, type Gen, type StatID } from '../data';
-import { randomSetFor, type PSet } from '../sets';
+import { randomSetFor, evToSp, spToEv, type PSet } from '../sets';
 import { loadTeams } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast } from './core';
 import { SetEditor, matches } from './teambuilder';
@@ -38,7 +38,7 @@ function stat(set: PSet, k: StatID) {
 	const sd = speciesData(effSpeciesId(set), GEN)!;
 	const nat = natureData(set.nature);
 	const mul = nat?.p === k ? 1.1 : nat?.m === k ? 0.9 : 1;
-	return calcStat(sd.bs[STATS.indexOf(k)], set.evs[k] || 0, set.ivs?.[k] ?? 31, set.level || 50, mul, k === 'hp');
+	return calcStat(sd.bs[STATS.indexOf(k)], spToEv(evToSp(set.evs[k] || 0)), 31, set.level || 50, mul, k === 'hp');
 }
 
 export interface CalcResult { min: number; max: number; minPct: number; maxPct: number; rolls: number[]; eff: number; notes: string[]; hp: number }
@@ -236,7 +236,7 @@ export function CalcScreen({ onBack }: { onBack: () => void }) {
 				<button class="btn small" onClick={() => setPicker(which)}>포켓몬 선택</button>
 				<button class="btn small" onClick={() => setEditor(which)}>세트 편집</button></div>
 			<div class="calc-mon" onClick={() => setEditor(which)}>
-				<MiniSprite species={side.set.species} gen={GEN} size={56} />
+				<MiniSprite species={side.set.species} gen={GEN} size={56} shiny={side.set.shiny} />
 				<div class="calc-mon-info">
 					<b>{side.set.name || sd.n}</b> <span class="muted small">Lv{side.set.level}</span>
 					<div class="types">{sd.t.map(t => <TypeBadge type={t} small />)}{side.tera && side.set.teraType && <span class="small"> → <TypeBadge type={side.set.teraType} small /></span>}</div>
@@ -324,7 +324,7 @@ function SetPicker({ title, onPick, onBack }: { title: string; onPick: (s: PSet)
 		{!q && teams.map(t => <Fragment key={t.id}>
 			<h3 class="sec">{t.name}</h3>
 			<div class="pick-list">{t.sets.map(s => <button class="pick-row" onClick={() => onPick(JSON.parse(JSON.stringify(s)))}>
-				<MiniSprite species={s.species} gen={GEN} size={40} /><span class="pick-name">{s.name || nickKo(s.species)}<small class="muted block">{abilityKo(s.ability)} · {itemKo(s.item)} · {natureKo(s.nature)}</small></span></button>)}</div>
+				<MiniSprite species={s.species} gen={GEN} size={40} shiny={s.shiny} /><span class="pick-name">{s.name || nickKo(s.species)}<small class="muted block">{abilityKo(s.ability)} · {itemKo(s.item)} · {natureKo(s.nature)}</small></span></button>)}</div>
 		</Fragment>)}
 		{!q && !teams.length && <p class="hint">저장된 팀이 없습니다. 위에서 종족을 검색하면 추천 세트로 시작합니다.</p>}
 	</Screen>;

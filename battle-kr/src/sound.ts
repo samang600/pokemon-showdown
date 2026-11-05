@@ -6,6 +6,11 @@ import { loadSettings } from './store';
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let sfxBus: GainNode | null = null;
+/** 기술 효과음 전용 버스 (sfxBus 아래) — 설정 '기술 효과음' */
+let moveBus: GainNode | null = null;
+let defBus: GainNode | null = null;
+export const MOVE_SFX_GAIN = [0, 0.35, 0.6, 1];
+function withMoveBus(fn: () => void) { defBus = moveBus; try { fn(); } finally { defBus = null; } }
 let musicBus: GainNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
 
@@ -16,6 +21,7 @@ function ac(): AudioContext | null {
 	ctx = new C();
 	master = ctx!.createGain(); master.gain.value = 0.6; master.connect(ctx!.destination);
 	sfxBus = ctx!.createGain(); sfxBus.gain.value = [0.3, 0.55, 0.85][(loadSettings().sfxVolume || 1) - 1]; sfxBus.connect(master);
+	moveBus = ctx!.createGain(); moveBus.gain.value = MOVE_SFX_GAIN[loadSettings().moveSfx ?? 1]; moveBus.connect(sfxBus);
 	musicBus = ctx!.createGain(); musicBus.gain.value = [0.1, 0.22, 0.38][(loadSettings().musicVolume || 2) - 1]; musicBus.connect(master);
 	noiseBuf = ctx!.createBuffer(1, ctx!.sampleRate, ctx!.sampleRate);
 	const d = noiseBuf.getChannelData(0);
@@ -121,7 +127,7 @@ function tone(freq: number, dur: number, opts: { type?: OscillatorType; vol?: nu
 	g.gain.setValueAtTime(0.0001, t);
 	g.gain.exponentialRampToValueAtTime(v, t + 0.008);
 	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-	o.connect(g); g.connect(opts.bus === undefined ? sfxBus! : opts.bus!);
+	o.connect(g); g.connect(opts.bus === undefined ? (defBus || sfxBus!) : opts.bus!);
 	o.start(t); o.stop(t + dur + 0.02);
 }
 
@@ -137,7 +143,7 @@ function noise(dur: number, opts: { freq?: number; q?: number; vol?: number; at?
 	const v = opts.vol ?? 0.3;
 	g.gain.setValueAtTime(v, t);
 	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-	src.connect(f); f.connect(g); g.connect(opts.bus === undefined ? sfxBus! : opts.bus!);
+	src.connect(f); f.connect(g); g.connect(opts.bus === undefined ? (defBus || sfxBus!) : opts.bus!);
 	src.start(t); src.stop(t + dur + 0.02);
 }
 
@@ -146,6 +152,10 @@ const N = (n: number) => 440 * Math.pow(2, (n - 69) / 12); // MIDI → Hz
 /** 효과음 */
 export function sfx(name: string, type = 'Normal') {
 	if (!sfxOn() || !ac()) return;
+	if (/^hit|^move$|^crit$|^miss$/.test(name)) { withMoveBus(() => sfxRaw(name, type)); return; }
+	sfxRaw(name, type);
+}
+function sfxRaw(name: string, type: string) {
 	switch (name) {
 	case 'select': tone(N(84), 0.05, { vol: 0.15 }); tone(N(91), 0.06, { vol: 0.15, at: 0.045 }); break;
 	case 'back': tone(N(79), 0.06, { vol: 0.15 }); tone(N(72), 0.07, { vol: 0.13, at: 0.05 }); break;
@@ -177,6 +187,9 @@ export function sfx(name: string, type = 'Normal') {
 /** 기술 사용음 (분류·타입별) */
 export function moveSound(type: string, category: string) {
 	if (!sfxOn() || !ac()) return;
+	withMoveBus(() => moveSoundRaw(type, category));
+}
+function moveSoundRaw(type: string, category: string) {
 	if (category === 'Status') {
 		[0, 5, 9].forEach((d, i) => tone(N(81 + d), 0.1, { type: 'triangle', vol: 0.14, at: i * 0.06 }));
 		return;
@@ -384,6 +397,7 @@ function startSynth(name: string, c: AudioContext) {
 		}
 	}, 60);
 }
+export function setMoveSfxVolume(v: number) { if (moveBus) moveBus.gain.value = MOVE_SFX_GAIN[v] ?? 0.35; }
 export function setSfxVolume(v: 1 | 2 | 3) { if (sfxBus) sfxBus.gain.value = [0.3, 0.55, 0.85][v - 1]; }
 export function setMusicVolume(v: 1 | 2 | 3) {
 	if (musicBus) musicBus.gain.value = [0.1, 0.22, 0.38][v - 1];
@@ -399,7 +413,7 @@ export function stopMusic() {
 export function animSfxVolume() {
 	const st = loadSettings();
 	if (st.sound === false) return 0;
-	return [0.3, 0.6, 0.9][(st.sfxVolume || 1) - 1];
+	return [0.3, 0.6, 0.9][(st.sfxVolume || 1) - 1] * MOVE_SFX_GAIN[st.moveSfx ?? 1];
 }
 /** 진동 (설정에서 끌 수 있음) */
 export function vibrate(ms: number | number[]) {

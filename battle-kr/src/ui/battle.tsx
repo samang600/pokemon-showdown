@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Session } from '../engine';
 import { KoreanText, parseLine, effectInfo, type ParsedLine } from '../text';
 import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natureKo, STAT_SHORT, STAT_KO, typeKo, abilityDesc,
-	itemDesc, type Gen } from '../data';
+	itemDesc, RAW, type Gen } from '../data';
 import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords } from '../store';
-import { Sprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox } from './core';
+import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
 import { estimateDamage } from '../ai';
 import * as FX from '../fx';
@@ -73,6 +73,9 @@ function slotOf(ident: string) {
 }
 
 const SPEED_MS: { [k: number]: number } = { 1: 1350, 2: 850, 3: 420, 4: 200 };
+const SPEED_LABEL: { [k: number]: string } = { 1: '▶ ×0.5', 2: '▶ ×1', 3: '▶▶ ×2', 4: '▶▶▶ ×4' };
+/** 기술 애니메이션 재생 배속 */
+const ANIM_SPEED: { [k: number]: number } = { 1: 0.85, 2: 1, 3: 1.5, 4: 2.2 };
 
 export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: BattleResult) => void }) {
 	const settings = useRef(loadSettings()).current;
@@ -120,7 +123,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	}, []);
 
 	const gen = setup.gen;
+	/** 배틀 중 배속 버튼: ×1 → ×2 → ×4 → ×0.5 → … (설정의 메시지 속도와 같음) */
+	const cycleSpeed = () => {
+		const next = (settings.speed % 4 + 1) as 1 | 2 | 3 | 4;
+		settings.speed = next;
+		const st = loadSettings2(); st.speed = next; saveSettings(st);
+		skipRef.current?.();
+		rerender();
+	};
 
+	/** 메시지 길이에 맞춘 읽기 시간 (짧은 문장은 빨리 넘어감) */
+	const readMs = (m: string) => SPEED_MS[settings.speed] * (0.65 + Math.min(0.75, m.length / 45));
 	const wait = (ms: number) => new Promise<void>(resolve => {
 		const t = setTimeout(() => { skipRef.current = null; resolve(); }, fastRef.current ? Math.min(ms, 120) : ms);
 		skipRef.current = () => { clearTimeout(t); skipRef.current = null; resolve(); };
@@ -211,7 +224,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		await playAnim(anim, {
 			front: frontRef.current, back: backRef.current, bgLayer: animBgRef.current,
 			userPt, targetPt, userEl: slotEl(user), targetEl: slotEl(tgt), k: scale * 0.85, userIsFoe: user.startsWith('p2'),
-			sfxVolume: animSfxVolume(),
+			sfxVolume: animSfxVolume(), speed: fastRef.current ? 2.5 : ANIM_SPEED[settings.speed] || 1,
 		});
 		return true;
 	}
@@ -299,7 +312,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (hp.status === 'fnt') { mon.hp = 0; }
 			else mon.status = hp.status;
 			if (cmd === '-damage' && !kw.from) { animate(mon, 'hit', 450); if (pendingHitRef.current?.sound !== '') sfx(pendingHitRef.current?.sound || 'hit'); }
-			if (cmd === '-heal' && !kw.silent && fxRef.current) { const pt = slotPoint(args[1]); if (pt) FX.sparkle(fxRef.current, pt, 'Grass', scale); sfx('heal'); }
+			if (cmd === '-heal' && !('silent' in kw) && fxRef.current) { const pt = slotPoint(args[1]); if (pt) FX.sparkle(fxRef.current, pt, 'Grass', scale); sfx('heal'); }
 			return before !== mon.hp ? 550 : 0;
 		}
 		case '-status': { const m = activeMon(args[1]); if (m) m.status = args[2]; sfx('status'); return 0; }
@@ -474,7 +487,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 					const d = apply(p); rerender();
 					await wait(Math.max(d, SPEED_MS[settings.speed] * 0.6));
 				} else { pendingHitRef.current = { at: 0, sound: '' }; await wait(120); }
-				for (const m of msgs) { showMsg(m); await wait(SPEED_MS[settings.speed]); }
+				for (const m of msgs) { showMsg(m); await wait(readMs(m)); }
 				continue;
 			}
 			const delay = apply(p);
@@ -482,7 +495,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (p.cmd === 'turn') { pushLog(text); continue; }
 			for (const m of msgs) {
 				showMsg(m);
-				await wait(SPEED_MS[settings.speed] + (m.length > 30 ? 200 : 0));
+				await wait(readMs(m));
 			}
 			if (!msgs.length && delay) await wait(Math.min(delay, SPEED_MS[settings.speed]));
 		}
@@ -600,6 +613,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		wakeRelease.current = () => { try { wake?.release(); } catch {} };
 		playMusic(pickBattleMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle'));
 		preloadCries([...setup.p1.team, ...setup.p2.team].map(x => toID(x.species)));
+		for (const x of setup.p1.team) { preloadSprite(x.species, true, x.shiny); for (const st of megaFormsOf(x)) preloadSprite(st, true, x.shiny); }
+		for (const x of setup.p2.team) { preloadSprite(x.species, false, x.shiny); for (const st of megaFormsOf(x)) preloadSprite(st, false, x.shiny); }
 		if (settings.effects !== false) for (const set of [...setup.p1.team, ...setup.p2.team]) for (const m of set.moves) preloadAnim(animIdFor(toID(m)));
 		(async () => {
 			// 트레이너 등장 (양쪽 트레이너가 발판에 나타난 뒤 포켓몬을 내보냄)
@@ -681,34 +696,53 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		return { md, type, name, eff };
 	};
 
+	const pressRef = useRef<{ t: any; long: boolean }>({ t: 0, long: false });
+	const [infoMove, setInfoMove] = useState<number | null>(null);
 	const renderMoves = () => {
 		if (!activeReq) return null;
-		const focusM = activeReq.moves[focus] || activeReq.moves[0];
-		const fi = focusM ? moveInfo(focusM) : null;
 		return <div class="move-panel">
-			<div class="move-grid win-dark">
+			<div class="move-grid">
 				{activeReq.moves.map((m: any, i: number) => {
-					const { type, name, eff } = moveInfo(m, i);
+					const { md, type, name, eff } = moveInfo(m, i);
 					const disabled = m.disabled || (m.pp === 0 && m.id !== 'struggle') || (gimmick === 'zmove' && !activeReq.canZMove?.[i]);
-					return <button key={i} class={'move-btn' + (focus === i ? ' focus' : '')} disabled={disabled}
+					const low = m.maxpp && m.pp <= Math.max(1, Math.floor(m.maxpp / 4));
+					const dp = settings.damagePreview && !setup.doubles ? dmgPreview(m) : '';
+					return <button key={i} class={'mvb' + (disabled ? ' off' : '')} disabled={disabled && !m.maxpp}
 						style={{ '--tc': TYPE_COLOR[type] } as any}
-						onPointerDown={() => setFocus(i)} onClick={() => onMove(i + 1, m)}>
-						<span class={'mv-name' + (name.length >= 9 ? ' xl' : name.length >= 7 ? ' l' : '')}>{name}</span>
-						<span class="mv-sub"><TypeBadge type={type} small /><span class={'mv-pp' + (m.maxpp && m.pp <= Math.max(1, Math.floor(m.maxpp / 4)) ? ' low' : '')}>{m.maxpp ? `${m.pp}/${m.maxpp}` : ''}</span></span>
-						{eff && eff !== '보통' && <span class={'mv-eff ' + (eff.includes('굉장') ? 'good' : 'bad')}>{eff}</span>}
-						{settings.damagePreview && !setup.doubles && dmgPreview(m) && <span class="mv-dmg">{dmgPreview(m)}</span>}
+						onPointerDown={() => { pressRef.current.long = false; clearTimeout(pressRef.current.t); pressRef.current.t = setTimeout(() => { pressRef.current.long = true; setInfoMove(i); }, 450); }}
+						onPointerUp={() => clearTimeout(pressRef.current.t)} onPointerLeave={() => clearTimeout(pressRef.current.t)}
+						onContextMenu={e => e.preventDefault()}
+						onClick={() => { if (pressRef.current.long) { pressRef.current.long = false; return; } if (disabled) { setInfoMove(i); return; } onMove(i + 1, m); }}>
+						<span class="mvb-top"><TypeBadge type={type} small />{md && <CatIcon cat={md.category} />}
+							<span class={'mvb-pp' + (low ? ' low' : '')}>{m.maxpp ? <>PP <b>{m.pp}</b>/{m.maxpp}</> : ''}</span></span>
+						<span class={'mvb-name' + (name.length >= 9 ? ' xl' : name.length >= 7 ? ' l' : '')}>{name}</span>
+						<span class="mvb-bottom">
+							{eff && eff !== '보통' ? <span class={'mvb-eff ' + (eff.includes('굉장') ? 'good' : eff === '효과 없음' ? 'none' : 'bad')}>{eff}</span> : <span />}
+							{dp && <span class="mvb-dmg">{dp}</span>}
+						</span>
 					</button>;
 				})}
 			</div>
-			{fi && <div class="move-info win-dark">
-				<div class="mi-row"><span>타입</span><TypeBadge type={fi.type} small /></div>
-				<div class="mi-row"><span>분류</span><b>{fi.md ? (fi.md.category === 'Physical' ? '물리' : fi.md.category === 'Special' ? '특수' : '변화') : '-'}</b></div>
-				<div class="mi-row"><span>위력</span><b>{fi.md?.basePower || '—'}</b></div>
-				<div class="mi-row"><span>명중</span><b>{fi.md?.accuracy || '—'}</b></div>
-				<div class="mi-row"><span>PP</span><b>{focusM.maxpp ? `${focusM.pp}/${focusM.maxpp}` : '-'}</b></div>
-				{fi.md && (fi.md.priority !== 0 || fi.md.contact) && <div class="mi-row"><span>{fi.md.priority ? `우선 ${fi.md.priority > 0 ? '+' : ''}${fi.md.priority}` : ''}</span><b>{fi.md.contact ? '접촉' : ''}</b></div>}
-			</div>}
-			{fi?.md?.desc && <div class="move-desc">{fi.md.desc}</div>}
+			<div class="mv-hint">기술을 길게 누르면 설명을 볼 수 있어요</div>
+			{infoMove !== null && activeReq.moves[infoMove] && (() => {
+				const m = activeReq.moves[infoMove];
+				const fi = moveInfo(m, infoMove);
+				const md = fi.md;
+				return <Modal title={fi.name} onClose={() => setInfoMove(null)}>
+					<div class="mi-head"><TypeBadge type={fi.type} />{md && <CatIcon cat={md.category} />}</div>
+					<div class="mi-table">
+						<div><span>위력</span><b>{md?.category === 'Status' ? '—' : md?.basePower || '—'}</b></div>
+						<div><span>명중</span><b>{md?.accuracy || '—'}</b></div>
+						<div><span>PP</span><b>{m.maxpp ? `${m.pp}/${m.maxpp}` : '—'}</b></div>
+						<div><span>우선도</span><b>{md?.priority ? (md.priority > 0 ? '+' : '') + md.priority : '0'}</b></div>
+						<div><span>접촉</span><b>{md?.contact ? '함' : '안 함'}</b></div>
+						<div><span>상성</span><b>{fi.eff || '—'}</b></div>
+					</div>
+					{md?.desc && <p class="mi-desc">{md.desc}</p>}
+					{m.disabled && <p class="sheet-note">지금은 쓸 수 없는 기술입니다.</p>}
+					<button class="btn primary big" disabled={!!m.disabled || m.pp === 0} onClick={() => { setInfoMove(null); onMove(infoMove + 1, m); }}>이 기술을 쓴다</button>
+				</Modal>;
+			})()}
 		</div>;
 	};
 
@@ -781,7 +815,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const disabled = reviving ? (!fainted || chosen.has(i + 1)) : (isActive || fainted || trapped || chosen.has(i + 1));
 				return <button key={i} class={'switch-btn' + (isActive ? ' active' : '') + (disabled ? ' off' : '')}
 					onClick={() => setSheet({ idx: i, canSwitch: !disabled })}>
-					<span class="sw-sprite"><Sprite species={species} gen={gen} size={40} anim={false} /></span>
+					<span class="sw-sprite"><Sprite species={species} gen={gen} size={40} anim={false} shiny={/, shiny/.test(p.details)} /></span>
 					<span class="sw-info">
 						<b>{nick}</b>
 						<HPBar hp={hp.hp} maxhp={hp.maxhp || 1} />
@@ -812,31 +846,35 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				else cancelChoice();
 			}}>◀ 뒤로</button> : null;
 		const usedG = parts.join(' ');
-		const g: [string, string][] = [];
+		const g: [string, string, string][] = [];
 		if (activeReq && menu === 'moves') {
 			if (!/ mega| ultra/.test(usedG)) {
-				if (activeReq.canMegaEvo) g.push(['mega', '메가진화']);
-				if (activeReq.canMegaEvoX) g.push(['megax', '메가 X']);
-				if (activeReq.canMegaEvoY) g.push(['megay', '메가 Y']);
-				if (activeReq.canUltraBurst) g.push(['ultra', '울트라버스트']);
+				if (activeReq.canMegaEvo) g.push(['mega', '메가진화', '#e070e0']);
+				if (activeReq.canMegaEvoX) g.push(['megax', '메가진화 X', '#e070e0']);
+				if (activeReq.canMegaEvoY) g.push(['megay', '메가진화 Y', '#e070e0']);
+				if (activeReq.canUltraBurst) g.push(['ultra', '울트라버스트', '#f0d040']);
 			}
-			if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워']);
-			if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스']);
-			if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈 ${typeKo(activeReq.canTerastallize)}`]);
+			if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워', '#f0c020']);
+			if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스', '#e83050']);
+			if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈 · ${typeKo(activeReq.canTerastallize)}`, TYPE_COLOR[activeReq.canTerastallize] || '#60c0e0']);
 		}
+		const title = req.forceSwitch ? '교체할 포켓몬을 고르세요' : menu === 'target' ? '누구에게 쓸까요?' : curMon ? `${curMon.nick}${setup.doubles ? ` (${slotIdx + 1}번째)` : ''}` : '';
 		return <div class="controls">
 			<div class="ctl-head">
-				<span class="ctl-title">{req.forceSwitch ? '교체할 포켓몬' : curMon ? `${curMon.nick}` : ''}{setup.doubles && !req.forceSwitch ? ` (${slotIdx + 1})` : ''}</span>
-				{g.map(([k, label]) => <button class={'gm gm-' + k + (gimmick === k ? ' on' : '')} onClick={() => setGimmick(gimmick === k ? '' : k)}>{gimmick === k ? '✔' : ''}{label}</button>)}
+				<span class="ctl-title">{title}</span>
+				{menu === 'main' && <button class="btn small" onClick={() => setShowLog(true)}>기록</button>}
 				{back}
 			</div>
-			{menu === 'main' && <div class="cmd-grid win-dark">
-				<button class="cmd" onClick={() => { setFocus(0); setMenu('moves'); }}>싸운다</button>
-				<button class="cmd" onClick={() => setMenu('switch')}>포켓몬</button>
-				<button class="cmd" onClick={() => setFieldOpen(true)}>필드</button>
-				<button class="cmd" onClick={() => setShowLog(true)}>기록</button>
-				<button class="cmd" onClick={forfeit}>기권</button>
+			{menu === 'main' && <div class="cmd-menu">
+				<button class="cmd-fight" onClick={() => { setFocus(0); setMenu('moves'); }}><span>싸운다</span></button>
+				<div class="cmd-row">
+					<button class="cmd-sub green" onClick={() => setMenu('switch')}>포켓몬</button>
+					<button class="cmd-sub yellow" onClick={() => setFieldOpen(true)}>필드</button>
+					<button class="cmd-sub blue" onClick={forfeit}>기권</button>
+				</div>
 			</div>}
+			{g.length > 0 && <div class="gm-bar">{g.map(([k, label, col]) => <button class={'gmb' + (gimmick === k ? ' on' : '')} style={{ '--gc': col } as any}
+				onClick={() => setGimmick(gimmick === k ? '' : k)}><span class="gmb-dot" />{label}{gimmick === k ? ' ON' : ''}</button>)}</div>}
 			{menu === 'moves' && renderMoves()}
 			{menu === 'target' && renderTargets()}
 			{menu === 'switch' && renderSwitch()}
@@ -936,11 +974,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			<div class="hud-top">
 				<span class="badge">{setup.label || ''}</span>
 				<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
+				<button class="badge speed-btn" onClick={e => { e.stopPropagation(); cycleSpeed(); }}>{SPEED_LABEL[settings.speed]}</button>
 				<button class="badge field-btn" onClick={e => { e.stopPropagation(); setFieldOpen(true); }}>필드 ▸</button>
 			</div>
 			<div class="hud-cond">
 				{scene.weather && WEATHER_KO[scene.weather] && <span class="chip weather">{WEATHER_KO[scene.weather]}</span>}
-				{[...scene.pseudo].map(id => <span class="chip field">{PSEUDO_KO[id] || id}</span>)}
+				{[...scene.pseudo].map(id => <span class="chip field">{PSEUDO_KO[id] || TERRAIN_KO[id] || id}</span>)}
 			</div>
 			<div class="panels foe">
 				<div class="side-row">{teamDots(scene.p2, false)}{sideChips(scene.p2)}</div>
@@ -981,6 +1020,11 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 }
 
 const RXp = (re: RegExp, id: string) => re.test(id);
+/** 지닌 메가스톤으로 바뀔 수 있는 모습 */
+function megaFormsOf(set: PSet): string[] {
+	const it = RAW.items[toID(set.item)];
+	return it?.mega ? [it.mega] : [];
+}
 
 const TERRAIN_KO: { [id: string]: string } = { electricterrain: '일렉트릭필드', grassyterrain: '그래스필드', mistyterrain: '미스트필드', psychicterrain: '사이코필드' };
 const SIDE_COND_KO: { [id: string]: string } = { ...SIDE_KO, auroraveil: '오로라베일', craftyshield: '트릭가드', matblock: '마룻바닥세워막기', luckychant: '행운의주술', stickyweb: '끈적끈적네트' };
@@ -1007,7 +1051,7 @@ function FieldModal({ session, onClose }: { session: Session; onClose: () => voi
 		<div class="field-info">
 			<div class="field-row"><span>날씨</span><b>{w?.id ? `${WEATHER_KO[w.id] || w.id} · ${turns(w)}` : '없음'}</b></div>
 			<div class="field-row"><span>필드</span><b>{t?.id ? `${TERRAIN_KO[t.id] || t.id} · ${turns(t)}` : '없음'}</b></div>
-			{pw.map(([id, st]) => <div class="field-row"><span>{PSEUDO_KO[id] || id}</span><b>{turns(st)}</b></div>)}
+			{pw.map(([id, st]) => <div class="field-row"><span>{PSEUDO_KO[id] || TERRAIN_KO[id] || id}</span><b>{turns(st)}</b></div>)}
 			{sideInfo(b.p1, '우리 편')}
 			{sideInfo(b.p2, '상대 편')}
 		</div>
@@ -1070,7 +1114,7 @@ function MonDetail({ mon, own, gen, session, onClose }: { mon: Mon; own: boolean
 					const lo = Math.floor((Math.floor((2 * base) * L / 100) + 5) * 0.9), hi = Math.floor((Math.floor((2 * base + 31 + 63) * L / 100) + 5) * 1.1);
 					const mine = session.battle.p1.active.filter((p: any) => p && !p.fainted);
 					return <p><b>스피드</b> {lo}~{hi} <small class="muted">(랭크 제외)</small>
-						{mine.map((p: any) => { const v = p.storedStats.spe; return <small class="block">{p.name} {v}: {v > hi ? '항상 먼저' : v < lo ? '항상 나중' : '노력치에 따라 다름'}</small>; })}</p>;
+						{mine.map((p: any) => { const v = p.storedStats.spe; return <small class="block">{p.name} {v}: {v > hi ? '항상 먼저' : v < lo ? '항상 나중' : '능력 포인트에 따라 다름'}</small>; })}</p>;
 				})()}
 				{mon.ability && <p><b>특성</b> {abilityKo(mon.ability)}</p>}
 				{mon.item !== undefined && <p><b>도구</b> {mon.item ? itemKo(mon.item) : '없음'}</p>}

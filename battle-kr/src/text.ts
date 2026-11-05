@@ -17,7 +17,7 @@ export function parseLine(line: string): ParsedLine | null {
 	for (let i = 1; i < parts.length; i++) {
 		const p = parts[i];
 		const m = /^\[([a-z]+)\]\s*(.*)$/.exec(p);
-		if (m && i > 1) kw[m[1]] = m[2];
+		if (m && i > 1) kw[m[1]] = m[2] === '' ? '1' : m[2]; // [silent] 같은 플래그는 '1'
 		else args.push(p);
 	}
 	return { cmd, args, kw };
@@ -281,7 +281,7 @@ export class KoreanText {
 		}
 		case '-heal': {
 			const [, ident] = args;
-			if (kw.silent || this.justDynamaxed === ident) { this.justDynamaxed = ''; return ''; }
+			if ('silent' in kw || this.justDynamaxed === ident) { this.justDynamaxed = ''; return ''; }
 			const from = effectInfo(kw.from);
 			if (kw.wisher) return F(T('heal', 'wish'), { POKEMON: pk(ident), NICKNAME: kw.wisher });
 			if (from.id && this.hasTemplate('heal', from.id)) {
@@ -298,7 +298,7 @@ export class KoreanText {
 		}
 		case '-boost': case '-unboost': {
 			const [, ident, stat, numStr] = args;
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			const n = parseInt(numStr, 10);
 			let id = cmd === '-boost' ? 'boost' : 'unboost';
 			if (!n) id += '0';
@@ -366,7 +366,7 @@ export class KoreanText {
 		}
 		case '-enditem': {
 			const [, ident, item] = args;
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			const it = effectInfo('item: ' + item);
 			const from = effectInfo(kw.from);
 			if (kw.eat || (it.id.endsWith('berry') && !from.id)) return F(T('eatItem', it.id), { POKEMON: pk(ident), ITEM: it.name });
@@ -386,7 +386,7 @@ export class KoreanText {
 			const [, ident, ability, extra] = args;
 			const ab = effectInfo('ability: ' + ability);
 			const from = effectInfo(kw.from);
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			if (from.id === 'trace' || from.id === 'roleplay' || from.id === 'skillswap' || from.id === 'entrainment') {
 				if (from.id === 'trace') return this.abilityLine(ident, 'ability: Trace') + '\n' + F(T('changeAbility', 'trace'), { POKEMON: pk(ident), SOURCE: pk(kw.of), ABILITY: ab.name });
 				return F(T('changeAbility'), { POKEMON: pk(ident), ABILITY: ab.name });
@@ -427,7 +427,7 @@ export class KoreanText {
 		}
 		case '-start': {
 			const [, ident, effect, arg3] = args;
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			const eff = effectInfo(effect);
 			if (eff.id === 'dynamax') this.justDynamaxed = ident;
 			const from = effectInfo(kw.from);
@@ -461,7 +461,7 @@ export class KoreanText {
 		}
 		case '-end': {
 			const [, ident, effect] = args;
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			const eff = effectInfo(effect);
 			const from = effectInfo(kw.from);
 			const vals: any = { POKEMON: pk(ident), EFFECT: eff.name, SOURCE: pk(kw.of), MOVE: eff.name, ITEM: from.name };
@@ -568,7 +568,7 @@ export class KoreanText {
 		case '-curestatus': {
 			const [, ident, status] = args;
 			const from = effectInfo(kw.from);
-			if (kw.silent) return '';
+			if ('silent' in kw) return '';
 			if (from.id === 'naturalcure') return F(T('activate', 'naturalcure'), { POKEMON: pk(ident) });
 			if (from.kind === 'item' && this.hasTemplate('endFromItem', status)) return F(T('endFromItem', status), { POKEMON: pk(ident), ITEM: from.name });
 			if (kw.thaw && this.hasTemplate('endFromMove', status)) return F(T('endFromMove', status), { POKEMON: pk(ident), MOVE: from.name });
