@@ -117,6 +117,7 @@
 - 화면 디자인: 도트 글꼴·도트 그림은 유지하고, 창·버튼·배틀 메뉴는 원작 포켓몬 게임처럼(큰 ‘싸운다’ 버튼, 타입 색 기술 버튼, 둥근 정보 상자) CSS로 새로 그림. 창틀 색 블루·레드·블랙.
 - 일부 도트 장식: [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon) 의 `chrome.png` (GPL-3.0, `src/ui-assets/LICENSE-SPD-GPL3.txt`)
 - 도구 아이콘: Showdown 아이템 아이콘 시트를 실행 중에 불러옴.
+- 레전즈 Z-A 메가진화 48종의 도트 그림(앞·뒤·색이 다른 모습): [PokeAPI/sprites](https://github.com/PokeAPI/sprites) 에 제공된 kyledovey([x.com/DoveKyle](https://x.com/DoveKyle)) 제작 팬 아트 (`scripts/fetch-za-megas.py`). 메가지가르데만 도트 그림이 없어 기본 모습으로 표시.
 - 글꼴: [Galmuri](https://github.com/quiple/galmuri) (SIL OFL 1.1, `src/fonts/OFL-Galmuri.md`)
 - 배틀 화면 배치는 PokeRogue 스타일을 참고했고, 배경은 `scripts/gen-arenas.py` 로 직접 그린 도트 그림입니다.
 - 한글 이름·배틀 메시지: 저장소의 `data/text/ko`, 부족한 종족명은 PKHeX 한글 데이터(`scripts/species_ko.txt`)
