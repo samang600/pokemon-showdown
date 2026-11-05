@@ -66,6 +66,7 @@ const html = template
 	.replace('/*__JS__*/', () => js.replace(/<\/script/gi, '<\\/script'));
 if (args.has('--test')) { fs.writeFileSync(path.join(HERE, 'test/selfplay.html'), html); console.log('test/selfplay.html'); process.exit(0); }
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+if (!fs.existsSync(path.join(HERE, 'public/sprites/gen5'))) console.warn('⚠ public/sprites 가 없습니다 — 오프라인 그림을 넣으려면 먼저 `bash battle-kr/scripts/fetch-sprites.sh`');
 fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true });
 console.log(`battle-kr/dist/index.html ${(html.length / 1024 / 1024).toFixed(2)} MB`);
 

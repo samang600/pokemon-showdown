@@ -120,7 +120,7 @@ export function spriteId(id: string) {
 	const en = s.en;
 	const dash = en.indexOf('-');
 	if (/^Nidoran-[MF]$/.test(en)) return toID(en);
-	if (dash < 0 || ['Ho-Oh', 'Porygon-Z', 'Jangmo-o', 'Hakamo-o', 'Kommo-o'].includes(en)) return toID(en);
+	if (dash < 0 || ['Ho-Oh', 'Porygon-Z', 'Jangmo-o', 'Hakamo-o', 'Kommo-o', 'Chien-Pao', 'Chi-Yu', 'Ting-Lu', 'Wo-Chien'].includes(en)) return toID(en);
 	return toID(en.slice(0, dash)) + '-' + toID(en.slice(dash + 1));
 }
 

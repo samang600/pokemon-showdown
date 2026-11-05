@@ -29,13 +29,16 @@ export function TypeBadge({ type, small }: { type: string; small?: boolean }) {
 }
 
 const SPRITE_HOST = 'https://play.pokemonshowdown.com/sprites';
+/** 앱 안에 들어 있는 그림 (scripts/fetch-sprites.sh 로 받음) — 오프라인에서도 표시 */
+export const LOCAL_SPRITES = 'sprites';
+const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 /** 도구 아이콘 (쇼다운 아이템 아이콘 시트, 24×24) */
 export function ItemIcon({ item, size = 24 }: { item: string; size?: number }) {
 	const n = RAW.items[toID(item)]?.sp;
 	if (!item || n === undefined) return <span class="item-icon none" style={{ width: size, height: size }} />;
 	const k = size / 24;
-	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: `url(${SPRITE_HOST}/itemicons-sheet.png)`,
+	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: `url(${LOCAL_SPRITES}/itemicons-sheet.png), url(${SPRITE_HOST}/itemicons-sheet.png)`,
 		backgroundPosition: `${-(n % 16) * 24 * k}px ${-Math.floor(n / 16) * 24 * k}px`, backgroundSize: `${384 * k}px ${1152 * k}px` }} />;
 }
 
@@ -51,7 +54,8 @@ export function preloadSprite(species: string, back: boolean, shiny?: boolean) {
 	const settings = loadSettings();
 	const id = spriteId(species);
 	const sh = shiny ? '-shiny' : '';
-	const url = settings.animatedSprites ? `${SPRITE_HOST}/ani${back ? '-back' : ''}${sh}/${id}.gif` : `${SPRITE_HOST}/gen5${back ? '-back' : ''}${sh}/${id}.png`;
+	if (!settings.animatedSprites || !online()) return; // 앱 안의 그림은 받을 필요 없음
+	const url = `${SPRITE_HOST}/ani${back ? '-back' : ''}${sh}/${id}.gif`;
 	if (preloaded[url]) return;
 	const im = new Image(); im.decoding = 'async'; im.src = url; preloaded[url] = im;
 }
@@ -63,11 +67,7 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 	const settings = loadSettings();
 	const id = species === 'substitute' ? 'substitute' : spriteId(species);
 	const useAnim = (anim ?? settings.animatedSprites);
-	const candidates: string[] = [];
-	const sh = shiny ? '-shiny' : '';
-	if (useAnim) { candidates.push(`${SPRITE_HOST}/ani${back ? '-back' : ''}${sh}/${id}.gif`); candidates.push(`${SPRITE_HOST}/gen5ani${back ? '-back' : ''}${sh}/${id}.gif`); }
-	if (gen === 4) candidates.push(`${SPRITE_HOST}/gen4${back ? '-back' : ''}${sh}/${id}.png`);
-	candidates.push(`${SPRITE_HOST}/gen5${back ? '-back' : ''}${sh}/${id}.png`);
+	const candidates = spriteCandidates(species, id, !!back, !!shiny, useAnim, gen);
 	const [idx, setIdx] = useState(0);
 	const [key, setKey] = useState(id + back + shiny + gen + useAnim);
 	const curKey = id + back + shiny + gen + useAnim;
@@ -85,6 +85,22 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 	return <img class={'sprite ' + (cls || '')} src={candidates[idx]} alt={species} loading="lazy"
 		style={{ maxWidth: size, maxHeight: size, objectFit: 'contain' }}
 		onError={() => setIdx(idx + 1)} draggable={false} />;
+}
+
+/** 그림 후보 순서: 온라인이면 움직이는 그림 → 앱 안의 정지 그림 → 서버 정지 그림, 오프라인이면 앱 안의 그림부터 */
+function spriteCandidates(species: string, id: string, back: boolean, shiny: boolean, useAnim: boolean, gen: Gen): string[] {
+	const b = back ? '-back' : '', sh = shiny ? '-shiny' : '';
+	if (id === 'substitute') return [`${LOCAL_SPRITES}/substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
+	const local = [`${LOCAL_SPRITES}/gen5${b}${sh}/${id}.png`];
+	// 앱에 없는 모습(일부 Z-A 메가 등)은 기본 모습으로
+	const base = speciesData(toID(species), 9 as Gen)?.base;
+	if (base) local.push(`${LOCAL_SPRITES}/gen5${b}${sh}/${spriteId(base)}.png`);
+	const remote: string[] = [];
+	if (useAnim) remote.push(`${SPRITE_HOST}/ani${b}${sh}/${id}.gif`, `${SPRITE_HOST}/gen5ani${b}${sh}/${id}.gif`);
+	if (gen === 4) remote.push(`${SPRITE_HOST}/gen4${b}${sh}/${id}.png`);
+	const remoteStatic = `${SPRITE_HOST}/gen5${b}${sh}/${id}.png`;
+	if (!online()) return [...local, remoteStatic];
+	return useAnim ? [...remote, local[0], remoteStatic, ...local.slice(1)] : [local[0], remoteStatic, ...local.slice(1)];
 }
 
 /** 목록용 작은 아이콘 */

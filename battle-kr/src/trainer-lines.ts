@@ -154,7 +154,8 @@ export function genericLines() {
 	return { intro: pick(GENERIC.intro), ace: pick(GENERIC.ace), lose: pick(GENERIC.lose), win: pick(GENERIC.win) };
 }
 
-export const SPRITE_URL = (id: string) => `https://play.pokemonshowdown.com/sprites/trainers/${id}.png`;
+/** 트레이너 그림: 앱 안에 들어 있음 (scripts/fetch-sprites.sh) */
+export const SPRITE_URL = (id: string) => `sprites/trainers/${id}.png`;
 export const PLAYER_SPRITES = [
 	{ id: 'lucas', name: '소년 A' }, { id: 'dawn', name: '소녀 A' }, { id: 'hilbert', name: '소년 B' }, { id: 'hilda', name: '소녀 B' },
 ];

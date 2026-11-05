@@ -5,6 +5,7 @@ import { BattleView, type BattleSetup, type BattleResult } from './ui/battle';
 import { PickScreen, InfoScreen, SwapScreen, ChoiceScreen, BracketView } from './ui/screens';
 import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, FACTORY_TIERS, type PSet } from './sets';
 import { NAMED, CUPS, REGIONS, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, type NamedTrainer } from './trainers';
+import { SPRITE_URL } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
 import { speciesKo, spriteId, megaStonesFor, type Gen } from './data';
 
@@ -33,7 +34,7 @@ async function chooseTeam(gen: Gen, title: string, allowRental = true): Promise<
 	const teams = loadTeams().filter(t => t.sets.length >= 3).sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0));
 	const opts: { value: SavedTeam | 'rental'; label: string; desc?: string; icon?: any; badge?: string }[] = teams.map(t => ({
 		value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '), badge: t.id === lastId ? '최근 사용' : undefined,
-		icon: <span class="mini"><img class="sprite" src={`https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
+		icon: <span class="mini"><img class="sprite" src={`sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
 	}));
 	if (allowRental) opts.push({ value: 'rental', label: '추천 렌탈 팀', desc: '무작위로 6마리를 빌립니다', icon: '🎲' });
 	const v = await ask<SavedTeam | 'rental' | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
@@ -346,7 +347,7 @@ export async function runNamed() {
 			const t = await ask<NamedTrainer | typeof BACK>(r => <ChoiceScreen title={`${region} 지방`} onBack={() => r(BACK)}
 				options={NAMED.filter(x => x.region === region).map(x => ({
 					value: x, label: x.name, desc: x.title, badge: loadRecords().named[x.id] ? `✓${loadRecords().named[x.id]}` : undefined,
-					icon: <img class="trainer-icon" src={`https://play.pokemonshowdown.com/sprites/trainers/${namedSprite(x)}.png`} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />,
+					icon: <img class="trainer-icon" src={SPRITE_URL(namedSprite(x))} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />,
 				}))} onPick={r} />);
 			if (t === BACK) break;
 			const mode = await ask<'s3' | 's6' | 'd4' | 'd6' | typeof BACK>(r => <ChoiceScreen title={`${t.name} · 규칙`} onBack={() => r(BACK)}
@@ -391,7 +392,7 @@ export async function runFree() {
 			{ value: 'random' as const, label: '무작위 팀', desc: '일반 트레이너의 무작위 6마리', icon: '🎲' },
 			{ value: 'strong' as const, label: '강한 무작위 팀', desc: '준전설 포함 · 메가·Z 소지', icon: '🔥' },
 			...teams.map(t => ({ value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '),
-				icon: <span class="mini"><img class="sprite" src={`https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span> })),
+				icon: <span class="mini"><img class="sprite" src={`sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span> })),
 		]} onPick={r} />);
 	if (oppPick === BACK) return;
 	const level = await ask<'s' | 'n' | 'h' | typeof BACK>(r => <ChoiceScreen title="상대 AI 실력" onBack={() => r(BACK)} options={[

@@ -3,6 +3,7 @@ import { h, Fragment, type ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { speciesData, toID, moveKo, itemKo, abilityKo, natureKo, typeKo, STAT_SHORT, STAT_KO, STATS, moveData, natureData, abilityDesc, itemDesc, calcStat, type Gen } from '../data';
 import { evToSp, spToEv, type PSet } from '../sets';
+import { SPRITE_URL } from '../trainer-lines';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, HPBar, StatusBadge, TYPE_COLOR } from './core';
 
 /** 세트 요약 카드 */
@@ -65,7 +66,7 @@ export function InfoScreen({ title, heading, lines, sprites, gen, actions, banne
 	return <Screen title={title}>
 		<div class="info-screen">
 			{banner && <div class="banner">{banner}</div>}
-			{trainer && <img class="trainer-big" src={`https://play.pokemonshowdown.com/sprites/trainers/${trainer}.png`} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+			{trainer && <img class="trainer-big" src={SPRITE_URL(trainer)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{heading && <h2>{heading}</h2>}
 			{sprites && <div class="preview-row big">{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} anim shiny={sets?.[i]?.shiny} /></span>)}</div>}
 			{sets && <p class="muted small">포켓몬을 누르면 능력치를 볼 수 있어요.</p>}
