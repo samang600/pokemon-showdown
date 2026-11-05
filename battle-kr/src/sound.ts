@@ -248,7 +248,7 @@ function seq(str: string): (number | null)[] {
 const decodeCh = (s: string) => Array.from(s, ch => ch === ' ' ? null : ch === '!' ? -1 : ch.charCodeAt(0) - 14);
 const CHIP: { [k: string]: Track } = Object.fromEntries(Object.entries(CHIP_RAW as { [k: string]: any }).map(([k, r]) =>
 	[k, { bpm: r.bpm, intro: r.intro, loop: true, leadType: r.leadType, lead: decodeCh(r.lead), harm: decodeCh(r.harm), bass: decodeCh(r.bass), arp: decodeCh(r.arp), drums: r.drums }]));
-const chipStyle = () => loadSettings().bgmStyle === 'chip';
+const chipStyle = () => (loadSettings().bgmStyle || 'chip') === 'chip';
 const TRACKS: { [k: string]: Track } = {
 	// 일반 배틀: d단조, 빠른 베이스 8분 + 긴장감 있는 반음 진행
 	battle: {

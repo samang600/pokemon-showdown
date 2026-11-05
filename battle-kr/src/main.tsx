@@ -155,7 +155,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
-		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠']] as const).map(([k, l]) => <button class={(s.bgmStyle || 'orch') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
+		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠']] as const).map(([k, l]) => <button class={(s.bgmStyle || 'chip') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
 		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>기술 효과음</span><div class="seg">{([0, 1, 2, 3] as const).map(v => <button class={s.moveSfx === v ? 'on' : ''} onClick={() => { up({ moveSfx: v }); setMoveSfxVolume(v); }}>{['끔', '작게', '보통', '크게'][v]}</button>)}</div></div>
 		<h3 class="sec">배틀 음악</h3>
