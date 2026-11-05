@@ -33,7 +33,7 @@ for kind, table, key, flav in (('moves', 'moves', 'move_id', 'move_flavor_text')
     for r in rows(flav):
         if r.get('language_id') != KO: continue
         t = clean(r['flavor_text'])
-        if not t or '사용할 수 없' in t: continue          # 9세대의 '사용할 수 없는 기술입니다' 안내문은 쓰지 않음
+        if not t or '사용할 수 없는 기술' in t: continue          # 9세대의 '사용할 수 없는 기술입니다' 안내문은 쓰지 않음
         o = order.get(r['version_group_id'], 0)
         if r[key] not in best or o > best[r[key]][0]: best[r[key]] = (o, t)
     tab = {}

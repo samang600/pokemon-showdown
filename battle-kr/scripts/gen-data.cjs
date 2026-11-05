@@ -149,12 +149,13 @@ const readJson = f => { try { return require(path.resolve(__dirname, f)); } catc
 const KO_NAMU = readJson('../src/ps/ko-text-namu.json');
 const KO_API = readJson('../src/ps/ko-text-fallback.json');
 const HANGUL = /[가-힣]/;
-const usableDesc = t => !!t && HANGUL.test(t) && !t.includes('사용할 수 없');
+const usableDesc = t => !!t && HANGUL.test(t) && !t.includes('사용할 수 없는 기술');
 function koDesc(cat, id, own) {
 	for (const t of [own, KO_NAMU[cat]?.[id]?.d, KO_API[cat]?.[id]?.d]) if (usableDesc(t)) return t;
 	return own || '';
 }
 function koName(cat, id, own) {
+	if (KO_NAMU[cat]?.[id]?.fix) return KO_NAMU[cat][id].n;
 	for (const t of [own, KO_NAMU[cat]?.[id]?.n, KO_API[cat]?.[id]?.n]) if (t && HANGUL.test(t)) return t;
 	return own;
 }

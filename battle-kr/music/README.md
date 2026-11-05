@@ -1,0 +1,10 @@
+# 배경음악 작곡·렌더링
+
+- `songs.py`: 다섯 곡의 작곡 데이터 (멜로디·코드 진행·반주 패턴·드럼). `python3 songs.py [title battle tower boss evil]`
+- `compose.py`: 마을(타이틀) 테마 원본 (songs.py 가 불러 씀)
+- `songkit.py`: 샘플 구역 자동 구성(실제 음높이를 재서 옥타브 보정), MIDI·SoundCraft 스크립트 작성, 악기별 라우드니스 자동 균형, 루프 이음새 처리, mp3
+- `inst_cache.json`: 측정한 옥타브 보정값
+
+필요한 것: SoundCraft CLI(`cargo build --release -p soundcraft-cli`, https://github.com/storytold/soundcraft), ffmpeg, numpy,
+VSCO-2-CE·VCSL 저장소를 이 폴더의 상위(`../vsco_meta`, `../vcsl_meta`)에 blob 없이 clone(`git clone --filter=blob:none --no-checkout`) — 필요한 샘플만 받아 씀.
+결과(`out/*.mp3`, `out/loops.json`)를 `public/bgm/` 로 복사.
