@@ -149,7 +149,9 @@ export class Session {
 export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind>, simSide: any): { [i: number]: any } {
 	const extra: { [i: number]: any } = {};
 	if (!req?.active) return extra;
-	const allow = (k: GimmickKind) => rule.kinds.includes(k) && !used.has(k) && !(rule.oneKind && used.size > 0);
+	// 울트라버스트('ultra')는 메가진화 계열로 취급하되, 원작처럼 그 뒤 Z기술은 쓸 수 있게 '한 종류' 계산에서 뺌
+	const counted = new Set([...used].filter(k => k !== 'ultra'));
+	const allow = (k: GimmickKind) => rule.kinds.includes(k) && !used.has(k) && !(rule.oneKind && counted.size > 0 && !(k === 'zmove' && used.has('ultra')));
 	const dmaxNow = simSide?.active?.some((p: any) => p?.volatiles['dynamax']);
 	req.active.forEach((a: any, i: number) => {
 		if (!a) return;
@@ -158,7 +160,7 @@ export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind
 		// 메가스톤이 없는 메가진화(레쿠쟈: 화룡점정)는 메가 모습으로 판단
 		const stoneOk = !p ? allow('mega') : p.getItem?.()?.megaStone ? megaStoneAllowed(rule, p.item) : megaFormAllowed(rule, p.canMegaEvo || 'rayquazamega');
 		if (!allow('mega') || !stoneOk) { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; }
-		if (!allow('mega')) delete a.canUltraBurst;
+		if (!allow('mega') || used.has('ultra')) delete a.canUltraBurst;
 		if (!allow('zmove')) delete a.canZMove;
 		// 테라스탈: 쇼다운은 메가스톤 소지 포켓몬의 테라스탈을 막아 두므로 규칙상 되면 열어 준다
 		if (!allow('tera')) delete a.canTerastallize;
@@ -183,5 +185,5 @@ export function gimmickOfLine(line: string): ['p1' | 'p2', GimmickKind] | null {
 	if (!gm) return null;
 	if (line.startsWith('|-primal')) return null; // 원시회귀는 자동
 	const side = (gm[2] || gm[1]) as 'p1' | 'p2';
-	return [side, line.includes('-zpower') ? 'zmove' : line.includes('-terastallize') ? 'tera' : line.includes('Dynamax') ? 'dynamax' : 'mega'];
+	return [side, line.includes('-zpower') ? 'zmove' : line.includes('-terastallize') ? 'tera' : line.includes('Dynamax') ? 'dynamax' : line.startsWith('|-burst') ? 'ultra' : 'mega'];
 }

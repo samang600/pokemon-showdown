@@ -5,7 +5,7 @@
  */
 import { RAW, toID } from './data';
 
-export type GimmickKind = 'mega' | 'zmove' | 'dynamax' | 'tera';
+export type GimmickKind = 'mega' | 'zmove' | 'dynamax' | 'tera' | 'ultra';
 export interface BattleRule {
 	id: string; name: string; group: string; desc: string;
 	kinds: GimmickKind[]; oneKind: boolean;

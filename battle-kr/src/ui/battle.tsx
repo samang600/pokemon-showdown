@@ -785,17 +785,39 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const m = activeReq.moves[infoMove];
 				const fi = moveInfo(m, infoMove);
 				const md = fi.md;
+				// Z기술·다이맥스 기술: 변환된 기술의 위력(원래 기술 위력에서 계산)·명중(필중)·효과
+				const simBase = sessionRef.current?.battle.dex.moves.get(m.id);
+				const dmaxed = activeReq?.maxMoves && !activeReq?.canDynamax;
+				let gmInfo: { kind: string; power: string; acc: string; desc: string; cat: string } | null = null;
+				if (gimmick === 'zmove' && activeReq.canZMove?.[infoMove]) {
+					const z = activeReq.canZMove[infoMove];
+					const zd = moveData(toID(z.move), gen);
+					const zmv = simBase?.zMove || {};
+					const eff = zmv.boost ? `Z파워 효과: ${Object.entries(zmv.boost).map(([k, v]) => `${STAT_KO[k] || k} +${v}`).join(', ')}` :
+						zmv.effect ? `Z파워 효과: ${({ heal: 'HP 모두 회복', healreplacement: '교체해 나오는 포켓몬 HP 회복', clearnegativeboost: '내려간 능력 원래대로', redirect: '상대 기술을 자신에게', crit2: '급소율 2단계 상승', curse: '저주 중이면 HP 모두 회복' } as any)[zmv.effect] || zmv.effect}` : '';
+					const zId = toID(z.move);
+					const zDesc = Z_SIG_KO[zId] || (zd?.desc && !/사용할 수 없는 기술/.test(zd.desc) ? zd.desc :
+						(simBase?.category === 'Status' ? `${md?.name}의 Z파워 버전. 원래 효과에 더해 Z파워 효과가 발동한다.` : `${md?.name}을(를) Z파워로 강화한 기술. 반드시 명중하고 방어·판별을 뚫고 1/4 데미지.`));
+					gmInfo = { kind: 'Z기술', power: simBase?.category === 'Status' ? '—' : String(zmv.basePower || zd?.basePower || '—'), acc: '필중',
+						desc: [zDesc, eff, md?.desc ? `원래 기술(${md.name}): ${md.desc}` : ''].filter(Boolean).join('\n'), cat: simBase?.category || md?.category || 'Physical' };
+				} else if ((gimmick === 'dynamax' || dmaxed) && activeReq.maxMoves?.maxMoves?.[infoMove]) {
+					const mx = activeReq.maxMoves.maxMoves[infoMove];
+					const xd = moveData(toID(mx.move), gen);
+					const isGuard = toID(mx.move) === 'maxguard';
+					gmInfo = { kind: isGuard ? '다이맥스 기술' : '다이맥스 기술', power: isGuard ? '—' : String(simBase?.maxMove?.basePower || xd?.basePower || '—'), acc: '필중',
+						desc: [xd?.desc, md?.desc && !isGuard ? `원래 기술(${md.name}): ${md.desc}` : ''].filter(Boolean).join('\n'), cat: isGuard ? 'Status' : (simBase?.category || md?.category || 'Physical') };
+				}
 				return <Modal title={fi.name} onClose={() => setInfoMove(null)}>
-					<div class="mi-head"><TypeBadge type={fi.type} />{md && <CatIcon cat={md.category} />}</div>
+					<div class="mi-head"><TypeBadge type={fi.type} />{(gmInfo || md) && <CatIcon cat={gmInfo ? gmInfo.cat : md!.category} />}{gmInfo && <span class="tag">{gmInfo.kind}</span>}</div>
 					<div class="mi-table">
-						<div><span>위력</span><b>{md?.category === 'Status' ? '—' : md?.basePower || '—'}</b></div>
-						<div><span>명중</span><b>{md?.accuracy || '—'}</b></div>
+						<div><span>위력</span><b>{gmInfo ? gmInfo.power : md?.category === 'Status' ? '—' : md?.basePower || '—'}</b></div>
+						<div><span>명중</span><b>{gmInfo ? gmInfo.acc : md?.accuracy || '—'}</b></div>
 						<div><span>PP</span><b>{m.maxpp ? `${m.pp}/${m.maxpp}` : '—'}</b></div>
 						<div><span>우선도</span><b>{md?.priority ? (md.priority > 0 ? '+' : '') + md.priority : '0'}</b></div>
 						<div><span>접촉</span><b>{md?.contact ? '함' : '안 함'}</b></div>
 						<div><span>상성</span><b>{fi.eff || '—'}</b></div>
 					</div>
-					{md?.desc && <p class="mi-desc">{md.desc}</p>}
+					{gmInfo ? <p class="mi-desc pre">{gmInfo.desc}</p> : md?.desc && <p class="mi-desc">{md.desc}</p>}
 					{m.disabled && <p class="sheet-note">지금은 쓸 수 없는 기술입니다.</p>}
 					<button class="btn primary big" disabled={!!m.disabled || m.pp === 0} onClick={() => { setInfoMove(null); onMove(infoMove + 1, m); }}>이 기술을 쓴다</button>
 				</Modal>;
@@ -1089,6 +1111,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 }
 
 const RXp = (re: RegExp, id: string) => re.test(id);
+/** 전용 Z기술 설명 (쇼다운 한글 데이터에 설명이 없음) */
+const Z_SIG_KO: { [id: string]: string } = {
+	lightthatburnsthesky: '공격과 특수공격 중 높은 쪽으로 데미지를 준다. 상대의 특성을 무시한다.',
+	searingsunrazesmash: '상대의 특성을 무시하고 공격한다.', menacingmoonrazemaelstrom: '상대의 특성을 무시하고 공격한다.',
+	catastropika: '피카츄 전용. 전력을 다한 전기타입 공격.', tenmillionvoltthunderbolt: '급소에 맞을 확률이 높다.',
+	stokedsparksurfer: '상대를 마비 상태로 만든다.', extremeevoboost: '모든 능력이 2단계 올라간다.',
+	pulverizingpancake: '괴력의 노말타입 공격.', genesissupernova: '사이코필드를 깐다.', sinisterarrowraid: '그림자 화살의 집중 공격.',
+	maliciousmoonsault: '필살의 악타입 공격.', oceanicoperetta: '강력한 물타입 공격.', splinteredstormshards: '필드를 없앤다.',
+	letssnuggleforever: '필살의 페어리타입 공격.', clangoroussoulblaze: '모든 능력이 1단계 올라간다.', guardianofalola: '상대 HP의 3/4 데미지.',
+	soulstealing7starstrike: '7개의 별의 힘으로 공격.',
+};
 /** 지닌 메가스톤으로 바뀔 수 있는 모습 */
 function megaFormsOf(set: PSet): string[] {
 	const it = RAW.items[toID(set.item)];
