@@ -6,7 +6,7 @@ import { KoreanText, parseLine, effectInfo, type ParsedLine } from '../text';
 import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natureKo, STAT_SHORT, STAT_KO, typeKo, abilityDesc,
 	itemDesc, RAW, type Gen } from '../data';
 import { toSimTeam, type PSet } from '../sets';
-import { loadSettings, updateRecords } from '../store';
+import { loadSettings, updateRecords, saveReplay, newId } from '../store';
 import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
 import { estimateDamage, typeEffOf } from '../ai';
@@ -29,6 +29,8 @@ export interface BattleSetup {
 	cheat?: boolean;
 	/** 거꾸로 배틀 */
 	inverse?: boolean;
+	/** 리플레이 재생: 저장된 시드·규칙·양쪽 선택으로 같은 배틀을 자동 진행 */
+	replay?: { seed: [number, number, number, number]; ruleId: string; p1: string[]; p2: string[] };
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
 }
 export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
@@ -593,12 +595,29 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		setLog(logRef.current);
 	}
 
+	const replayIdx = useRef(0);
+	/** 리플레이: 기록된 내 선택을 순서대로 자동 입력 */
+	async function replayStep() {
+		const s = sessionRef.current!;
+		const rp = setup.replay!;
+		setPhase('playing');
+		if (replayIdx.current >= rp.p1.length) { setPhase('ended'); setMessage('리플레이가 끝났습니다.'); stopMusic(); return; }
+		const choice = rp.p1[replayIdx.current++];
+		setMessage(`▶ 리플레이 ${s.battle.turn}턴`);
+		await wait(Math.max(250, SPEED_MS[settings.speed] * 0.8));
+		if (choice === 'forfeit') { await play(s.forfeit()); return; }
+		const lines = s.choose(choice);
+		if (!lines) { setPhase('ended'); setMessage('리플레이를 재현할 수 없습니다 (선택 불일치).'); stopMusic(); return; }
+		await play(lines);
+	}
+
 	function beginInput() {
 		setParts([]);
 		setGimmick('');
 		setPendingMove(null);
 		const req = sessionRef.current!.p1Request;
 		if (!req || req.wait) { setPhase('playing'); return; }
+		if (setup.replay) { void replayStep(); return; }
 		const first = firstSlot(req, 0);
 		setSlotIdx(first);
 		setMenu(req.forceSwitch ? 'switch' : 'main');
@@ -659,7 +678,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	async function quitToMenu() {
 		setMenuOpen(false);
 		const s = sessionRef.current!;
-		const ended = s.ended;
+		const ended = s.ended || !!setup.replay;
 		if (!ended && !(await confirmBox('메인 메뉴로', setup.noRecord ? '배틀을 그만두고 메인 메뉴로 돌아갈까요?' :
 			'배틀을 그만두고 메인 메뉴로 돌아갈까요?\n이 배틀은 패배로 기록되고, 진행 중인 연승 도전은 끝납니다.', '메인 메뉴로', '계속 싸운다'))) return;
 		skipRef.current?.();
@@ -680,6 +699,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	useEffect(() => {
 		const s = new Session({
 			gen: setup.gen, doubles: setup.doubles, aiSkill: setup.aiSkill, inverse: !!setup.inverse,
+			...(setup.replay ? { seed: setup.replay.seed, ruleId: setup.replay.ruleId, replayP2: setup.replay.p2 } : {}),
 			p1: { name: setup.p1.name, team: toSimTeam(setup.p1.team, !!setup.cheat) as any },
 			p2: { name: setup.p2.name, team: toSimTeam(setup.p2.team, !!setup.cheat) as any },
 		});
@@ -721,6 +741,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const scene = sceneRef.current;
 	const req = sessionRef.current?.p1Request;
 
+	const [replaySaved, setReplaySaved] = useState(false);
+	/** 지금 배틀을 리플레이로 저장 (시드 + 양쪽 선택) */
+	function saveThisReplay() {
+		const s = sessionRef.current!;
+		const { replay: _r, ...rest } = setup;
+		const win = s.winner === setup.p1.name;
+		saveReplay({ id: newId(), date: Date.now(), label: setup.label || `${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}`, win, turns: s.battle.turn,
+			setup: rest, seed: s.seed, ruleId: s.rule.id, p1: s.record.p1.slice(), p2: s.record.p2.slice() });
+		setReplaySaved(true);
+		toast('리플레이를 저장했습니다 (기록 → 리플레이)');
+	}
 	function finish() {
 		const s = sessionRef.current!;
 		stopMusic();
@@ -954,12 +985,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			return <div class="controls end">
 				<button class="btn primary big" onClick={finish}>계속</button>
 				<button class="btn ghost" onClick={() => setShowLog(true)}>배틀 기록</button>
+				{!setup.replay && !replaySaved && <button class="btn ghost" onClick={saveThisReplay}>🎬 리플레이 저장</button>}
 			</div>;
 		}
 		if (phase !== 'input' || !req) {
 			return <div class="controls waiting">
 				<button class="btn small" onClick={() => cycleSpeed()}>배속 {SPEED_LABEL[settings.speed]}</button>
-				<p class="muted small">화면을 누르면 메시지를 넘깁니다</p>
+				{setup.replay && <button class="btn small ghost" onClick={() => { skipRef.current?.(); cancelAnims(); stopMusic(); onEnd({ win: false, forfeit: false, turns: 0, p1Left: 0, p2Left: 0, quit: true }); }}>■ 그만 보기</button>}
+				<p class="muted small">{setup.replay ? '🎬 리플레이 재생 중 · 화면을 누르면 메시지를 넘깁니다' : '화면을 누르면 메시지를 넘깁니다'}</p>
 			</div>;
 		}
 		const back = (parts.length || menu !== 'main') && !(req.forceSwitch && !parts.length) ?

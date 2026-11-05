@@ -74,6 +74,17 @@ export interface Records {
 	battles: number;
 	wins: number;
 }
+/** 저장한 리플레이 (시드 + 양쪽 선택으로 같은 배틀을 다시 돌림) */
+export interface SavedReplay {
+	id: string; date: number; label: string; win: boolean; turns: number;
+	setup: any; // BattleSetup (팀·이름·그림·배경·옵션)
+	seed: [number, number, number, number]; ruleId: string; p1: string[]; p2: string[];
+}
+const REPLAY_MAX = 30;
+export function loadReplays(): SavedReplay[] { return load<SavedReplay[]>('replays', []); }
+export function saveReplay(r: SavedReplay) { save('replays', [r, ...loadReplays().filter(x => x.id !== r.id)].slice(0, REPLAY_MAX)); }
+export function deleteReplay(id: string) { save('replays', loadReplays().filter(x => x.id !== id)); }
+
 export function loadRecords(): Records {
 	return { best: {}, current: {}, cups: {}, named: {}, bp: 0, battles: 0, wins: 0, ...load<Partial<Records>>('records', {}) };
 }

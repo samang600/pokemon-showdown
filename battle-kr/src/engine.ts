@@ -17,6 +17,8 @@ export interface SessionConfig {
 	ruleId?: string;
 	/** 거꾸로 배틀 */
 	inverse?: boolean;
+	/** 리플레이 재생: 기록된 상대(AI) 선택을 순서대로 씀 */
+	replayP2?: string[];
 }
 
 export class Session {
@@ -36,13 +38,18 @@ export class Session {
 	lastError = '';
 
 	rule: BattleRule;
+	/** 리플레이용 기록: 시드와 양쪽 선택 (같은 팀·시드·선택이면 같은 배틀이 재현됨) */
+	seed: [number, number, number, number];
+	record: { p1: string[]; p2: string[] } = { p1: [], p2: [] };
+	private replayIdx = 0;
 
 	constructor(public cfg: SessionConfig) {
 		this.rule = ruleById(cfg.ruleId || loadSettings().battleRule);
 		const formatid = `gen${cfg.gen}kr${cfg.doubles ? 'doubles' : 'singles'}${cfg.inverse ? 'inverse' : ''}`;
+		this.seed = cfg.seed || [0, 0, 0, 0].map(() => Math.floor(Math.random() * 0x10000)) as [number, number, number, number];
 		this.battle = new Battle({
 			formatid: formatid as any,
-			...(cfg.seed ? { seed: 'gen5,' + cfg.seed.map(n => n.toString(16).padStart(4, '0')).join('') } : {}),
+			seed: 'gen5,' + this.seed.map(n => n.toString(16).padStart(4, '0')).join(''),
 			send: (type: string, data: any) => this.receive(type, data),
 		} as any);
 	}
@@ -112,13 +119,17 @@ export class Session {
 			if (!req || req.wait || req === this.p2Answered) return;
 			this.p2Answered = req;
 			let choice = 'default';
-			try {
-				choice = chooseAI(this.battle, req, 'p2', this.cfg.aiSkill);
-			} catch (e) {
-				console.error('AI 오류', e);
+			if (this.cfg.replayP2 && this.replayIdx < this.cfg.replayP2.length) choice = this.cfg.replayP2[this.replayIdx++];
+			else {
+				try {
+					choice = chooseAI(this.battle, req, 'p2', this.cfg.aiSkill);
+				} catch (e) {
+					console.error('AI 오류', e);
+				}
 			}
 			this.syncSimRequest('p2');
-			if (!this.battle.choose('p2', choice)) this.battle.choose('p2', 'default');
+			if (!this.battle.choose('p2', choice)) { choice = 'default'; this.battle.choose('p2', 'default'); }
+			this.record.p2.push(choice);
 			this.battle.sendUpdates();
 		}
 	}
@@ -141,12 +152,14 @@ export class Session {
 			this.p1Request = prevReq;
 			return null;
 		}
+		this.record.p1.push(choice);
 		this.battle.sendUpdates();
 		this.runAI();
 		return this.flush();
 	}
 
 	forfeit(): string[] {
+		this.record.p1.push('forfeit');
 		this.battle.forceWin('p2');
 		this.battle.sendUpdates();
 		return this.flush();

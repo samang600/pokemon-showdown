@@ -1,11 +1,12 @@
 import './ps/registry';
 import { h, render, type VNode } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { bindView, Screen, Sprite, toast, confirmBox, QuitToMenu, resetAbort } from './ui/core';
+import { bindView, Screen, Sprite, toast, confirmBox, QuitToMenu, resetAbort, ask, MiniSprite } from './ui/core';
+import { BattleView } from './ui/battle';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
-import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
+import { loadRecords, loadSettings, saveSettings, load, loadReplays, deleteReplay, type Settings, type SavedReplay } from './store';
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
 import { CUPS, NAMED } from './trainers';
@@ -73,7 +74,23 @@ function Home({ go }: { go: (v: string) => void }) {
 	</div>;
 }
 
-function Records({ onBack }: { onBack: () => void }) {
+/** 저장한 리플레이 목록: 보기 / 지우기 */
+function ReplayList({ onPlay }: { onPlay: (rp: SavedReplay) => void }) {
+	const [list, setList] = useState(loadReplays());
+	const playIt = onPlay;
+	if (!list.length) return <p class="muted small">저장한 리플레이가 없습니다. 배틀이 끝난 화면에서 ‘🎬 리플레이 저장’을 누르면 여기에 남습니다. (최근 30개)</p>;
+	return <div class="replay-list">{list.map(rp => <div class="replay-row">
+		<div class="replay-mons">{(rp.setup?.p1?.team || []).slice(0, 6).map((s: any) => <MiniSprite species={s.species} gen={9} size={28} shiny={s.shiny} />)}</div>
+		<div class="replay-body">
+			<b>{rp.label}</b>
+			<small>{new Date(rp.date).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {rp.win ? '승리' : '패배'} · {rp.turns}턴 · vs {rp.setup?.p2?.name}{rp.setup?.doubles ? ' · 더블' : ''}</small>
+		</div>
+		<button class="btn small primary" onClick={() => playIt(rp)}>▶ 보기</button>
+		<button class="icon-btn" aria-label="삭제" onClick={async () => { if (await confirmBox('리플레이 삭제', '이 리플레이를 지울까요?', '삭제', '취소')) { deleteReplay(rp.id); setList(loadReplays()); } }}>🗑</button>
+	</div>)}</div>;
+}
+
+function Records({ onBack, onPlay }: { onBack: () => void; onPlay: (rp: SavedReplay) => void }) {
 	const r = loadRecords();
 	const rows: [string, string][] = [
 		['배틀타워 싱글 3vs3', `${r.best['tower-singles'] || 0}연승`], ['배틀타워 더블 4vs4', `${r.best['tower-doubles'] || 0}연승`],
@@ -84,6 +101,8 @@ function Records({ onBack }: { onBack: () => void }) {
 	];
 	return <Screen title="기록" onBack={onBack}>
 		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패{r.battles ? ` · 승률 ${Math.round(r.wins / r.battles * 100)}%` : ''}</span></div>
+		<h3 class="sec">🎬 리플레이</h3>
+		<ReplayList onPlay={onPlay} />
 		<h3 class="sec">최고 연승</h3>
 		{rows.map(([k, v]) => <div class="record-row"><span>{k}</span><b>{v}</b></div>)}
 		<h3 class="sec">PWT 우승</h3>
@@ -191,6 +210,19 @@ function App() {
 		setRoute(r);
 	};
 
+	/** 저장한 리플레이 재생: 배틀 화면(모드 뷰)으로 들어갔다가 기록 화면으로 돌아옴 */
+	const playReplay = async (rp: SavedReplay) => {
+		setRoute('mode');
+		resetAbort();
+		try {
+			await ask<void>(r => <BattleView key={Math.random()} setup={{ ...rp.setup, noRecord: true, replay: { seed: rp.seed, ruleId: rp.ruleId, p1: rp.p1, p2: rp.p2 } }} onEnd={() => r()} />);
+		} catch (e: any) { if (!(e instanceof QuitToMenu)) { console.error(e); toast('리플레이 오류: ' + (e?.message || e)); } }
+		resetAbort();
+		setModeView(null);
+		setRoute('records');
+		playMusic('title');
+	};
+
 	// 안드로이드 뒤로가기
 	useEffect(() => {
 		(window as any).onAndroidBack = () => {
@@ -214,7 +246,7 @@ function App() {
 		if (editTeam) return <TeamEditor team={editTeam} onBack={() => setEditTeam(null)} />;
 		return <TeamList onBack={() => setRoute('home')} onEdit={t => setEditTeam(t)} />;
 	}
-	if (route === 'records') return <Records onBack={() => setRoute('home')} />;
+	if (route === 'records') return <Records onBack={() => setRoute('home')} onPlay={playReplay} />;
 	if (route === 'calc') return <CalcScreen onBack={() => setRoute('home')} />;
 	if (route === 'settings') return <SettingsScreen onBack={() => setRoute('home')} />;
 	return <Home go={go} />;

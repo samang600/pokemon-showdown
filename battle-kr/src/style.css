@@ -889,3 +889,8 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .tera-tag { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--grey); margin-left: 2px; }
 .tera-tag .type { outline: 1px solid rgba(255,255,255,.7); box-shadow: 0 0 4px rgba(255,255,255,.5); }
 .gmax-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #c0304a; color: #fff; border: 1px solid #fff; line-height: 1.2; }
+/* 리플레이 목록 */
+.replay-list { display: flex; flex-direction: column; gap: 6px; }
+.replay-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: rgba(0,0,0,.28); border-radius: 8px; }
+.replay-mons { display: flex; flex-wrap: wrap; width: 60px; gap: 1px; flex-shrink: 0; }
+.replay-body { flex: 1; min-width: 0; display: flex; flex-direction: column; } .replay-body b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .replay-body small { font-size: 11px; opacity: .8; }
