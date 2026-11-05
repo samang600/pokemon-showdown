@@ -885,3 +885,7 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .mode-text { min-width: 0; }
 .mode-text b { white-space: nowrap; letter-spacing: -0.3px; }
 .mode-tile:not(.wide) .mode-text b { font-size: 17px; }
+/* 세트 카드: 테라타입·거다이맥스 표시 */
+.tera-tag { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--grey); margin-left: 2px; }
+.tera-tag .type { outline: 1px solid rgba(255,255,255,.7); box-shadow: 0 0 4px rgba(255,255,255,.5); }
+.gmax-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #c0304a; color: #fff; border: 1px solid #fff; line-height: 1.2; }
