@@ -1,5 +1,6 @@
 /** 포켓몬 세트(기술·도구·노력치) 만들기 */
 import { loadSettings } from './store';
+import { ruleById, speciesAllowed, megaStoneAllowed } from './rules';
 import { Teams } from '../../sim/teams';
 import { RAW, speciesData, learnset, moveData, toID, bst, speciesKo, nickKo, megaStonesFor, zCrystalForType, type Gen, type StatID } from './data';
 import FACTORY_SETS from '../../data/random-battles/gen9/factory-sets.json';
@@ -232,11 +233,13 @@ const BANNED_POOL = new Set(['unown', 'ditto', 'smeargle', 'wobbuffet', 'wynaut'
 /** 조건에 맞는 최종진화(일반) 포켓몬 목록 */
 export function speciesPool(o: PoolOptions): string[] {
 	const out: string[] = [];
+	const rule = ruleById(loadSettings().battleRule);
 	for (const id in RAW.species) {
 		const s = speciesData(id, o.gen);
 		if (!s || !RAW.species[id].g[o.gen]) continue;
 		if (!s.fe || s.bo || BANNED_POOL.has(id) || o.exclude?.has(id)) continue;
 		if (s.tags?.some(t => t === 'Restricted Legendary' || t === 'Mythical')) continue;
+		if (!speciesAllowed(rule, id)) continue;
 		if (!o.allowSubLegend && s.tags?.includes('Sub-Legendary')) continue;
 		if (s.base && s.req && !/^(rotom|ogerpon)/.test(id)) continue; // 아르세우스·실버디 타입폼 등은 제외
 		const b = bst(id, o.gen);
@@ -287,16 +290,17 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 
 /** 팀에 메가스톤·Z크리스탈을 하나씩 (가능하면) 나눠 주고 테라스탈 타입을 정함 */
 export function assignGimmicks(team: PSet[], opts: { mega?: number; z?: number } = {}) {
-	const rule = loadSettings().gimmickRule || 'one';
-	const megaProb = ['one', 'free', 'mega'].includes(rule) ? (opts.mega ?? 0.6) * (rule === 'mega' ? 1.6 : 1) : 0;
-	const zProb = ['one', 'free', 'zmove'].includes(rule) ? (opts.z ?? 0.4) * (rule === 'zmove' ? 2 : 1) : 0;
+	const rule = ruleById(loadSettings().battleRule);
+	const megaOnlyRule = rule.kinds.length === 1 && rule.kinds[0] === 'mega';
+	const megaProb = rule.kinds.includes('mega') ? (opts.mega ?? 0.6) * (megaOnlyRule ? 1.6 : 1) : 0;
+	const zProb = rule.kinds.includes('zmove') ? (opts.z ?? 0.4) * (rule.kinds.length === 2 ? 1.5 : 1) : 0;
 	const hasMega = team.some(s => RAW.items[s.item]?.mega);
 	const hasZ = team.some(s => RAW.items[s.item]?.zt);
 	if (!hasMega && Math.random() < megaProb) {
-		const cands = team.filter(s => megaStonesFor(s.species).length && !speciesData(s.species, 9)?.req);
+		const cands = team.filter(s => megaStonesFor(s.species).some(st => megaStoneAllowed(rule, st)) && !speciesData(s.species, 9)?.req);
 		if (cands.length) {
 			const set = rng.pick(cands);
-			set.item = rng.pick(megaStonesFor(set.species));
+			set.item = rng.pick(megaStonesFor(set.species).filter(st => megaStoneAllowed(rule, st)));
 		}
 	}
 	if (!hasZ && Math.random() < zProb) {
@@ -318,7 +322,8 @@ export function assignGimmicks(team: PSet[], opts: { mega?: number; z?: number }
 export const FACTORY_TIERS = ['PU', 'NU', 'RU', 'UU', 'OU', 'Uber'] as const;
 export function factoryTeam(tier: string, size: number, level: number, exclude = new Set<string>()): PSet[] {
 	const table = (FACTORY_SETS as any)[tier] || (FACTORY_SETS as any).OU;
-	const ids = rng.shuffle(Object.keys(table).filter(id => !exclude.has(id) && speciesData(id, 9)));
+	const rule = ruleById(loadSettings().battleRule);
+	const ids = rng.shuffle(Object.keys(table).filter(id => !exclude.has(id) && speciesData(id, 9) && speciesAllowed(rule, id)));
 	const out: PSet[] = [];
 	const nums = new Set<number>();
 	for (const id of ids) {
@@ -364,6 +369,17 @@ export function spOf(set: PSet) {
 		const d = Math.min(over, o[k]); o[k] -= d; over -= d;
 	}
 	return o;
+}
+/** 자동 배분용: 합계가 66에 못 미치면 남은 포인트를 채운다 (252/252/4 → 32/32/2) */
+export function fillSP<T extends PSet>(set: T): T {
+	normalizeSP(set);
+	const sp = spOf(set);
+	let left = SP_TOTAL - STAT_KEYS.reduce((a, k) => a + sp[k], 0);
+	// 이미 투자한(최대가 아닌) 능력 → HP → 방어·특방 순으로
+	const order = [...STAT_KEYS.filter(k => sp[k] > 0 && sp[k] < SP_MAX), 'hp', 'def', 'spd', 'atk', 'spa', 'spe'] as StatID[];
+	for (const k of order) { while (left > 0 && sp[k] < SP_MAX) { sp[k]++; left--; } if (!left) break; }
+	for (const k of STAT_KEYS) set.evs[k] = spToEv(sp[k]);
+	return set;
 }
 /** 노력치·개체값을 챔피언스 규칙(SP, 개체값 최대)에 맞춘다 */
 export function normalizeSP<T extends PSet>(set: T): T {

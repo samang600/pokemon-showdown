@@ -34,7 +34,7 @@ export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p
 interface Mon {
 	ident: string; nick: string; species: string; level: number; gender: string; shiny: boolean;
 	hp: number; maxhp: number; status: string; fainted: boolean; boosts: { [k: string]: number };
-	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[]; pendingSpecies?: string;
+	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[]; pendingSpecies?: string; itemSeen?: boolean;
 }
 interface SideScene { id: string; name: string; active: (Mon | null)[]; team: Mon[]; cond: { [id: string]: number }; teamSize: number }
 interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number }
@@ -443,8 +443,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		case '-mega': case '-primal': case '-burst':
 			// 연출은 모습이 바뀌는 detailschange 에서 이미 함 (빛기둥 → 그림 교체)
 			return 0;
-		case '-item': { const m = activeMon(args[1]); if (m) m.item = args[2]; return 0; }
-		case '-enditem': { const m = activeMon(args[1]); if (m) m.item = ''; return 0; }
+		case '-item': { const m = activeMon(args[1]); if (m) { m.item = args[2]; m.itemSeen = true; } return 0; }
+		case '-enditem': { const m = activeMon(args[1]); if (m) { m.item = ''; m.itemSeen = true; } return 0; }
 		case '-ability': { const m = activeMon(args[1]); if (m) m.ability = args[2]; return 0; }
 		case 'turn': scene.turn = parseInt(args[1], 10); return 0;
 		case 'teamsize': {
@@ -1140,6 +1140,11 @@ function MonDetail({ mon, own, gen, session, onClose }: { mon: Mon; own: boolean
 				</div>
 			</div>
 			{boosts.length > 0 && <p>능력 변화: {boosts.map(([k, v]) => `${STAT_KO[k]} ${v > 0 ? '+' : ''}${v}`).join(', ')}</p>}
+			{!own && <>
+				<p><b>특성</b> {mon.ability ? <>{abilityKo(mon.ability)} <small class="muted">{abilityDesc(mon.ability)}</small></> :
+					<span class="muted">미확인 <small>(후보: {(sd?.ab || []).map(abilityKo).join(' / ')})</small></span>}</p>
+				<p><b>도구</b> {mon.item === '' && mon.itemSeen ? '없음' : mon.item ? <>{itemKo(mon.item)} <small class="muted">{itemDesc(mon.item)}</small></> : <span class="muted">미확인</span>}</p>
+			</>}
 			{own && simMon ? <>
 				<p><b>특성</b> {abilityKo(simMon.baseAbility)} <small class="muted">{abilityDesc(simMon.baseAbility)}</small></p>
 				<p><b>도구</b> {simMon.item ? itemKo(simMon.item) : '없음'} <small class="muted">{simMon.item ? itemDesc(simMon.item) : ''}</small></p>

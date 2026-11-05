@@ -8,14 +8,14 @@ export type StatID = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe';
 export const STATS: StatID[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
 
 interface SpeciesGen { t: string[]; bs: number[]; ab: string[]; fe: number; bo?: number; gr?: string; req?: string; wt: number; ls?: number[] }
-export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; tier?: string; g: { [gen: string]: SpeciesGen } }
+export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; tier?: string; fut?: 1; g: { [gen: string]: SpeciesGen } }
 interface MoveEntry { n: string; d: string; z?: number; x?: number; g: { [gen: string]: [string, string, number, number, number, number, string, number] } }
 
 const D = DEX as any as {
 	species: { [id: string]: SpeciesEntry };
 	moves: { [id: string]: MoveEntry };
 	abilities: { [id: string]: { n: string; d: string; gen: number } };
-	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[]; sp?: number } };
+	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[]; sp?: number; fut?: 1 } };
 	natures: { [id: string]: { n: string; en: string; p: string; m: string } };
 	types: { [en: string]: string };
 	stats: { [id: string]: string };

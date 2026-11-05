@@ -5,7 +5,8 @@ import { bindView, Screen, Sprite, toast, QuitToMenu, resetAbort } from './ui/co
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree, runCheat } from './modes';
-import { loadRecords, loadSettings, saveSettings, load, type Settings, type GimmickRule } from './store';
+import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
+import { RULES, ruleById } from './rules';
 import { CUPS, NAMED } from './trainers';
 import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume, BGM_CHOICES } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
@@ -90,16 +91,6 @@ function Records({ onBack }: { onBack: () => void }) {
 	</Screen>;
 }
 
-const GIMMICK_RULES: [GimmickRule, string, string][] = [
-	['one', '한 종류만', '메가진화·Z기술·다이맥스·테라스탈 중 한 배틀에 한 종류만, 한 번 쓸 수 있습니다(기본).'],
-	['free', '모두 허용', '네 가지 기믹을 종류마다 한 번씩 모두 쓸 수 있습니다.'],
-	['mega', '메가진화만', '메가진화만 쓸 수 있습니다(포켓몬 챔피언스 방식).'],
-	['zmove', 'Z기술만', 'Z기술만 쓸 수 있습니다.'],
-	['dynamax', '다이맥스만', '다이맥스만 쓸 수 있습니다.'],
-	['tera', '테라스탈만', '테라스탈만 쓸 수 있습니다.'],
-	['none', '사용 안 함', '기믹 없이 배틀합니다.'],
-];
-
 function SettingsScreen({ onBack }: { onBack: () => void }) {
 	const [s, setS] = useState<Settings>(loadSettings());
 	const up = (p: Partial<Settings>) => { const n = { ...s, ...p }; setS(n); saveSettings(n); };
@@ -128,9 +119,10 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<h3 class="sec">메뉴 배경</h3>
 		<div class="seg wrap">{([['title', '밤하늘'], ['field', '초원'], ['tower', '타워'], ['factory', '팩토리'], ['pwt', '경기장'], ['champion', '챔피언']] as const).map(([k, l]) => <button class={s.homeBg === k ? 'on' : ''} onClick={() => { up({ homeBg: k }); applyTheme({ ...s, homeBg: k }); }}>{l}</button>)}</div>
 		<p class="muted small">효과음·배경음악은 이 앱에서 합성한 칩튠, 기술 효과음은 Pokémon Reborn 제작. 울음소리는 인터넷에서 받아 옵니다.</p>
-		<h3 class="sec">기믹 규칙</h3>
-		<div class="seg wrap">{GIMMICK_RULES.map(([k, l]) => <button class={s.gimmickRule === k ? 'on' : ''} onClick={() => up({ gimmickRule: k })}>{l}</button>)}</div>
-		<p class="muted small">{GIMMICK_RULES.find(x => x[0] === s.gimmickRule)?.[2]} 모든 모드의 나와 상대에게 똑같이 적용됩니다.</p>
+		<h3 class="sec">배틀 규칙</h3>
+		{[...new Set(RULES.map(r => r.group))].map(g => <div class="set-row rule-row"><span>{g}</span><div class="seg wrap">
+			{RULES.filter(r => r.group === g).map(r => <button class={s.battleRule === r.id ? 'on' : ''} onClick={() => up({ battleRule: r.id })}>{r.name.replace(/^(전국도감|챔피언스 레귤레이션) · ?/, '')}</button>)}</div></div>)}
+		<p class="muted small"><b>{ruleById(s.battleRule).name}</b>: {ruleById(s.battleRule).desc} 모든 모드의 나와 상대에게 적용되고, 무작위·렌탈 팀과 상대 팀도 이 규칙에 맞게 만들어집니다.</p>
 		<h3 class="sec">배틀 화면</h3>
 		<div class="seg">
 			<button class={s.effects ? 'on' : ''} onClick={() => up({ effects: !s.effects })}>기술 이펙트 {s.effects ? '켜짐' : '꺼짐'}</button>

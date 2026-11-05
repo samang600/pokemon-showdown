@@ -3,6 +3,8 @@
  * 시뮬레이터 객체를 직접 보고(전지적) 기술 데미지를 대략 계산해 고른다.
  * skill(0~1) 이 낮을수록 실수(무작위 선택)가 잦다.
  */
+import { State } from '../../sim/state';
+import { PRNG } from '../../sim/prng';
 type Battle = any;
 type Pokemon = any;
 
@@ -412,9 +414,9 @@ function viability(battle: Battle, user: Pokemon, move: any, target: Pokemon | n
 	return v;
 }
 
-interface AIFlags { faint: boolean; viability: boolean; switching: boolean; doubles: boolean }
+interface AIFlags { faint: boolean; viability: boolean; switching: boolean; doubles: boolean; lookahead: boolean }
 function flagsFor(skill: number): AIFlags {
-	return { faint: skill >= 0.45, viability: skill >= 0.6, switching: skill >= 0.7, doubles: skill >= 0.6 };
+	return { faint: skill >= 0.45, viability: skill >= 0.6, switching: skill >= 0.7, doubles: skill >= 0.6, lookahead: skill >= 0.8 && lookaheadEnabled && !(globalThis as any).__noLA };
 }
 
 function moveOptions(battle: Battle, user: Pokemon, reqActive: any, flags: AIFlags): Option[] {
@@ -729,6 +731,8 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 
 	if (request.active) {
 		const parts: string[] = [];
+		/** 더블 내다보기용: 슬롯마다 [휴리스틱 선택, 차선] */
+		const slotCands: string[][] = [];
 		const chosenSwitch = new Set<number>();
 		const used: { [k: string]: boolean } = {};
 		request.active.forEach((reqActive: any, slot: number) => {
@@ -743,10 +747,16 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 				if (idx !== null && idx >= side.active.length) {
 					chosenSwitch.add(idx);
 					parts.push(`switch ${idx + 1}`);
+					slotCands.push([`switch ${idx + 1}`]);
 					return;
 				}
 			}
-			const best = pickBest(opts, skill) || { choice: 'move 1', score: 0 };
+			let best = pickBest(opts, skill) || { choice: 'move 1', score: 0 };
+			// 싱글: 실제 시뮬레이터로 한 턴 앞을 내다보고 고름 (내 선택 × 상대 선택)
+			if (flags.lookahead && battle.gameType === 'singles' && !inLookahead && Math.random() < skill) {
+				const la = lookahead(battle, side, user, opts, reqActive, used, skill);
+				if (la) { parts.push(la); return; }
+			}
 			let gm = gimmickFor(battle, user, reqActive, best, skill, used);
 			let choice = best.choice;
 			// 더블: Z기술·다이맥스기술은 단일 대상이 되므로 대상 번호가 필요
@@ -773,8 +783,171 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 				}
 			}
 			parts.push(choice + gm);
+			// 차선: 휴리스틱 2위 기술 (대상 포함)
+			const alts = opts.filter(o => o.choice !== best.choice).sort((a, b) => b.score - a.score).slice(0, 2).map(o => o.choice);
+			slotCands.push([choice + gm, ...alts]);
 		});
+		if (flags.lookahead && battle.gameType === 'doubles' && !inLookahead && parts.length && Math.random() < skill) {
+			const la = lookaheadDoubles(battle, side, parts, slotCands);
+			if (la) return la;
+		}
 		return parts.join(', ') || 'default';
 	}
 	return 'default';
+}
+
+// ───────── 1턴 앞 내다보기 (싱글) ─────────
+// 배틀 상태를 복제해 내 선택 × 상대 선택을 실제로 한 턴 돌려 보고, 상대가 가장 잘 받아쳤을 때와 평균을 섞어 평가한다.
+let lookaheadEnabled = true;
+let inLookahead = false;
+export function setLookahead(on: boolean) { lookaheadEnabled = on; }
+
+/** 복제본에서 한 턴 돌려 보고 평가 */
+function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: string, foeChoice: string): number | null {
+	const foeSide = me === 'p1' ? 'p2' : 'p1';
+	try {
+		const c: any = State.deserializeBattle(ser);
+		c.send = () => {};
+		c.prng = new PRNG();
+		// 복제본의 로그는 원본과 같은 배열을 가리키므로 떼어 낸다 (원본 로그 오염·'Infinite loop' 방지)
+		c.log = []; c.sentLogPos = 0; c.inputLog = [];
+		if (!c.choose(me, myChoice)) return null;
+		if (!c.choose(foeSide, foeChoice)) c.choose(foeSide, 'default');
+		let guard = 0;
+		while (!c.ended && c.turn === battle.turn && guard++ < 3) { c.choose(me, 'default'); c.choose(foeSide, 'default'); }
+		return evalState(c, me);
+	} catch (e: any) {
+		const dbg = ((globalThis as any).__la ||= { calls: 0, serFail: 0, simFail: 0, err: '' });
+		dbg.simFail++; dbg.err = String(e?.stack || e).slice(0, 400);
+		return null;
+	}
+}
+
+/** 더블: 내 후보 조합(슬롯별 1·2순위) × 상대 예상 선택(같은 AI로 2번 뽑음) */
+function lookaheadDoubles(battle: Battle, side: any, parts: string[], slotCands: string[][]): string | null {
+	const me = side.id as 'p1' | 'p2';
+	const foeSide = battle[me === 'p1' ? 'p2' : 'p1'];
+	let ser: any;
+	try { ser = State.serializeBattle(battle); } catch { return null; }
+	// 상대 예상 선택
+	const foeReq = { active: foeSide.active.map((p: Pokemon) => p && !p.fainted ? p.getMoveRequestData() : null), side: foeSide.getRequestData() };
+	const foeChoices: { choice: string; w: number }[] = [];
+	inLookahead = true;
+	try {
+		for (let k = 0; k < 3; k++) {
+			const c = chooseAI(battle, foeReq, foeSide.id, 0.9);
+			const f = foeChoices.find(x => x.choice === c);
+			if (f) f.w += 1 / 3; else foeChoices.push({ choice: c, w: 1 / 3 });
+		}
+	} catch { foeChoices.push({ choice: 'default', w: 1 }); } finally { inLookahead = false; }
+	if (!foeChoices.length) return null;
+	// 내 후보 조합
+	const combos: string[] = [];
+	const rec = (i: number, acc: string[]) => {
+		if (i === slotCands.length) { combos.push(acc.join(', ')); return; }
+		for (const c of slotCands[i]) rec(i + 1, [...acc, c]);
+	};
+	rec(0, []);
+	const heur = parts.join(', ');
+	if (!combos.includes(heur)) combos.unshift(heur);
+	if (combos.length <= 1) return null;
+	let best: { choice: string; v: number } | null = null;
+	for (const mc of combos) {
+		let v = 0, ok = true;
+		for (const fc of foeChoices) {
+			const r = simulateTurn(ser, battle, me, mc, fc.choice);
+			if (r === null) { ok = false; break; }
+			v += r * fc.w;
+		}
+		if (!ok) continue;
+		if (mc === heur) v += 0.02; // 같으면 휴리스틱 선택 유지
+		if (!best || v > best.v) best = { choice: mc, v };
+	}
+	return best?.choice || null;
+}
+
+/** 진영 평가: HP 비율 합 + 살아 있는 수 (내 쪽 − 상대 쪽) */
+function evalState(b: Battle, mySide: 'p1' | 'p2'): number {
+	const score = (side: any) => {
+		let v = 0;
+		for (const p of side.pokemon) {
+			if (p.fainted || !p.hp) continue;
+			v += p.hp / p.maxhp + 0.35;
+			if (p.status === 'tox' || p.status === 'brn') v -= 0.08;
+			else if (p.status === 'slp' || p.status === 'frz') v -= 0.12;
+			else if (p.status) v -= 0.05;
+			if (p.isActive) {
+				const bs = Object.values(p.boosts as any).reduce((a: number, x: any) => a + x, 0) as number;
+				v += Math.max(-3, Math.min(3, bs)) * 0.04;
+			}
+		}
+		return v;
+	};
+	const foe = mySide === 'p1' ? 'p2' : 'p1';
+	if (b.ended) return b.winner === b[mySide].name ? 100 : b.winner ? -100 : 0;
+	let v = score(b[mySide]) - score(b[foe]);
+	// 턴이 끝난 뒤의 대면 상황: 내가 상대를 위협하는가 / 상대가 나를 위협하는가
+	const mine = b[mySide].active.filter((p: any) => p && !p.fainted && p.hp), theirs = b[foe].active.filter((p: any) => p && !p.fainted && p.hp);
+	if (mine.length && theirs.length) {
+		try {
+			let t = 0;
+			for (const a of mine) t += Math.max(...theirs.map((f: any) => Math.min(1, bestDamage(b, a, f)))) * 0.4 + (theirs.every((f: any) => outspeeds(b, a, f)) ? 0.1 : 0);
+			for (const f of theirs) t -= Math.max(...mine.map((a: any) => Math.min(1, bestDamage(b, f, a)))) * 0.4 + (mine.every((a: any) => outspeeds(b, f, a)) ? 0.1 : 0);
+			v += t / Math.max(mine.length, theirs.length);
+		} catch {}
+	}
+	return v;
+}
+
+function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], reqActive: any, used: { [k: string]: boolean }, skill: number): string | null {
+	const me = side.id as 'p1' | 'p2';
+	const foeSide = me === 'p1' ? 'p2' : 'p1';
+	const foe = foesOf(user)[0];
+	if (!foe) return null;
+	// 내 후보: 쓸 수 있는 기술(기믹 포함) + 가장 좋은 교체 1개
+	const myOpts: { choice: string; base: number }[] = [];
+	const bestOpt = pickBest(opts, 1) || opts[0];
+	for (const o of opts) {
+		if (!/^move \d+$/.test(o.choice)) continue;
+		myOpts.push({ choice: o.choice, base: o.score });
+	}
+	if (!myOpts.length) return null;
+	const gmUsed = { ...used };
+	const gm = bestOpt ? gimmickFor(battle, user, reqActive, bestOpt, skill, gmUsed) : '';
+	if (gm) myOpts.push({ choice: bestOpt.choice + gm, base: bestOpt.score + 1 });
+	if (!reqActive.trapped && !reqActive.maybeTrapped && !(globalThis as any).__laNoSwitch) {
+		const sw = bestSwitchIn(battle, side, [foe], new Set());
+		if (sw) myOpts.push({ choice: `switch ${sw.i + 1}`, base: 100 });
+	}
+	// 상대 후보: 상대도 같은 휴리스틱으로 고른다고 보고 상위 2개(가중 0.65/0.35), 나머지는 최악값으로만 반영
+	const foeReq = { moves: foe.moveSlots.map((m: any) => ({ id: m.id, move: m.move, pp: m.pp, maxpp: m.maxpp, disabled: m.disabled || m.pp <= 0, target: m.target })) };
+	let foeMoves: { choice: string; w: number }[] = [];
+	try {
+		const fo = moveOptions(battle, foe, foeReq, flagsFor(0.9)).filter(o => /^move \d+$/.test(o.choice)).sort((a, b) => b.score - a.score);
+		foeMoves = fo.slice(0, 2).map((o, i) => ({ choice: o.choice, w: i === 0 ? 0.65 : 0.35 }));
+		if (foeMoves.length === 1) foeMoves[0].w = 1;
+		for (const o of fo.slice(2)) foeMoves.push({ choice: o.choice, w: 0 });
+	} catch {}
+	if (!foeMoves.length) foeMoves.push({ choice: 'default', w: 1 });
+	const dbg = ((globalThis as any).__la ||= { calls: 0, serFail: 0, simFail: 0, err: '' });
+	dbg.calls++;
+	let ser: any;
+	try { ser = State.serializeBattle(battle); } catch (e: any) { dbg.serFail++; dbg.err = String(e?.stack || e).slice(0, 400); return null; }
+	const results: { choice: string; v: number }[] = [];
+	for (const mo of myOpts) {
+		const vals: number[] = [];
+		let expected = 0;
+		for (const fo of foeMoves) {
+			const v = simulateTurn(ser, battle, me, mo.choice, fo.choice);
+			if (v === null) { vals.length = 0; break; }
+			vals.push(v); expected += v * fo.w;
+		}
+		if (!vals.length) continue;
+		const min = Math.min(...vals);
+		// 상대의 예상 선택에 대한 기대값(75%) + 최악의 경우(25%); 휴리스틱 점수는 작은 보정
+		results.push({ choice: mo.choice, v: expected * 0.75 + min * 0.25 + (mo.base - 100) * 0.01 });
+	}
+	if (!results.length) return null;
+	results.sort((a, b) => b.v - a.v);
+	return results[0].choice;
 }

@@ -4,7 +4,9 @@ import { useMemo, useState } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
 	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, type Gen, type StatID } from '../data';
 import { typeEff } from './calc';
-import { randomSetFor, applySpread, randomTeam, normalizeSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, type PSet } from '../sets';
+import { randomSetFor, applySpread, randomTeam, normalizeSP, fillSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, type PSet } from '../sets';
+import { ruleById, teamRuleWarnings } from '../rules';
+import { loadSettings } from '../store';
 import { loadTeams, upsertTeam, deleteTeam, newId, load, save, type SavedTeam } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast, confirmBox, ItemIcon, CatIcon } from './core';
 import { SetCard } from './screens';
@@ -287,8 +289,14 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			{[0, 1, 2, 3].map(i => {
 				const m = s.moves[i];
 				const md = m ? moveData(m, gen) : null;
-				return <button class="option" onClick={() => setPicker({ kind: 'move', idx: Math.min(i, s.moves.length) })}>
-					{md ? <><span class="pm-icons"><TypeBadge type={md.type} small /><CatIcon cat={md.category} /></span><span class="opt-body"><b>{md.name}</b><small>{md.category === 'Status' ? '변화' : `${md.category === 'Physical' ? '물리' : '특수'} ${md.basePower || '-'}`} · 명중 {md.accuracy || '-'} · PP {md.pp}</small></span></>
+				const swap = (a: number, b: number) => { const mv = s.moves.slice(); [mv[a], mv[b]] = [mv[b], mv[a]]; up({ moves: mv }); };
+				return <button class="option move-row" onClick={() => setPicker({ kind: 'move', idx: Math.min(i, s.moves.length) })}>
+					{md ? <><span class="pm-icons"><TypeBadge type={md.type} small /><CatIcon cat={md.category} /></span><span class="opt-body"><b>{md.name}</b><small>{md.category === 'Status' ? '변화' : `${md.category === 'Physical' ? '물리' : '특수'} ${md.basePower || '-'}`} · 명중 {md.accuracy || '-'} · PP {md.pp}</small></span>
+						<span class="reorder" onClick={e => e.stopPropagation()}>
+							<button class="icon-btn" disabled={i === 0} onClick={() => swap(i, i - 1)} aria-label="위로">▲</button>
+							<button class="icon-btn" disabled={i >= s.moves.length - 1} onClick={() => swap(i, i + 1)} aria-label="아래로">▼</button>
+							<button class="icon-btn" onClick={() => up({ moves: s.moves.filter((_, k) => k !== i) })} aria-label="빼기">✕</button>
+						</span></>
 						: <span class="opt-body muted">+ 기술 선택</span>}
 				</button>;
 			})}
@@ -299,7 +307,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 		<h3 class="sec">테라스탈 타입</h3>
 		<div class="tera-pick">{ALL_TYPES.map(t => <button class={(s.teraType || sd.t[0]) === t ? 'on' : ''} onClick={() => up({ teraType: t })}><TypeBadge type={t} small /></button>)}</div>
 		<h3 class="sec">능력 포인트 <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{cheat ? `${spTotal} (제한 없음)` : `${spTotal}/${SP_TOTAL}`}</small>
-			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: normalizeSP({ ...s, evs: n.evs, ivs: { ...s.ivs } }).evs, nature: n.nature }); }}>자동 배분</button></h3>
+			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: fillSP({ ...s, evs: n.evs, ivs: { ...s.ivs } }).evs, nature: n.nature }); }}>자동 배분</button></h3>
 		<p class="muted small">포켓몬 챔피언스 방식: 능력마다 0~32포인트, 합계 66포인트. 개체값은 없고(모두 최대), 레벨 50에서 1포인트 = 능력치 +1.</p>
 		<div class="chips-row">{SP_PRESETS.map(([label, sp]) => <button class="chipbtn" onClick={() => setSp({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...sp })}>{label}</button>)}
 			<button class="chipbtn" onClick={() => setSp({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })}>초기화</button></div>
@@ -425,6 +433,7 @@ function TeamWarnings({ sets }: { sets: PSet[] }) {
 	if (dupItems.length) w.push(`같은 도구가 여러 마리에게 있어요: ${dupItems.map(itemKo).join(', ')} (배틀타워 규칙에서는 금지 — 자동으로 다른 도구로 바뀝니다)`);
 	const nums = sets.map(s => speciesData(toID(s.species), 9)?.num);
 	if (nums.some((n, i) => nums.indexOf(n) !== i)) w.push('같은 종류의 포켓몬이 2마리 이상 있어요.');
+	w.push(...teamRuleWarnings(ruleById(loadSettings().battleRule), sets));
 	const noMoves = sets.filter(s => !s.moves.length).map(s => s.name);
 	if (noMoves.length) w.push(`기술이 없는 포켓몬: ${noMoves.join(', ')}`);
 	const megas = sets.filter(s => RAW.items[s.item]?.mega);

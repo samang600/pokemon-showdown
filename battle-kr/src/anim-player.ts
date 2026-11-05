@@ -120,11 +120,8 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 	let extraMs = 0;
 	const gen0 = generation;
 	return new Promise(resolve => {
-		const draw = () => {
-			fc.clearRect(0, 0, W, H); bc.clearRect(0, 0, W, H);
-			const frame = variant.f[i];
-			if (!frame) return;
-			// 이벤트
+		/** 이 프레임의 이벤트(효과음·배경) */
+		const fireEvents = () => {
 			const evs = variant.e[String(i)];
 			if (evs) for (const e of evs) {
 				if (e.t === 'se') playSe(e.n, e.v, e.p, ctx.sfxVolume);
@@ -143,6 +140,12 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 					extraMs = Math.max(extraMs, e.d * 2 * 16);
 				}
 			}
+		};
+		const draw = () => {
+			fc.clearRect(0, 0, W, H); bc.clearRect(0, 0, W, H);
+			const frame = variant.f[i];
+			if (!frame) return;
+			fireEvents();
 			let userMoved = false, targetMoved = false;
 			for (const c of frame) {
 				const [t, x, y, zx, zy, gf, op, pr, fo, bt, mi, an, vis] = c;
@@ -178,19 +181,27 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 			if (!targetMoved && tEl) { tEl.style.translate = ''; tEl.style.visibility = ''; tEl.style.opacity = ''; tEl.style.scale = ''; }
 			ctx.onFrame?.(i);
 		};
+		const t0 = performance.now();
+		const spd = () => Math.max(0.5, Math.min(4, ctx.speed || 1));
+		let drawn = -1;
 		const tick = () => {
 			if (generation !== gen0) { resolve(); return; }
-			if (i >= total) {
+			// 시간 기준 프레임: 그리기가 느려도 배속에 맞춰 프레임을 건너뜀
+			const target = Math.floor((performance.now() - t0) * spd() / FRAME_MS);
+			if (target >= total) {
 				fc.clearRect(0, 0, W, H); bc.clearRect(0, 0, W, H);
 				for (const el of [uEl, tEl]) if (el) { el.style.translate = ''; el.style.visibility = ''; el.style.opacity = ''; el.style.scale = ''; }
 				const bg = bgEl;
 				if (bg) { bg.style.transition = 'opacity 200ms'; bg.style.opacity = '0'; setTimeout(() => bg.remove(), 220); }
-				setTimeout(resolve, Math.min(600, extraMs));
+				setTimeout(resolve, Math.min(600, extraMs) / spd());
 				return;
 			}
-			draw();
-			i++;
-			setTimeout(tick, FRAME_MS);
+			if (target > drawn) {
+				// 건너뛴 프레임의 효과음·배경 이벤트는 놓치지 않게
+				for (let f = drawn + 1; f < target; f++) { i = f; fireEvents(); }
+				i = target; draw(); drawn = target;
+			}
+			setTimeout(tick, Math.min(FRAME_MS / spd(), 16));
 		};
 		tick();
 	});

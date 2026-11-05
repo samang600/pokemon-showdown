@@ -45,6 +45,7 @@ const result = await esbuild.build({
 	platform: 'browser',
 	target: ['es2020', 'chrome80', 'safari14'],
 	minify: !dev,
+	keepNames: true, // 상태 복제(sim/state)가 클래스 이름을 씀
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)

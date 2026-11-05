@@ -690,3 +690,26 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .menu-btn { color: #fff; cursor: pointer; }
 .cheat-tag { font-size: 11px; padding: 0 6px; border-radius: 8px; background: #b0308a; color: #fff; margin-left: 4px; }
 .cheat-note { margin: 4px; padding: 6px 8px; border-radius: 8px; background: rgba(176,48,138,.35); box-shadow: inset 0 0 0 1px #e070c0; font-size: 13px; }
+/* 배틀 상단: 한 줄 고정 (라벨은 줄임표), 정보 상자는 그 아래 */
+.hud-top { left: 4px; right: 4px; top: 3px; align-items: center; gap: 3px; overflow: hidden; }
+.hud-top .badge { white-space: nowrap; flex: none; font-size: 11px; line-height: 16px; padding: 1px 7px; }
+.hud-top .badge:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.hud-cond { top: 26px; }
+.panels.foe { top: 26px; }
+.doubles .panels.foe { top: 26px; }
+/* 포켓몬 그림을 필드에 맞게 조금 작게 */
+.slot.foe .sprite { transform: translateX(-50%) scale(calc(var(--s) * .66)); }
+.slot.own .sprite { transform: translateX(-50%) scale(calc(var(--s) * .86)); }
+.doubles .slot.foe .sprite { transform: translateX(-50%) scale(calc(var(--s) * .56)); }
+.doubles .slot.own .sprite { transform: translateX(-50%) scale(calc(var(--s) * .72)); }
+.slot.own.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * 1.1)); }
+.slot.foe.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * .95)); }
+.doubles .slot.own.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * .95)); }
+.doubles .slot.foe.dmax .sprite { transform: translateX(-50%) scale(calc(var(--s) * .8)); }
+.trainer-spr.foe.in { transform: translate(-50%, -100%) scale(calc(var(--s) * .8)); }
+.trainer-spr.own.in { transform: translate(-50%, -100%) scale(calc(var(--s) * .92)) scaleX(-1); }
+/* 기술 순서 바꾸기 */
+.move-row .reorder { display: flex; flex-direction: column; gap: 0; flex: none; }
+.move-row .reorder .icon-btn { width: 26px; height: 20px; font-size: 11px; }
+.rule-row > span { width: 72px; }
+.rule-row .seg.wrap button { flex: 1 1 40%; font-size: 12px; }
