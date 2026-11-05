@@ -7,8 +7,8 @@ android {
         applicationId 'kr.battlesim.app'
         minSdk 24
         targetSdk 35
-        versionCode 16
-        versionName '2.0.0'
+        versionCode 17
+        versionName '2.0.1'
     }
     // full: 그림·울음소리·애니메이션 내장 / lite: 전부 인터넷에서 받는 저용량판 (같이 설치 가능)
     flavorDimensions 'size'

@@ -295,19 +295,33 @@ export function pillar(layer: HTMLElement, at: Pt, color: string, s: number) {
 }
 
 /** 몬스터볼에서 나오기: 볼이 날아가 열리고 빛이 퍼짐 */
-export function ballOut(layer: HTMLElement, from: Pt, to: Pt, s: number): number {
+/** 볼 종류별 색 [윗부분, 아랫부분, 빛 색, 입자 색] */
+export const BALL_STYLE: { [id: string]: [string, string, string, string] } = {
+	pokeball: ['#e83030', '#f8f8f8', '#fff', '#ffe080'], greatball: ['#2a6ae8', '#f8f8f8', '#cfe4ff', '#ff6060'], ultraball: ['#1a1a1a', '#f8d030', '#fff2a0', '#f8d030'],
+	masterball: ['#7a3aa8', '#f8f8f8', '#e8c0ff', '#ff70d0'], premierball: ['#f8f8f8', '#f8f8f8', '#fff', '#ff8080'], luxuryball: ['#1a1a1a', '#1a1a1a', '#ffd870', '#ff5050'],
+	duskball: ['#2a4a2a', '#1a1a1a', '#80ff80', '#ff9030'], healball: ['#ff9ac8', '#f8f8f8', '#ffe0f0', '#ffb0d8'], netball: ['#30a0c0', '#f8f8f8', '#c0f0ff', '#204060'],
+	diveball: ['#2050c0', '#f8f8f8', '#a0d8ff', '#60b0ff'], nestball: ['#b0b830', '#f8f8f8', '#e0f090', '#a0d040'], repeatball: ['#e03030', '#f8f8f8', '#fff', '#f8d030'],
+	timerball: ['#f8f8f8', '#f8f8f8', '#ffc0c0', '#e03030'], quickball: ['#30b0e0', '#f8f8f8', '#d0f8ff', '#f8e040'], friendball: ['#40c060', '#f8f8f8', '#c0ffd0', '#ff8040'],
+	loveball: ['#ff70b0', '#f8f8f8', '#ffd0e8', '#ff3080'], moonball: ['#2a2a60', '#f8f8f8', '#ffe8a0', '#f8d030'], dreamball: ['#ff80c0', '#f8f8f8', '#ffd0ff', '#c080ff'],
+	beastball: ['#2040c0', '#f8f8f8', '#ffe060', '#ff9030'], cherishball: ['#c02030', '#f8f8f8', '#fff', '#ff6060'], safariball: ['#708030', '#f8f8f8', '#e0f0a0', '#a0c040'],
+	sportball: ['#f8f8f8', '#f8f8f8', '#ffd0a0', '#ff9030'], fastball: ['#f06020', '#f8f8f8', '#ffe0a0', '#f8e040'], heavyball: ['#4a5a80', '#f8f8f8', '#c0d0ff', '#8090c0'],
+	levelball: ['#e0a030', '#f8f8f8', '#ffe8a0', '#e03030'], lureball: ['#30a0e0', '#f8f8f8', '#c0f0ff', '#f8e040'], parkball: ['#f8e040', '#f8f8f8', '#ffffc0', '#60c0ff'],
+	strangeball: ['#c04040', '#4040a0', '#ffe0ff', '#ff80ff'],
+};
+export function ballOut(layer: HTMLElement, from: Pt, to: Pt, s: number, ballId = 'pokeball'): number {
 	const size = 10 * s;
-	const ball = px(layer, from.x, from.y, size, size, 'linear-gradient(180deg,#e83030 0 45%,#111 45% 55%,#f8f8f8 55%)', 'border-radius:50%;box-shadow:0 0 0 1px #000');
+	const st = BALL_STYLE[ballId] || BALL_STYLE.pokeball;
+	const ball = px(layer, from.x, from.y, size, size, `linear-gradient(180deg,${st[0]} 0 45%,#111 45% 55%,${st[1]} 55%)`, 'border-radius:50%;box-shadow:0 0 0 1px #000');
 	const dur = 420;
 	anim(ball, [{ transform: 'translate(0,0) rotate(0)' }, { transform: `translate(${(to.x - from.x) / 2}px,${(to.y - from.y) / 2 - 50 * s}px) rotate(360deg)` },
 		{ transform: `translate(${to.x - from.x}px,${to.y - from.y}px) rotate(720deg)` }], { duration: dur, easing: 'steps(10)' });
 	later(() => {
-		flash(layer, '#fff', 140);
-		const glow = px(layer, to.x, to.y, 8 * s, 8 * s, '#fff', 'border-radius:50%;box-shadow:0 0 12px 6px #fff');
+		flash(layer, st[2], 140);
+		const glow = px(layer, to.x, to.y, 8 * s, 8 * s, st[2], `border-radius:50%;box-shadow:0 0 12px 6px ${st[2]}`);
 		anim(glow, [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(6)', opacity: 0 }], { duration: 380, easing: 'steps(6)' });
 		for (let i = 0; i < 14; i++) {
 			const a = (i / 14) * Math.PI * 2;
-			const el = px(layer, to.x, to.y, 4 * s, 4 * s, i % 2 ? '#fff' : '#ffe080');
+			const el = px(layer, to.x, to.y, 4 * s, 4 * s, i % 2 ? st[2] : st[3]);
 			anim(el, [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${Math.cos(a) * 40 * s}px,${Math.sin(a) * 40 * s * 0.6 - 10 * s}px)`, opacity: 0 }], { duration: 420, delay: 40, easing: 'steps(6)' });
 		}
 	}, dur - 20);

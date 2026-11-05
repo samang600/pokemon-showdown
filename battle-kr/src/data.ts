@@ -15,7 +15,7 @@ const D = DEX as any as {
 	species: { [id: string]: SpeciesEntry };
 	moves: { [id: string]: MoveEntry };
 	abilities: { [id: string]: { n: string; d: string; gen: number } };
-	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[]; sp?: number; fut?: 1 } };
+	items: { [id: string]: { n: string; d: string; gens: number[]; mega?: string; megaFrom?: string[]; zt?: string; zf?: string[]; zu?: string[]; sp?: number; fut?: 1; ball?: 1 } };
 	natures: { [id: string]: { n: string; en: string; p: string; m: string } };
 	types: { [en: string]: string };
 	stats: { [id: string]: string };
@@ -104,7 +104,13 @@ export function learnset(id: string, gen: Gen): string[] {
 	return (ls || []).map(i => D.moveIds[i]);
 }
 export function allItems(gen: Gen) {
-	return Object.entries(D.items).filter(([, it]) => it.gens.includes(gen)).map(([id, it]) => ({ id, ...it }));
+	return Object.entries(D.items).filter(([, it]) => it.gens.includes(gen) && !it.ball).map(([id, it]) => ({ id, ...it }));
+}
+/** 몬스터볼 종류 (겉모습용) */
+export function allBalls() {
+	const first = ['pokeball', 'greatball', 'ultraball', 'masterball', 'premierball', 'luxuryball', 'duskball', 'quickball', 'timerball', 'healball', 'netball', 'diveball', 'nestball', 'repeatball', 'beastball', 'dreamball'];
+	return Object.entries(D.items).filter(([, it]) => it.ball).map(([id, it]) => ({ id, n: it.n, sp: it.sp || 0 }))
+		.sort((a, b) => (first.indexOf(a.id) < 0 ? 99 : first.indexOf(a.id)) - (first.indexOf(b.id) < 0 ? 99 : first.indexOf(b.id)) || a.n.localeCompare(b.n, 'ko'));
 }
 export function allNatures() {
 	return Object.entries(D.natures).map(([id, n]) => ({ id, ...n }));

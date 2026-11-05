@@ -52,7 +52,7 @@ const SIDE_KO: { [id: string]: string } = {
 	stealthrock: '스텔스록', spikes: '압정뿌리기', toxicspikes: '독압정', reflect: '리플렉터', lightscreen: '빛의장막',
 	tailwind: '순풍', safeguard: '신비의부적', mist: '흰안개', luckychant: '주술', wideguard: '와이드가드', quickguard: '퍼스트가드',
 };
-const WEATHER_KO: { [id: string]: string } = { raindance: '비', sunnyday: '쾌청', sandstorm: '모래바람', hail: '싸라기눈' };
+const WEATHER_KO: { [id: string]: string } = { raindance: '비', sunnyday: '쾌청', sandstorm: '모래바람', hail: '싸라기눈', snowscape: '눈', primordialsea: '강한 비', desolateland: '강한 햇살', deltastream: '난기류' };
 const PSEUDO_KO: { [id: string]: string } = { trickroom: '트릭룸', gravity: '중력', wonderroom: '원더룸', magicroom: '매직룸', mudsport: '흙놀이', watersport: '물놀이' };
 
 function parseDetails(details: string) {
@@ -290,7 +290,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const from = { x: own ? -10 : layer.clientWidth + 10, y: to.y - 30 * scale };
 				mon.hidden = true;
 				sfx('ballThrow');
-				const t = FX.ballOut(layer, from, to, scale) / FX.fxSpeed();
+				const ball = (own ? setup.p1.team : setup.p2.team).find(x => toID(x.species) === toID(d.species) || toID(x.species) === toID(mon.nick))?.pokeball || 'pokeball';
+				const t = FX.ballOut(layer, from, to, scale, ball) / FX.fxSpeed();
 				setTimeout(() => { mon.hidden = false; mon.anim = 'enter'; rerender(); sfx('ballOpen'); cry(toID(mon.species)); setTimeout(() => { if (mon.anim === 'enter') { mon.anim = ''; rerender(); } }, 500); }, t);
 				return t + 450 / FX.fxSpeed();
 			}
@@ -381,7 +382,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (!kw.upkeep && args[1] !== 'none') sfx('weather');
 			if (!kw.upkeep) scene.weather = args[1] === 'none' ? '' : toID(args[1]);
 			return 0;
-		case '-fieldstart': scene.pseudo.add(effectInfo(args[1]).id); return 0;
+		case '-fieldstart': {
+			const id = effectInfo(args[1]).id;
+			// 필드(테라인)는 하나만: 새 필드가 깔리면 이전 필드를 지움
+			if (id.endsWith('terrain')) for (const k of [...scene.pseudo]) if (k.endsWith('terrain')) scene.pseudo.delete(k);
+			scene.pseudo.add(id); return 0;
+		}
 		case '-fieldend': scene.pseudo.delete(effectInfo(args[1]).id); return 0;
 		case '-sidestart': {
 			const side = scene[args[1].slice(0, 2) as 'p1' | 'p2'];

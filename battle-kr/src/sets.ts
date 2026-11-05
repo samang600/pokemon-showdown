@@ -7,7 +7,7 @@ import FACTORY_SETS from '../../data/random-battles/gen9/factory-sets.json';
 
 export interface PSet {
 	name: string; species: string; item: string; ability: string; moves: string[]; nature: string;
-	evs: { [k in StatID]: number }; ivs: { [k in StatID]: number }; level: number; gender?: string; shiny?: boolean; teraType?: string; /** 거다이맥스 (다이맥스 규칙에서만 의미) */ gigantamax?: boolean;
+	evs: { [k in StatID]: number }; ivs: { [k in StatID]: number }; level: number; gender?: string; shiny?: boolean; teraType?: string; /** 거다이맥스 (다이맥스 규칙에서만 의미) */ gigantamax?: boolean; /** 몬스터볼 종류 (등장 연출) */ pokeball?: string;
 }
 
 const generators: { [gen: number]: any } = {};
@@ -281,6 +281,7 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 	const team = picked.map(id => {
 		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles);
 		if (speciesData(id, o.gen)?.gx && Math.random() < 0.6) set.gigantamax = true;
+		set.pokeball = rng.pick(['pokeball', 'pokeball', 'pokeball', 'greatball', 'ultraball', 'premierball', 'luxuryball', 'duskball', 'quickball', 'timerball', 'netball', 'diveball', 'nestball', 'repeatball', 'healball', 'friendball', 'loveball', 'moonball', 'dreamball', 'beastball']);
 		// 개체값이 없는 챔피언스 규칙: 초반 상대의 약함은 능력 포인트를 줄여서 표현
 		if (o.ivs !== undefined && o.ivs < 31) for (const k in set.evs) (set.evs as any)[k] = Math.floor((set.evs as any)[k] * Math.max(0, o.ivs) / 31);
 		return set;
@@ -399,7 +400,7 @@ export function toSimTeam(team: PSet[], cheat = false) {
 	team = team.map(s => cheat ? cheatSP(cloneSet(s)) : normalizeSP(cloneSet(s)));
 	return team.map(s => ({
 		name: s.name || speciesKo(s.species), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
-		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny, gigantamax: !!s.gigantamax && !!speciesData(s.species, 9)?.gx,
+		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny, gigantamax: !!s.gigantamax && !!speciesData(s.species, 9)?.gx, pokeball: s.pokeball || 'pokeball',
 		teraType: s.teraType || speciesData(s.species, 9)?.t[0],
 	}));
 }

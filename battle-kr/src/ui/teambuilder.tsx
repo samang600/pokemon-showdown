@@ -2,7 +2,7 @@
 import { h } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
-	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, type Gen, type StatID } from '../data';
+	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, allBalls, type Gen, type StatID } from '../data';
 import { typeEff } from './calc';
 import { randomSetFor, applySpread, randomTeam, normalizeSP, fillSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, type PSet } from '../sets';
 import { ruleById, teamRuleWarnings } from '../rules';
@@ -83,6 +83,9 @@ export function importText(text: string, gen: Gen): PSet[] {
 		let [first, item] = lines[0].split('@').map(s => s.trim());
 		first = first.replace(/\((M|F)\)\s*$/, '').trim();
 		let species = first;
+		let gender = '';
+		const gm = /^(.*?)\s*\(([MF])\)$/.exec(first);
+		if (gm) { first = gm[1].trim(); gender = gm[2]; }
 		const paren = /^(.*)\(([^)]+)\)$/.exec(first);
 		if (paren) species = paren[2];
 		const sid = koLookup(species);
@@ -92,6 +95,7 @@ export function importText(text: string, gen: Gen): PSet[] {
 			name: nickKo(sid), species: sd.en, item: item ? koLookup(item) : '', ability: sd.ab[0], moves: [], nature: 'serious',
 			evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level: 50,
 		};
+		if (gender) set.gender = gender;
 		for (const l of lines.slice(1)) {
 			if (/^(Ability|특성):/i.test(l)) set.ability = koLookup(l.split(':')[1]);
 			else if (/^(EVs|노력치|SPs?|능력 ?포인트):/i.test(l) || /^(IVs|개체값):/i.test(l)) {
@@ -109,6 +113,7 @@ export function importText(text: string, gen: Gen): PSet[] {
 				if (moveData(mid, gen)) set.moves.push(mid);
 			} else if (/^Shiny: Yes/i.test(l) || /^색이 다른: 예/.test(l)) set.shiny = true;
 			else if (/^Gigantamax: Yes/i.test(l) || /^거다이맥스: 예/.test(l)) set.gigantamax = true;
+			else if (/^(Ball|볼):/i.test(l)) { const b = koLookup(l.split(':')[1]); if (RAW.items[b]?.ball) set.pokeball = b; }
 			else if (/^(Tera ?Type|테라타입):/i.test(l)) { const t = l.split(':')[1].trim(); set.teraType = ALL_TYPES.find(x => x.toLowerCase() === t.toLowerCase() || typeKo(x) === t) || set.teraType; }
 		}
 		if (!set.moves.length) continue;
@@ -118,10 +123,10 @@ export function importText(text: string, gen: Gen): PSet[] {
 }
 export function exportText(sets: PSet[]) {
 	return sets.map(s => {
-		const lines = [`${speciesKo(s.species)}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
+		const lines = [`${speciesKo(s.species)}${s.gender ? ` (${s.gender})` : ''}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
 			`능력 포인트: ${(() => { const p = spOf(s); return STATS.filter(k => p[k]).map(k => `${p[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`,
 			`${natureKo(s.nature)} 성격`, `테라타입: ${typeKo(s.teraType || speciesData(toID(s.species), 9)?.t[0] || 'Normal')}`,
-			...(s.gigantamax ? ['거다이맥스: 예'] : []), ...(s.shiny ? ['색이 다른: 예'] : []), ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
+			...(s.gigantamax ? ['거다이맥스: 예'] : []), ...(s.pokeball && s.pokeball !== 'pokeball' ? [`볼: ${itemKo(s.pokeball)}`] : []), ...(s.shiny ? ['색이 다른: 예'] : []), ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
 		return lines.join('\n');
 	}).join('\n\n');
 }
@@ -242,7 +247,7 @@ function statValue(base: number, ev: number, iv: number, level: number, nat: num
 
 export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void; cheat?: boolean }) {
 	const [s, setS] = useState<PSet>(() => (cheat ? cheatSP : normalizeSP)(JSON.parse(JSON.stringify(set))));
-	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' } | { kind: 'ability' }>(null);
+	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' } | { kind: 'ability' } | { kind: 'ball' }>(null);
 	const up = (patch: Partial<PSet>) => { const n = { ...s, ...patch }; setS(n); onChange(n); };
 	const sd = speciesData(toID(s.species), gen)!;
 	const nat = RAW.natures[s.nature];
@@ -257,6 +262,13 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 	if (picker?.kind === 'move') {
 		return <MovePicker gen={gen} species={toID(s.species)} current={s.moves} all={cheat} onBack={() => setPicker(null)}
 			onPick={mid => { const moves = s.moves.slice(); if (picker.idx < moves.length) moves[picker.idx] = mid; else moves.push(mid); up({ moves: moves.filter(Boolean) }); setPicker(null); }} />;
+	}
+	if (picker?.kind === 'ball') {
+		return <Screen title="볼 고르기" onBack={() => setPicker(null)}>
+			<p class="hint">포켓몬이 나올 때 볼의 색과 빛이 달라집니다.</p>
+			<div class="ball-grid">{allBalls().map(b => <button class={'ball-cell' + ((s.pokeball || 'pokeball') === b.id ? ' on' : '')} onClick={() => { up({ pokeball: b.id }); setPicker(null); }}>
+				<ItemIcon item={b.id} size={30} /><span>{b.n}</span></button>)}</div>
+		</Screen>;
 	}
 	if (picker?.kind === 'ability') {
 		return <AbilityPicker onBack={() => setPicker(null)} onPick={a => { up({ ability: a }); setPicker(null); }} />;
@@ -278,6 +290,10 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			<div>
 				<div class="types">{sd.t.map(t => <TypeBadge type={t} />)}</div>
 				<label class="check"><input type="checkbox" checked={!!s.shiny} onChange={e => up({ shiny: (e.target as HTMLInputElement).checked })} /> 색이 다른 포켓몬</label>
+				<div class="row wrap gender-row"><span class="muted small">성별</span>
+					{(sd.gr ? [sd.gr] : ['M', 'F']).map(g => <button class={'chipbtn' + ((s.gender || '') === g || (sd.gr && sd.gr === g) ? ' on' : '')} onClick={() => !sd.gr && up({ gender: g })}>{g === 'M' ? '♂ 수컷' : g === 'F' ? '♀ 암컷' : '성별 없음'}</button>)}
+					{!sd.gr && <button class={'chipbtn' + (!s.gender ? ' on' : '')} onClick={() => up({ gender: '' })}>무작위</button>}</div>
+				<div class="row wrap"><span class="muted small">볼</span><button class="chipbtn ball-btn" onClick={() => setPicker({ kind: 'ball' })}><ItemIcon item={s.pokeball || 'pokeball'} size={20} /> {itemKo(s.pokeball || 'pokeball')}</button></div>
 				{sd.gx && <label class="check"><input type="checkbox" checked={!!s.gigantamax} onChange={e => up({ gigantamax: (e.target as HTMLInputElement).checked })} /> 거다이맥스 <small class="muted">(다이맥스할 때 거다이맥스 모습·기술)</small></label>}
 				<button class="btn ghost small" onClick={() => { const n = randomSetFor(toID(s.species), gen, 50); n.shiny = s.shiny; setS(n); onChange(n); toast('추천 세트로 바꿨습니다'); }}>🎲 추천 세트</button>
 			</div>

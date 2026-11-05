@@ -160,7 +160,7 @@ for (const a of dex9.abilities.all()) {
 
 // ── 도구 (메가스톤·Z크리스탈 포함) ──
 for (const it of dex9.items.all()) {
-	if (it.num <= 0 || it.isPokeball || it.isGem && false) continue;
+	if (it.num <= 0) continue;
 	if (it.isNonstandard && !['Past', 'Unobtainable', 'Future'].includes(it.isNonstandard)) continue;
 	if (/^tr\d|^tm\d|^hm\d/.test(it.id) || it.id.endsWith('mail')) continue;
 	let itemName = ko.items[it.id]?.name;
@@ -180,6 +180,7 @@ for (const it of dex9.items.all()) {
 		zu: it.itemUser || undefined,
 		sp: it.spritenum || 0,
 		fut: it.isNonstandard === 'Future' ? 1 : undefined,
+		ball: it.isPokeball ? 1 : undefined,
 	};
 }
 
