@@ -9,6 +9,7 @@ import { EXTRA_NAMED } from '../src/trainer-lore';
 const out = new Set<string>();
 for (const id in RAW.species) {
 	out.add('poke ' + spriteId(id));
+	if (RAW.species[id].gx) out.add('poke ' + spriteId(id) + '-gmax');
 	out.add('cry ' + id);
 	const base = RAW.species[id].base;
 	if (base) out.add('cry ' + base);

@@ -8,7 +8,7 @@ export type StatID = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe';
 export const STATS: StatID[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
 
 interface SpeciesGen { t: string[]; bs: number[]; ab: string[]; fe: number; bo?: number; gr?: string; req?: string; wt: number; ls?: number[] }
-export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; tier?: string; fut?: 1; g: { [gen: string]: SpeciesGen } }
+export interface SpeciesEntry { n: string; en: string; num: number; base?: string; tags?: string[]; tier?: string; fut?: 1; /** 거다이맥스 가능 */ gx?: 1; g: { [gen: string]: SpeciesGen } }
 interface MoveEntry { n: string; d: string; z?: number; x?: number; g: { [gen: string]: [string, string, number, number, number, number, string, number] } }
 
 const D = DEX as any as {
@@ -50,7 +50,8 @@ export function speciesKo(nameOrId: string) {
 	const s = D.species[id];
 	if (s) return s.n;
 	// "Rotom-Wash" 같은 표기, 또는 기본 종으로
-	const base = D.species[id.replace(/(mega|megax|megay|megaz|gmax)$/, '')];
+	if (id.endsWith('gmax') && D.species[id.slice(0, -4)]) return '거다이맥스' + D.species[id.slice(0, -4)].n;
+	const base = D.species[id.replace(/(mega|megax|megay|megaz)$/, '')];
 	if (base) return base.n;
 	// "Meowstic-M" 처럼 기본형 표기가 다른 경우 — 앞부분(기본 종)으로
 	const head = D.species[toID(nameOrId.split('-')[0])];
@@ -116,7 +117,12 @@ export function bst(id: string, gen: Gen) {
 /** 쇼다운 스프라이트 ID (예: rotom-wash) */
 export function spriteId(id: string) {
 	const s = D.species[toID(id)];
-	if (!s) return toID(id);
+	if (!s) {
+		// 거다이맥스 모습: 'charizardgmax' → 'charizard-gmax'
+		const g = /^(.*)gmax$/.exec(toID(id));
+		if (g && D.species[g[1]]) return spriteId(g[1]) + '-gmax';
+		return toID(id);
+	}
 	const en = s.en;
 	const dash = en.indexOf('-');
 	if (/^Nidoran-[MF]$/.test(en)) return toID(en);

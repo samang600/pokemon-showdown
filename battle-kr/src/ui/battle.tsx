@@ -958,7 +958,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	};
 
 	const sideChips = (side: SideScene) => Object.entries(side.cond).map(([id, n]) =>
-		<span class="chip side">{SIDE_KO[id] || id}{n > 1 ? `×${n}` : ''}</span>);
+		<span class="chip side">{SIDE_KO[id] || (id.startsWith('gmax') ? moveKo(id) : id)}{n > 1 ? `×${n}` : ''}</span>);
 	const teamDots = (side: SideScene, own: boolean) => {
 		const total = side.teamSize;
 		const dots = [];
@@ -1093,7 +1093,7 @@ function FieldModal({ session, onClose }: { session: Session; onClose: () => voi
 		return <div class="field-side">
 			<b>{label}</b>
 			{!conds.length && <span class="muted"> 없음</span>}
-			{conds.map(([id, st]) => <div class="field-row"><span>{SIDE_COND_KO[id] || id}{st.layers > 1 ? ` ×${st.layers}` : ''}</span><span class="muted">{turns(st)}</span></div>)}
+			{conds.map(([id, st]) => <div class="field-row"><span>{SIDE_COND_KO[id] || (id.startsWith('gmax') ? moveKo(id) : id)}{st.layers > 1 ? ` ×${st.layers}` : ''}</span><span class="muted">{turns(st)}</span></div>)}
 			{side.active.filter((p: any) => p && !p.fainted).map((p: any) => {
 				const vols = Object.entries(p.volatiles || {}).filter(([id]) => VOLATILE_KO[id] || /^perish|^stockpile/.test(id)).map(([id, st]: any) => `${VOLATILE_KO[id] || id}${st?.duration ? `(${st.duration}턴)` : ''}`);
 				const st = p.status ? `${STATUS_LABEL_KO[p.status] || p.status}${p.status === 'slp' && p.statusState?.time ? `(최대 ${p.statusState.time}턴)` : ''}` : '';

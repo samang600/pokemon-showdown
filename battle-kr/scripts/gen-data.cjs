@@ -227,7 +227,7 @@ for (const s of dex9.species.all()) {
 		/^Mega|^Primal/.test(s.forme) || s.name === 'Necrozma-Ultra' || s.forme === 'Crowned' && false;
 	result.species[s.id] = {
 		n: speciesName(s, dex9), en: s.name, num: s.num, base: s.baseSpecies !== s.name ? Dex.species.get(s.baseSpecies).id : undefined,
-		tags: s.tags.length ? s.tags : undefined, tier: s.natDexTier || s.tier, fut: s.isNonstandard === 'Future' ? 1 : undefined,
+		tags: s.tags.length ? s.tags : undefined, tier: s.natDexTier || s.tier, fut: s.isNonstandard === 'Future' ? 1 : undefined, gx: s.canGigantamax ? 1 : undefined,
 		g: { [GEN]: {
 			t: s.types, bs: [s.baseStats.hp, s.baseStats.atk, s.baseStats.def, s.baseStats.spa, s.baseStats.spd, s.baseStats.spe],
 			ab: Object.values(s.abilities).map(a => dex9.abilities.get(a).id),

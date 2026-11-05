@@ -107,7 +107,9 @@ export function importText(text: string, gen: Gen): PSet[] {
 			else if (l.startsWith('-')) {
 				const mid = koLookup(l.slice(1).replace(/\[.*\]/, ''));
 				if (moveData(mid, gen)) set.moves.push(mid);
-			} else if (/^Shiny: Yes/i.test(l)) set.shiny = true;
+			} else if (/^Shiny: Yes/i.test(l) || /^색이 다른: 예/.test(l)) set.shiny = true;
+			else if (/^Gigantamax: Yes/i.test(l) || /^거다이맥스: 예/.test(l)) set.gigantamax = true;
+			else if (/^(Tera ?Type|테라타입):/i.test(l)) { const t = l.split(':')[1].trim(); set.teraType = ALL_TYPES.find(x => x.toLowerCase() === t.toLowerCase() || typeKo(x) === t) || set.teraType; }
 		}
 		if (!set.moves.length) continue;
 		sets.push(normalizeSP(set));
@@ -118,7 +120,8 @@ export function exportText(sets: PSet[]) {
 	return sets.map(s => {
 		const lines = [`${speciesKo(s.species)}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
 			`능력 포인트: ${(() => { const p = spOf(s); return STATS.filter(k => p[k]).map(k => `${p[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`,
-			`${natureKo(s.nature)} 성격`, ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
+			`${natureKo(s.nature)} 성격`, `테라타입: ${typeKo(s.teraType || speciesData(toID(s.species), 9)?.t[0] || 'Normal')}`,
+			...(s.gigantamax ? ['거다이맥스: 예'] : []), ...(s.shiny ? ['색이 다른: 예'] : []), ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
 		return lines.join('\n');
 	}).join('\n\n');
 }
@@ -275,6 +278,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			<div>
 				<div class="types">{sd.t.map(t => <TypeBadge type={t} />)}</div>
 				<label class="check"><input type="checkbox" checked={!!s.shiny} onChange={e => up({ shiny: (e.target as HTMLInputElement).checked })} /> 색이 다른 포켓몬</label>
+				{sd.gx && <label class="check"><input type="checkbox" checked={!!s.gigantamax} onChange={e => up({ gigantamax: (e.target as HTMLInputElement).checked })} /> 거다이맥스 <small class="muted">(다이맥스할 때 거다이맥스 모습·기술)</small></label>}
 				<button class="btn ghost small" onClick={() => { const n = randomSetFor(toID(s.species), gen, 50); n.shiny = s.shiny; setS(n); onChange(n); toast('추천 세트로 바꿨습니다'); }}>🎲 추천 세트</button>
 			</div>
 		</div>

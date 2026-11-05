@@ -16,7 +16,7 @@ export function SetCard({ set, gen, selected, order, onClick, compact, children 
 		<div class="set-sprite"><Sprite species={set.species} gen={gen} size={64} anim={false} shiny={set.shiny} /></div>
 		<div class="set-body">
 			<div class="set-title"><b>{set.name || sd?.n}</b>{sd?.t.map(t => <TypeBadge type={t} small />)}</div>
-			<div class="set-meta">{abilityKo(set.ability)} · {set.item ? itemKo(set.item) : '도구 없음'}{!compact && ` · ${natureKo(set.nature)}`}</div>
+			<div class="set-meta">{abilityKo(set.ability)} · {set.item ? itemKo(set.item) : '도구 없음'}{!compact && ` · ${natureKo(set.nature)}`}{set.gigantamax && <span class="tag"> · 거다이맥스</span>}</div>
 			<div class="set-moves">{set.moves.map(m => <span>{moveKo(m)}</span>)}</div>
 		</div>
 		{children}
