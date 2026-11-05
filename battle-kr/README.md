@@ -3,8 +3,8 @@
 스마트폰에서 바로 하는 한국어 포켓몬 배틀 앱. 배틀 계산은 이 저장소의 **Pokémon Showdown 시뮬레이터(`sim/`)를 그대로** 브라우저에서 돌립니다.
 
 ## 받기
-- **안드로이드**: [`release/BattleSimKR-v2.1.0.apk`](release/BattleSimKR-v2.1.0.apk) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
-- **저용량판**: [`release/BattleSimKR-lite-v2.1.0.apk`](release/BattleSimKR-lite-v2.1.0.apk) — 그림·울음소리·기술 애니메이션을 앱에 넣지 않고 전부 인터넷에서 받습니다(약 1.5MB, 인터넷 필요). 정식판과 같이 설치할 수 있습니다.
+- **안드로이드**: [`release/BattleSimKR-v2.1.1.apk`](release/BattleSimKR-v2.1.1.apk) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
+- **저용량판**: [`release/BattleSimKR-lite-v2.1.1.apk`](release/BattleSimKR-lite-v2.1.1.apk) — 그림·울음소리·기술 애니메이션을 앱에 넣지 않고 전부 인터넷에서 받습니다(약 1.5MB, 인터넷 필요). 정식판과 같이 설치할 수 있습니다.
 - **아이폰·PC**: `dist/index.html` 한 파일을 브라우저로 열거나 웹에 올리면 됩니다 (홈 화면에 추가 → 앱처럼 실행)
 - 포켓몬 그림은 기본이 앱에 들어 있는 정지 도트 그림(오프라인 가능)이고, 설정에서 '움직이는 그림'을 고르면 인터넷에서 3D 움직이는 그림을 받아 씁니다. 거다이맥스하면 거다이맥스 전용 그림.
 
