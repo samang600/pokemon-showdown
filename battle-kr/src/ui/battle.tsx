@@ -1087,7 +1087,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')} style={{ '--spd': FX.fxSpeed() } as any}>
 		<div class={'arena' + (trainerVis.foe ? ' t-foe' : '')} ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
 			<div class="arena-bg" />
-			<div class={'weather-ov ' + (scene.weather || '') + ' ' + [...scene.pseudo].join(' ')} />
+			{/* 날씨와 필드(테라인)는 다른 레이어: 한 요소에 두면 필드의 '입자 없음' 규칙이 비·모래 줄기(가상 요소)까지 지움 */}
+			<div class={'weather-ov ' + (scene.weather || '')} />
+			<div class={'weather-ov terrain-ov ' + [...scene.pseudo].join(' ')} />
 			<div class="anim-bg-layer" ref={animBgRef} />
 			<canvas class="anim-canvas back" ref={backRef} />
 			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={trainerImgError} />}
