@@ -1,13 +1,12 @@
 import '../src/ps/registry';
 import { Battle } from '../../sim/battle';
 import { chooseAI } from '../src/ai';
-import { chooseAI as chooseOld } from './ai-old';
 import { filterGimmicks, gimmickOfLine } from '../src/engine';
 import { loadSettings } from '../src/store';
 import { ruleById } from '../src/rules';
 import { randomTeam, toSimTeam } from '../src/sets';
 import { KoreanText, parseLine } from '../src/text';
-(window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, oldB = false, size = 0) => {
+(window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, _unused = false, size = 0) => {
 	const res = { switches: 0, faints: 0, gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
 	for (let k = 0; k < n; k++) {
 		const reqs: any = {};
@@ -32,7 +31,7 @@ import { KoreanText, parseLine } from '../src/text';
 				const extra = filterGimmicks(r, rule, used[side], (b as any)[side]);
 				const ar = (b as any)[side].activeRequest; if (ar?.active) for (const i in extra) if (ar.active[i]) { ar.active[i].canDynamax = true; ar.active[i].maxMoves = extra[i]; }
 				let c = 'default';
-				try { c = side === 'p2' && oldB ? chooseOld(b, r, side, skillB) : chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
+				try { c = chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
 				try {
 					if (!b.choose(side, c)) { res.errors.push(`bad choice ${side}: ${c} :: ${(b as any)[side].choice.error}`); b.choose(side, 'default'); }
 				} catch (e: any) { res.errors.push('SIM ' + e.message + '\n' + b.log.slice(-25).join('\n')); guard = 9999; break; }

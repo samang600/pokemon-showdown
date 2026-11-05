@@ -7,7 +7,7 @@ import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assi
 import { NAMED, CUPS, REGIONS, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, namedTitle, type NamedTrainer } from './trainers';
 import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
-import { speciesKo, spriteId, megaStonesFor, type Gen } from './data';
+import { speciesKo, spriteId, megaStonesFor, moveKo, typeKo, speciesData, toID, type Gen } from './data';
 
 type Fmt = 'singles' | 'doubles';
 const BACK = Symbol('back');
@@ -119,7 +119,7 @@ export async function runTower() {
 		if (go === 'quit') { remove(TOWER_KEY(fmt)); return; }
 		// 상대 엔트리를 보고 선봉·나오는 순서 정하기
 		const order = await ask<PSet[]>(r => <PickScreen title="선봉·순서 정하기" team={state!.team} gen={9} count={state!.team.length}
-			opponent={{ name: `${opp.title} ${opp.name}`, team: opp.team }} hint="상대 엔트리를 보고 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다." onDone={r} />);
+			hint="배틀타워에서는 상대 엔트리를 볼 수 없습니다. 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다." onDone={r} />);
 		const res = await battle({
 			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
 			label: `배틀타워 ${state.streak + 1}번째`,
@@ -184,23 +184,36 @@ export async function runFactory() {
 		save(FACTORY_KEY(fmt, level), state);
 	}
 	const head = (no: number) => no === 21 || no === 49;
+	/** 직원이 알려주는 상대 정보 (Pt/HGSS 방식: 0~6연승 전부 → 7~ 2마리 → 14~ 1마리+기술 → 21~ 선봉의 기술 → 28~ 주로 쓰는 타입) */
+	const staffHint = (streak: number, team: PSet[]): string => {
+		const names = team.map(s => speciesKo(s.species));
+		if (streak < 7) return `직원: 상대의 포켓몬은 ${names.join(', ')}입니다.`;
+		if (streak < 14) return `직원: 상대의 포켓몬 중 ${rng.shuffle(names).slice(0, 2).join('와(과) ')}이(가) 있습니다.`;
+		if (streak < 21) { const s = rng.pick(team); return `직원: 상대에게는 ${speciesKo(s.species)}이(가) 있고, ${moveKo(rng.pick(s.moves))}을(를) 씁니다.`; }
+		if (streak < 28) return `직원: 상대의 선봉 포켓몬은 ${moveKo(rng.pick(team[0].moves))}을(를) 씁니다.`;
+		const count: { [t: string]: number } = {};
+		for (const s of team) for (const t of speciesData(toID(s.species), 9)?.t || []) count[t] = (count[t] || 0) + 1;
+		const top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+		return top && top[1] >= 2 ? `직원: 상대는 주로 ${typeKo(top[0])}타입을 씁니다.` : '직원: 상대는 타입에 연연하지 않는 것 같습니다.';
+	};
 	while (true) {
 		const no = state.streak + 1;
 		const isHead = head(no);
 		const tr = randomTrainer();
 		const oppTeam = isHead ? factoryTeam(no === 49 ? 'Uber' : 'OU', n, level) : factoryPool(state.streak, level, n);
+		const hint = staffHint(state.streak, oppTeam);
 		const opp = isHead ? { name: '팩토리 헤드', title: '', skill: 0.97, line: '지식과 운, 둘 다 시험해 보자고!', sprite: 'thorton', lines: { ace: '계산대로라면 여기서 역전이야!', lose: '내 계산이 틀렸다니… 대단한데!', win: '데이터는 거짓말을 안 하거든.' } } :
 			{ name: tr.name, title: tr.className, skill: Math.min(0.92, 0.5 + Math.floor(state.streak / 7) * 0.1), line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines };
 		const go = await ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title="배틀팩토리" banner={`${no}번째 승부`}
 			heading={isHead ? '⚠ 팩토리 헤드 등장!' : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
-			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, `상대 선봉: ${speciesKo(oppTeam[0].species)} (정보 공개)`]}
+			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, hint]}
 			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(FACTORY_KEY(fmt, level), state); return; }
 		if (go === 'quit') { remove(FACTORY_KEY(fmt, level)); return; }
 		const order = await ask<PSet[]>(r => <PickScreen title="선봉·순서 정하기" team={state!.team} gen={9} count={state!.team.length}
-			opponent={{ name: `${opp.title} ${opp.name}`, team: oppTeam }} hint="상대 엔트리를 보고 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다." onDone={r} />);
+			hint={`${hint} 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다.`} onDone={r} />);
 		const res = await battle({
 			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`,
 			p1: { name: playerName(), team: order, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppTeam, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
@@ -307,7 +320,7 @@ export async function runPWT() {
 		</InfoScreen>);
 		const oppTeam = opp.team();
 		const picked = await ask<PSet[]>(r => <PickScreen title="참가 포켓몬 선택" team={myTeam} gen={9} count={n}
-			opponent={{ name: `${opp.title} ${opp.name}`, team: oppTeam }} onDone={r} />);
+			hint={`대회에서는 상대 엔트리를 볼 수 없습니다. ${n}마리를 순서대로 고르세요. 처음 고른 포켓몬이 선봉입니다.`} onDone={r} />);
 		// 상대도 n마리 선택 (에이스 포함)
 		const oppPick = [...rng.shuffle(oppTeam.slice(0, -1)).slice(0, n - 1), oppTeam[oppTeam.length - 1]];
 		const res = await battle({

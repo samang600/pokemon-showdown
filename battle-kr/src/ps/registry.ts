@@ -18,6 +18,29 @@ import * as base_typechart from '../../../data/typechart';
 import * as rb_gen9 from '../../../data/random-battles/gen9/teams';
 
 import * as formats from './formats';
+import CHAMP from './champions-moves.json';
+
+/** 포켓몬 챔피언스 기술 사양 적용 (basePower·accuracy·type·secondary·self·boosts·flags·target·critRatio·ignoreAbility) */
+export function applyChampionsMoves(Moves: { [id: string]: any }) {
+	for (const [id, patch] of Object.entries(CHAMP as { [id: string]: any })) {
+		if (id.startsWith('_')) continue;
+		const m = Moves[id];
+		if (!m) continue;
+		for (const [k, v] of Object.entries(patch)) {
+			if (k === 'secondary') { const sec = { ...(m.secondary || {}) }; for (const [sk, sv] of Object.entries(v as any)) if (sv !== '__keep__') sec[sk] = sv; m.secondary = sec; }
+			else if (k === 'flags') m.flags = { ...(m.flags || {}), ...(v as any) };
+			else if (k === 'self') m.self = { ...(m.self || {}), ...(v as any) };
+			else m[k] = v;
+		}
+	}
+	// 소금절이: 매 턴 1/16 (물·강철 타입은 1/8) — 본가는 1/8·1/4
+	if (Moves.saltcure?.condition) {
+		Moves.saltcure.condition.onResidual = function (this: any, pokemon: any) {
+			this.damage(pokemon.baseMaxhp / (pokemon.hasType(['Water', 'Steel']) ? 8 : 16));
+		};
+	}
+}
+applyChampionsMoves((base_moves as any).Moves);
 
 export const MODS: string[] = [];
 

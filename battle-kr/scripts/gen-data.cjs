@@ -137,6 +137,9 @@ const result = {
 const GEN = 9;
 const dex9 = Dex.forGen(GEN);
 const BAD_NONSTD = new Set(['CAP', 'LGPE', 'Custom', 'Gigantamax']);
+// 포켓몬 챔피언스 기술 사양 (src/ps/champions-moves.json) — 시뮬레이터와 같은 값으로 표시
+const CHAMP = require(path.resolve(__dirname, '../src/ps/champions-moves.json'));
+const champ = id => CHAMP[id] || {};
 const moveIds = [];
 const moveIndex = {};
 for (const m of dex9.moves.all()) {
@@ -147,7 +150,7 @@ for (const m of dex9.moves.all()) {
 	result.moves[m.id] = {
 		n: ko.moves[m.id]?.name || m.name,
 		d: flavor.moves[m.id] || '',
-		g: { [GEN]: [m.type, m.category, m.basePower, m.accuracy === true ? 0 : m.accuracy, m.pp, m.priority, m.target, m.flags.contact ? 1 : 0] },
+		g: { [GEN]: [champ(m.id).type || m.type, m.category, champ(m.id).basePower ?? m.basePower, (champ(m.id).accuracy ?? m.accuracy) === true ? 0 : (champ(m.id).accuracy ?? m.accuracy), m.pp, m.priority, champ(m.id).target || m.target, m.flags.contact ? 1 : 0] },
 		z: m.isZ ? 1 : undefined, x: m.isMax ? 1 : undefined,
 	};
 }
