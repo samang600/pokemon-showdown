@@ -667,6 +667,12 @@ export function chooseAI(battle: Battle, request: any, sideid: 'p1' | 'p2', skil
 	if (request.forceSwitch) {
 		const chosen = new Set<number>();
 		const parts: string[] = [];
+		// 부활의기원: 쓰러진 포켓몬 중 가장 강한 쪽을 되살림
+		if (request.side?.pokemon?.some((x: any) => x.reviving)) {
+			const fainted = side.pokemon.map((p: Pokemon, i: number) => ({ p, i })).filter(({ p }: any) => p.fainted);
+			fainted.sort((a: any, b: any) => (b.p.baseMaxhp + b.p.storedStats.atk + b.p.storedStats.spa) - (a.p.baseMaxhp + a.p.storedStats.atk + a.p.storedStats.spa));
+			return fainted.length ? `switch ${fainted[0].i + 1}` : 'pass';
+		}
 		request.forceSwitch.forEach((must: boolean) => {
 			if (!must) return;
 			const foes = side.foe.active.filter((p: Pokemon) => p && !p.fainted);

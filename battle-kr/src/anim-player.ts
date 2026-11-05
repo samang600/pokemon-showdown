@@ -23,6 +23,9 @@ const ANIM_BASE = 'anims/';
 const loaded: { [id: string]: AnimData[] | null } = {};
 const images: { [name: string]: HTMLImageElement | null } = {};
 const FRAME_MS = 50;
+let generation = 0;
+/** 배틀 화면을 나갈 때 재생 중인 애니메이션·효과음 중단 */
+export function cancelAnims() { generation++; }
 
 export function hasAnimCache(id: string) { return loaded[id] !== undefined; }
 
@@ -110,6 +113,7 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 	const total = variant.f.length;
 	let i = 0;
 	let extraMs = 0;
+	const gen0 = generation;
 	return new Promise(resolve => {
 		const draw = () => {
 			fc.clearRect(0, 0, W, H); bc.clearRect(0, 0, W, H);
@@ -170,6 +174,7 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 			ctx.onFrame?.(i);
 		};
 		const tick = () => {
+			if (generation !== gen0) { resolve(); return; }
 			if (i >= total) {
 				fc.clearRect(0, 0, W, H); bc.clearRect(0, 0, W, H);
 				for (const el of [uEl, tEl]) if (el) { el.style.translate = ''; el.style.visibility = ''; el.style.opacity = ''; el.style.scale = ''; }

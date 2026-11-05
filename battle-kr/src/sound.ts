@@ -15,7 +15,7 @@ function ac(): AudioContext | null {
 	if (!C) return null;
 	ctx = new C();
 	master = ctx!.createGain(); master.gain.value = 0.6; master.connect(ctx!.destination);
-	sfxBus = ctx!.createGain(); sfxBus.gain.value = [0.3, 0.55, 0.85][(loadSettings().sfxVolume || 2) - 1]; sfxBus.connect(master);
+	sfxBus = ctx!.createGain(); sfxBus.gain.value = [0.3, 0.55, 0.85][(loadSettings().sfxVolume || 1) - 1]; sfxBus.connect(master);
 	musicBus = ctx!.createGain(); musicBus.gain.value = [0.1, 0.22, 0.38][(loadSettings().musicVolume || 2) - 1]; musicBus.connect(master);
 	noiseBuf = ctx!.createBuffer(1, ctx!.sampleRate, ctx!.sampleRate);
 	const d = noiseBuf.getChannelData(0);
@@ -70,7 +70,7 @@ function cryEl(id: string): HTMLAudioElement | null {
 let cryQueue: Promise<void> = Promise.resolve();
 export function cry(speciesId: string, opts: { faint?: boolean; delay?: number } = {}) {
 	if (!sfxOn() || hidden) return;
-	const vol = 0.32 * ([0.5, 1, 1.4][(loadSettings().sfxVolume || 2) - 1]);
+	const vol = 0.32 * ([0.5, 1, 1.4][(loadSettings().sfxVolume || 1) - 1]);
 	const play = () => new Promise<void>(done => {
 		let started = false;
 		for (const id of cryIds(speciesId)) {
@@ -393,4 +393,16 @@ export function stopMusic() {
 	if (timer) clearInterval(timer);
 	timer = null; current = '';
 	if (bgmEl) { bgmEl.pause(); bgmEl.src = ''; bgmEl = null; }
+}
+
+/** 기술 애니메이션 효과음 음량 (효과음 설정 반영) */
+export function animSfxVolume() {
+	const st = loadSettings();
+	if (st.sound === false) return 0;
+	return [0.3, 0.6, 0.9][(st.sfxVolume || 1) - 1];
+}
+/** 진동 (설정에서 끌 수 있음) */
+export function vibrate(ms: number | number[]) {
+	if (loadSettings().vibrate === false || hidden) return;
+	try { navigator.vibrate?.(ms); } catch {}
 }

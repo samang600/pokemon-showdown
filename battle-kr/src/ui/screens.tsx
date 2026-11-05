@@ -57,16 +57,19 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 }
 
 /** 트레이너 등장 / 결과 같은 안내 화면 */
-export function InfoScreen({ title, heading, lines, sprites, gen, actions, banner, children, trainer }: {
-	title: string; heading?: string; lines?: string[]; sprites?: string[]; gen?: Gen; banner?: string; children?: ComponentChildren; trainer?: string;
+export function InfoScreen({ title, heading, lines, sprites, gen, actions, banner, children, trainer, sets }: {
+	title: string; heading?: string; lines?: string[]; sprites?: string[]; gen?: Gen; banner?: string; children?: ComponentChildren; trainer?: string; sets?: PSet[];
 	actions: { label: string; kind?: 'primary' | 'ghost' | 'danger'; onClick: () => void }[];
 }) {
+	const [view, setView] = useState<number | null>(null);
 	return <Screen title={title}>
 		<div class="info-screen">
 			{banner && <div class="banner">{banner}</div>}
 			{trainer && <img class="trainer-big" src={`https://play.pokemonshowdown.com/sprites/trainers/${trainer}.png`} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
 			{heading && <h2>{heading}</h2>}
-			{sprites && <div class="preview-row big">{sprites.map(s => <Sprite species={s} gen={gen || 5} size={64} anim />)}</div>}
+			{sprites && <div class="preview-row big">{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} anim /></span>)}</div>}
+			{sets && <p class="muted small">포켓몬을 누르면 능력치를 볼 수 있어요.</p>}
+			{sets && view !== null && <MonSheet set={sets[view]} gen={gen || 9} onClose={() => setView(null)} actions={[{ label: '닫기', kind: 'ghost', onClick: () => setView(null) }]} />}
 			{lines?.map(l => <p class="pre">{l}</p>)}
 			{children}
 		</div>

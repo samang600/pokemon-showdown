@@ -168,7 +168,9 @@ for (const it of dex9.items.all()) {
 		const from = (Array.isArray(it.megaEvolves) ? it.megaEvolves[0] : it.megaEvolves) ||
 			(typeof it.megaStone === 'object' ? Object.keys(it.megaStone)[0] : null) || it.itemUser?.[0] || '';
 		const suffix = / X$/.test(it.name) ? 'X' : / Y$/.test(it.name) ? 'Y' : / Z$/.test(it.name) ? 'Z' : '';
-		itemName = (ko.pokedex[toID(from)]?.name || from) + '나이트' + suffix;
+		const fs0 = dex9.species.get(from);
+		const fromKo = ko.pokedex[toID(from)]?.name || (fs0.exists ? speciesName(dex9.species.get(fs0.baseSpecies), dex9) : from);
+		itemName = fromKo + '나이트' + suffix;
 	}
 	result.items[it.id] = {
 		n: itemName || it.name, d: flavor.items[it.id] || '', gens: [GEN],

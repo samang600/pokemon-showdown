@@ -50,8 +50,11 @@ export function speciesKo(nameOrId: string) {
 	const s = D.species[id];
 	if (s) return s.n;
 	// "Rotom-Wash" 같은 표기, 또는 기본 종으로
-	const base = D.species[id.replace(/(mega|megax|megay|gmax)$/, '')];
-	return base?.n || nameOrId;
+	const base = D.species[id.replace(/(mega|megax|megay|megaz|gmax)$/, '')];
+	if (base) return base.n;
+	// "Meowstic-M" 처럼 기본형 표기가 다른 경우 — 앞부분(기본 종)으로
+	const head = D.species[toID(nameOrId.split('-')[0])];
+	return head?.n || nameOrId;
 }
 export function moveKo(nameOrId: string) {
 	let id = toID(nameOrId);

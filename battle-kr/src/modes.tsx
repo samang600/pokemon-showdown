@@ -29,9 +29,11 @@ async function chooseFormat(title: string, desc?: string): Promise<Fmt | typeof 
 
 /** 내 팀 고르기: 저장된 팀 또는 렌탈 */
 async function chooseTeam(gen: Gen, title: string, allowRental = true): Promise<PSet[] | typeof BACK> {
-	const teams = loadTeams().filter(t => t.sets.length >= 3);
-	const opts: { value: SavedTeam | 'rental'; label: string; desc?: string; icon?: any }[] = teams.map(t => ({
-		value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '), icon: <span class="mini"><img class="sprite" src={`https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
+	const lastId = load<string>('lastTeam', '');
+	const teams = loadTeams().filter(t => t.sets.length >= 3).sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0));
+	const opts: { value: SavedTeam | 'rental'; label: string; desc?: string; icon?: any; badge?: string }[] = teams.map(t => ({
+		value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '), badge: t.id === lastId ? '최근 사용' : undefined,
+		icon: <span class="mini"><img class="sprite" src={`https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
 	}));
 	if (allowRental) opts.push({ value: 'rental', label: '추천 렌탈 팀', desc: '무작위로 6마리를 빌립니다', icon: '🎲' });
 	const v = await ask<SavedTeam | 'rental' | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
@@ -39,6 +41,7 @@ async function chooseTeam(gen: Gen, title: string, allowRental = true): Promise<
 		options={opts} onPick={r} />);
 	if (v === BACK) return BACK;
 	if (v === 'rental') return randomTeam({ gen, size: 6, minBst: 480 });
+	save('lastTeam', v.id);
 	return v.sets.map(cloneSet);
 }
 
@@ -104,7 +107,7 @@ export async function runTower() {
 			banner={`${state!.streak + 1}번째 승부`}
 			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : (opp as any).special ? `★ 특별 트레이너! ${opp.title} ${opp.name}${josa(opp.name)} 나타났다!` : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`]}
-			sprites={state!.team.map(s => s.species)} gen={9}
+			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(TOWER_KEY(fmt), state); return; }
@@ -183,7 +186,7 @@ export async function runFactory() {
 		const go = await ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title="배틀팩토리" banner={`${no}번째 승부`}
 			heading={isHead ? '⚠ 팩토리 헤드 등장!' : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, `상대 선봉: ${speciesKo(oppTeam[0].species)} (정보 공개)`]}
-			sprites={state!.team.map(s => s.species)} gen={9}
+			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(FACTORY_KEY(fmt, level), state); return; }

@@ -2,7 +2,8 @@
 import { h } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
-	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, type Gen, type StatID } from '../data';
+	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, type Gen, type StatID } from '../data';
+import { typeEff } from './calc';
 import { randomSetFor, applySpread, randomTeam, type PSet } from '../sets';
 import { loadTeams, upsertTeam, deleteTeam, newId, type SavedTeam } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast, confirmBox } from './core';
@@ -50,7 +51,8 @@ export function TeamList({ onBack, onEdit }: { onBack: () => void; onEdit: (t: S
 		{!teams.length && <p class="empty-msg">아직 팀이 없습니다. 새 팀을 만들거나 추천팀을 받아 보세요.</p>}
 		<div class="card-list">
 			{teams.map(t => <div class="team-row clickable" onClick={() => onEdit(t)}>
-				<div class="team-row-head"><b>{t.name}</b><span class="muted">{t.sets.length}/6</span></div>
+				<div class="team-row-head"><b>{t.name}</b><span class="muted">{t.sets.length}/6</span>
+					<button class="btn small" onClick={e => { e.stopPropagation(); upsertTeam({ ...JSON.parse(JSON.stringify(t)), id: newId(), name: t.name + ' 복사본' }); setTeams(loadTeams()); toast('팀을 복제했습니다'); }}>복제</button></div>
 				<div class="preview-row">{t.sets.map(s => <MiniSprite species={s.species} gen={t.gen} size={40} />)}</div>
 			</div>)}
 		</div>
@@ -163,6 +165,7 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 			<input value={team.name} onInput={e => commit({ ...team, name: (e.target as HTMLInputElement).value })} />
 		</label>
 		<p class="muted">내셔널 도감 · 레벨 50 · 같은 포켓몬은 1마리씩 · 메가스톤·Z크리스탈 사용 가능</p>
+		<TeamWarnings sets={team.sets} />
 		<div class="card-list">
 			{team.sets.map((s, i) => <SetCard set={s} gen={g} onClick={() => setEditing(i)}>
 				<div class="reorder" onClick={e => e.stopPropagation()}>
@@ -188,6 +191,7 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 				setImportOpen(false); setImportText2('');
 			}}>추가</button></div>
 		</Modal>}
+		{team.sets.length > 0 && <TeamAnalysis sets={team.sets} />}
 		{exportOpen && <Modal title="내보내기" onClose={() => setExportOpen(false)}>
 			<textarea rows={14} readOnly value={exportText(team.sets)} />
 			<button class="btn primary" onClick={() => { navigator.clipboard?.writeText(exportText(team.sets)).then(() => toast('복사했습니다'), () => toast('복사 실패')); }}>복사</button>
@@ -198,9 +202,19 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 function SpeciesPicker({ gen, exclude, onPick, onBack }: { gen: Gen; exclude: string[]; onPick: (id: string) => void; onBack: () => void }) {
 	const [q, setQ] = useState('');
 	const list = useMemo(() => allSpecies(gen).filter(s => s && !s.bo && s.ls !== undefined || (s && s.base && !s.bo)), [gen]);
-	const shown = list.filter(s => s && matches(q, s.n, s.en)).slice(0, 80);
+	const [type, setType] = useState('');
+	const [sort, setSort] = useState<'num' | 'bst'>('num');
+	let shown = list.filter(s => s && matches(q, s.n, s.en) && (!type || s.t.includes(type)));
+	if (sort === 'bst') shown = shown.slice().sort((a, b) => b!.bs.reduce((x, y) => x + y, 0) - a!.bs.reduce((x, y) => x + y, 0));
+	shown = shown.slice(0, 120);
 	return <Screen title="포켓몬 고르기" onBack={onBack}>
 		<input class="search" placeholder="이름 검색 (초성 가능: ㅎㅋㄹ)" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} autoFocus />
+		<div class="chips-row">
+			<button class={'chipbtn' + (sort === 'num' ? ' on' : '')} onClick={() => setSort('num')}>도감 번호순</button>
+			<button class={'chipbtn' + (sort === 'bst' ? ' on' : '')} onClick={() => setSort('bst')}>종족값 높은 순</button>
+			<button class={'chipbtn' + (!type ? ' on' : '')} onClick={() => setType('')}>모든 타입</button>
+			{ALL_TYPES.filter(t => t !== 'Stellar').map(t => <button class={'chipbtn' + (type === t ? ' on' : '')} onClick={() => setType(type === t ? '' : t)}>{typeKo(t)}</button>)}
+		</div>
 		<div class="pick-list">
 			{shown.map(s => s && <button class="pick-row" disabled={exclude.includes(s.id)} onClick={() => onPick(s.id)}>
 				<MiniSprite species={s.id} gen={gen} size={40} />
@@ -272,6 +286,9 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 		<div class="tera-pick">{ALL_TYPES.map(t => <button class={(s.teraType || sd.t[0]) === t ? 'on' : ''} onClick={() => up({ teraType: t })}><TypeBadge type={t} small /></button>)}</div>
 		<h3 class="sec">노력치 <small class="muted">{evTotal}/510</small>
 			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: n.evs, nature: n.nature }); }}>자동 배분</button></h3>
+		<div class="chips-row">{EV_PRESETS.map(([label, ev]) => <button class="chipbtn" onClick={() => up({ evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...ev } })}>{label}</button>)}
+			<button class="chipbtn" onClick={() => up({ ivs: { ...s.ivs, spe: s.ivs.spe === 0 ? 31 : 0 } })}>{s.ivs.spe === 0 ? '스피드 개체값 31로' : '스피드 개체값 0 (트릭룸)'}</button>
+			<button class="chipbtn" onClick={() => up({ ivs: { ...s.ivs, atk: s.ivs.atk === 0 ? 31 : 0 } })}>{s.ivs.atk === 0 ? '공격 개체값 31로' : '공격 개체값 0 (특수형)'}</button></div>
 		<div class="ev-table">
 			{STATS.map((k, i) => {
 				const natMul = nat?.p === k ? 1.1 : nat?.m === k ? 0.9 : 1;
@@ -332,4 +349,65 @@ function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) =>
 			</button>)}
 		</div>
 	</Screen>;
+}
+
+const EV_PRESETS: [string, Partial<{ [k in StatID]: number }>][] = [
+	['공격·스피드', { atk: 252, spe: 252, hp: 4 }], ['특공·스피드', { spa: 252, spe: 252, hp: 4 }],
+	['HP·공격', { hp: 252, atk: 252, def: 4 }], ['HP·특공', { hp: 252, spa: 252, spd: 4 }],
+	['HP·방어', { hp: 252, def: 252, spd: 4 }], ['HP·특방', { hp: 252, spd: 252, def: 4 }],
+];
+
+/** 팀 규칙 경고 (배틀타워 규칙 기준) */
+function TeamWarnings({ sets }: { sets: PSet[] }) {
+	const w: string[] = [];
+	const items = sets.map(s => s.item).filter(Boolean);
+	const dupItems = [...new Set(items.filter((it, i) => items.indexOf(it) !== i))];
+	if (dupItems.length) w.push(`같은 도구가 여러 마리에게 있어요: ${dupItems.map(itemKo).join(', ')} (배틀타워 규칙에서는 금지 — 자동으로 다른 도구로 바뀝니다)`);
+	const nums = sets.map(s => speciesData(toID(s.species), 9)?.num);
+	if (nums.some((n, i) => nums.indexOf(n) !== i)) w.push('같은 종류의 포켓몬이 2마리 이상 있어요.');
+	const noMoves = sets.filter(s => !s.moves.length).map(s => s.name);
+	if (noMoves.length) w.push(`기술이 없는 포켓몬: ${noMoves.join(', ')}`);
+	const megas = sets.filter(s => RAW.items[s.item]?.mega);
+	if (megas.length > 1) w.push(`메가스톤이 ${megas.length}개예요. 한 배틀에 메가진화는 1번만 할 수 있어요.`);
+	const wrongMega = sets.filter(s => RAW.items[s.item]?.mega && !megaStonesFor(s.species).includes(s.item));
+	if (wrongMega.length) w.push(`맞지 않는 메가스톤: ${wrongMega.map(s => `${s.name}(${itemKo(s.item)})`).join(', ')}`);
+	const zs = sets.filter(s => RAW.items[s.item]?.zt);
+	if (zs.length > 1) w.push(`Z크리스탈이 ${zs.length}개예요. Z기술은 한 배틀에 1번만 쓸 수 있어요.`);
+	const choiceStatus = sets.filter(s => /^choice/.test(s.item) && s.moves.some(m => moveData(m, 9)?.category === 'Status'));
+	if (choiceStatus.length) w.push(`구애 도구 + 변화 기술: ${choiceStatus.map(s => s.name).join(', ')} (변화 기술에 묶이면 곤란해요)`);
+	const av = sets.filter(s => s.item === 'assaultvest' && s.moves.some(m => moveData(m, 9)?.category === 'Status'));
+	if (av.length) w.push(`돌격조끼를 들면 변화 기술을 쓸 수 없어요: ${av.map(s => s.name).join(', ')}`);
+	if (sets.length && sets.length < 3) w.push('3마리 이상이어야 배틀에 쓸 수 있어요.');
+	if (!w.length) return null;
+	return <div class="notice">{w.map(x => <div>⚠ {x}</div>)}</div>;
+}
+
+/** 팀 상성 분석: 타입별로 약점인 포켓몬 수 / 반감 이하인 포켓몬 수 */
+function TeamAnalysis({ sets }: { sets: PSet[] }) {
+	const types = ALL_TYPES.filter(t => t !== 'Stellar');
+	const rows = types.map(t => {
+		let weak = 0, resist = 0;
+		for (const s of sets) {
+			const sd = speciesData(toID(s.species), 9);
+			if (!sd) continue;
+			let e = typeEff(t, sd.t);
+			const ab = toID(s.ability);
+			if ((t === 'Ground' && (ab === 'levitate' || s.item === 'airballoon')) || (t === 'Water' && ['waterabsorb', 'stormdrain', 'dryskin'].includes(ab)) ||
+				(t === 'Electric' && ['voltabsorb', 'motordrive', 'lightningrod'].includes(ab)) || (t === 'Fire' && ['flashfire', 'wellbakedbody'].includes(ab)) ||
+				(t === 'Grass' && ab === 'sapsipper')) e = 0;
+			if (e > 1) weak++; else if (e < 1) resist++;
+		}
+		return { t, weak, resist };
+	});
+	const danger = rows.filter(r => r.weak >= 3 || (r.weak >= 2 && r.resist === 0));
+	const cover = new Set<string>();
+	for (const s of sets) for (const m of s.moves) { const md = moveData(m, 9); if (md && md.category !== 'Status') cover.add(md.type); }
+	const unhit = types.filter(def => ![...cover].some(atk => typeEff(atk, [def]) > 1));
+	return <div class="team-analysis">
+		<h3 class="sec">팀 상성 분석</h3>
+		<div class="ta-grid">{rows.map(r => <div class={'ta-cell' + (r.weak >= 3 ? ' bad' : r.weak >= 2 && r.resist === 0 ? ' warn' : '')}>
+			<TypeBadge type={r.t} small /><span class="ta-w">약 {r.weak}</span><span class="ta-r">반 {r.resist}</span></div>)}</div>
+		{danger.length > 0 && <p class="small">⚠ 주의할 약점: {danger.map(r => typeKo(r.t)).join(', ')}</p>}
+		<p class="small muted">공격 기술 타입 {cover.size}종 · 효과 굉장으로 찌를 수 없는 타입: {unhit.length ? unhit.map(typeKo).join(', ') : '없음'}</p>
+	</div>;
 }

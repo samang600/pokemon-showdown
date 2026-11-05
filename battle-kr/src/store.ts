@@ -43,9 +43,13 @@ export function deleteTeam(id: string) { saveTeams(loadTeams().filter(t => t.id 
 export function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 // ── 설정 ──
-export interface Settings { speed: 1 | 2 | 3; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string }
+export interface Settings { speed: 1 | 2 | 3 | 4; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string; fastForward: boolean; vibrate: boolean; ver: number }
 export function loadSettings(): Settings {
-	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true, damagePreview: false, musicVolume: 2, sfxVolume: 2, frame: 'stone', homeBg: 'title', battleBgm: 'random', ...load<Partial<Settings>>('settings', {}) };
+	const saved = load<Partial<Settings>>('settings', {});
+	// 설정 v2: 효과음·울음소리 기본값을 '작게'로 (이전 버전에서 저장된 값도 한 번 낮춤)
+	if ((saved.ver || 0) < 2) { saved.sfxVolume = 1; saved.ver = 2; save('settings', saved); }
+	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true,
+		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 2, ...saved };
 }
 export function saveSettings(s: Settings) { save('settings', s); }
 

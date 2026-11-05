@@ -51,7 +51,7 @@ function Home({ go }: { go: (v: string) => void }) {
 		<div class="home-head">
 			<div>
 				<div class="hello">{settings.playerName}, 어서 와!</div>
-				<div class="stats-line">전적 {rec.wins}승 {rec.battles - rec.wins}패</div>
+				<div class="stats-line">전적 {rec.wins}승 {rec.battles - rec.wins}패{rec.battles ? ` · 승률 ${Math.round(rec.wins / rec.battles * 100)}%` : ''}</div>
 			</div>
 			<button class="icon-btn" onClick={() => go('settings')} aria-label="설정">⚙</button>
 		</div>
@@ -79,7 +79,7 @@ function Records({ onBack }: { onBack: () => void }) {
 		['팩토리 더블 Lv50', `${r.best['factory-doubles-50'] || 0}연승`], ['팩토리 더블 오픈', `${r.best['factory-doubles-100'] || 0}연승`],
 	];
 	return <Screen title="기록" onBack={onBack}>
-		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패</span></div>
+		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패{r.battles ? ` · 승률 ${Math.round(r.wins / r.battles * 100)}%` : ''}</span></div>
 		<h3 class="sec">최고 연승</h3>
 		{rows.map(([k, v]) => <div class="record-row"><span>{k}</span><b>{v}</b></div>)}
 		<h3 class="sec">PWT 우승</h3>
@@ -97,7 +97,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<input value={s.playerName} maxLength={10} onInput={e => up({ playerName: (e.target as HTMLInputElement).value || '플레이어' })} />
 		</label>
 		<h3 class="sec">메시지 속도</h3>
-		<div class="seg">{([1, 2, 3] as const).map(v => <button class={s.speed === v ? 'on' : ''} onClick={() => up({ speed: v })}>{['느림', '보통', '빠름'][v - 1]}</button>)}</div>
+		<div class="seg">{([1, 2, 3, 4] as const).map(v => <button class={s.speed === v ? 'on' : ''} onClick={() => up({ speed: v })}>{['느림', '보통', '빠름', '매우 빠름'][v - 1]}</button>)}</div>
 		<h3 class="sec">주인공 모습</h3>
 		<div class="avatar-pick">{PLAYER_SPRITES.map(p => <button class={s.playerSprite === p.id ? 'on' : ''} onClick={() => up({ playerSprite: p.id })}>
 			<img src={SPRITE_URL(p.id)} alt="" />{p.name}</button>)}</div>
@@ -120,6 +120,10 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<div class="seg">
 			<button class={s.effects ? 'on' : ''} onClick={() => up({ effects: !s.effects })}>기술 이펙트 {s.effects ? '켜짐' : '꺼짐'}</button>
 			<button class={s.damagePreview ? 'on' : ''} onClick={() => up({ damagePreview: !s.damagePreview })}>데미지 예상 {s.damagePreview ? '켜짐' : '꺼짐'}</button>
+		</div>
+		<div class="seg">
+			<button class={s.vibrate ? 'on' : ''} onClick={() => up({ vibrate: !s.vibrate })}>진동 {s.vibrate ? '켜짐' : '꺼짐'}</button>
+			<button class={s.fastForward ? 'on' : ''} onClick={() => up({ fastForward: !s.fastForward })}>항상 빨리감기 {s.fastForward ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<p class="muted small">데미지 예상: 기술 버튼에 상대에게 줄 데미지의 대략적인 비율을 표시합니다 (연습용).</p>
 		<h3 class="sec">포켓몬 그림</h3>

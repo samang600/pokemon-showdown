@@ -462,3 +462,12 @@ b, strong { font-weight: normal; }
 :root[data-bg="pwt"] body::before { background-image: url(__IMG_arena_pwt__); filter: brightness(.5); }
 :root[data-bg="champion"] body::before { background-image: url(__IMG_arena_champion__); filter: brightness(.5); }
 .seg.wrap button { flex: 1 1 28%; }
+
+.mv-pp.low { color: #ff7060; }
+
+.team-analysis { display: flex; flex-direction: column; gap: 4px; }
+.ta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 0 4px; }
+.ta-cell { display: flex; align-items: center; gap: 4px; font-size: 11px; background: rgba(0,0,0,.35); padding: 1px 3px; }
+.ta-cell.bad { background: rgba(200,40,30,.55); } .ta-cell.warn { background: rgba(200,140,30,.45); }
+.ta-w { color: #ff9a80; } .ta-r { color: #8cc8ff; margin-left: auto; }
+.team-row-head .btn { margin-left: 4px; }

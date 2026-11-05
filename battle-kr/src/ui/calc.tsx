@@ -3,7 +3,7 @@ import { h, Fragment } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { TypeChart } from '../../../data/typechart';
 import { speciesData, moveData, learnset, toID, abilityKo, itemKo, natureKo, natureData, calcStat, STAT_KO, STAT_SHORT, STATS, speciesKo,
-	nickKo, allSpecies, typeKo, type Gen, type StatID } from '../data';
+	nickKo, allSpecies, typeKo, RAW, type Gen, type StatID } from '../data';
 import { randomSetFor, type PSet } from '../sets';
 import { loadTeams } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast } from './core';
@@ -14,7 +14,7 @@ type Boosts = { [k in StatID]?: number };
 interface Side { set: PSet; boosts: Boosts; tera: boolean; status: string }
 interface Field { weather: '' | 'sun' | 'rain' | 'sand' | 'snow'; terrain: '' | 'electric' | 'grassy' | 'psychic' | 'misty'; doubles: boolean; reflect: boolean; lightscreen: boolean; auroraveil: boolean; crit: boolean; helpinghand: boolean }
 
-function typeEff(moveType: string, defTypes: string[]) {
+export function typeEff(moveType: string, defTypes: string[]) {
 	let mult = 1;
 	for (const t of defTypes) {
 		const code = (TypeChart as any)[t.toLowerCase()]?.damageTaken?.[moveType];
@@ -23,8 +23,19 @@ function typeEff(moveType: string, defTypes: string[]) {
 	return mult;
 }
 const boostMul = (b: number) => b >= 0 ? (2 + b) / 2 : 2 / (2 - b);
+/** 메가스톤을 들고 있으면 메가진화 후 종족으로 계산 */
+function effSpeciesId(set: PSet): string {
+	const it = (RAW.items as any)[toID(set.item)];
+	const sd = speciesData(toID(set.species), GEN);
+	if (it?.mega && sd && it.megaFrom?.includes(sd.en)) { const mid = toID(it.mega); if (speciesData(mid, GEN)) return mid; }
+	return toID(set.species);
+}
+function effAbility(set: PSet): string {
+	const mid = effSpeciesId(set);
+	return mid !== toID(set.species) ? speciesData(mid, GEN)!.ab[0] : toID(set.ability);
+}
 function stat(set: PSet, k: StatID) {
-	const sd = speciesData(toID(set.species), GEN)!;
+	const sd = speciesData(effSpeciesId(set), GEN)!;
 	const nat = natureData(set.nature);
 	const mul = nat?.p === k ? 1.1 : nat?.m === k ? 0.9 : 1;
 	return calcStat(sd.bs[STATS.indexOf(k)], set.evs[k] || 0, set.ivs?.[k] ?? 31, set.level || 50, mul, k === 'hp');
@@ -33,7 +44,7 @@ function stat(set: PSet, k: StatID) {
 export interface CalcResult { min: number; max: number; minPct: number; maxPct: number; rolls: number[]; eff: number; notes: string[]; hp: number }
 export function calcDamage(atk: Side, def: Side, moveId: string, f: Field): CalcResult | null {
 	const mv = moveData(moveId, GEN); if (!mv) return null;
-	const as = speciesData(toID(atk.set.species), GEN)!, ds = speciesData(toID(def.set.species), GEN)!;
+	const as = speciesData(effSpeciesId(atk.set), GEN)!, ds = speciesData(effSpeciesId(def.set), GEN)!;
 	const hp = stat(def.set, 'hp');
 	const notes: string[] = [];
 	if (mv.category === 'Status') return { min: 0, max: 0, minPct: 0, maxPct: 0, rolls: [], eff: 1, notes: ['변화 기술'], hp };
@@ -54,7 +65,9 @@ export function calcDamage(atk: Side, def: Side, moveId: string, f: Field): Calc
 
 	let moveType = mv.type;
 	if (id.startsWith('hiddenpower')) moveType = mv.type;
-	const aAb = toID(atk.set.ability), dAb = toID(def.set.ability), aItem = toID(atk.set.item), dItem = toID(def.set.item);
+	const aAb = effAbility(atk.set), dAb = effAbility(def.set), aItem = toID(atk.set.item), dItem = toID(def.set.item);
+	if (effSpeciesId(atk.set) !== toID(atk.set.species)) notes.push(`공격측 메가진화(${speciesData(effSpeciesId(atk.set), GEN)!.n})`);
+	if (effSpeciesId(def.set) !== toID(def.set.species)) notes.push(`방어측 메가진화(${speciesData(effSpeciesId(def.set), GEN)!.n})`);
 	if (aAb === 'pixilate' && moveType === 'Normal') { moveType = 'Fairy'; bp *= 1.2; notes.push('페어리스킨'); }
 	if (aAb === 'refrigerate' && moveType === 'Normal') { moveType = 'Ice'; bp *= 1.2; }
 	if (aAb === 'aerilate' && moveType === 'Normal') { moveType = 'Flying'; bp *= 1.2; }
@@ -217,7 +230,7 @@ export function CalcScreen({ onBack }: { onBack: () => void }) {
 		</div>)}
 	</div>;
 	const sideCard = (label: string, side: Side, setSide: (s: Side) => void, which: 'atk' | 'def') => {
-		const sd = speciesData(toID(side.set.species), GEN)!;
+		const sd = speciesData(effSpeciesId(side.set), GEN)!;
 		return <div class="calc-side">
 			<div class="calc-head"><b>{label}</b>
 				<button class="btn small" onClick={() => setPicker(which)}>포켓몬 선택</button>
