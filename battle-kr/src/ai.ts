@@ -962,30 +962,41 @@ function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], req
 	try { ser = State.serializeBattle(battle); } catch (e: any) { dbg.serFail++; dbg.err = String(e?.stack || e).slice(0, 400); return null; }
 	const results: { choice: string; v: number }[] = [];
 	const t0 = now();
-	const budget = (globalThis as any).__laBudget ?? 700; // ms: 폰에서도 AI 차례가 너무 길어지지 않게
-	searchSeed = PRNG.generateSeed();
-	try {
-		// 1단계: 모든 (내 선택 × 상대 선택) 을 한 턴씩 — 지금까지와 같은 탐색
-		const grid = myOpts.map(mo => ({ mo, cells: foeMoves.map(fo => ({ fo, r: simulateTurn(ser, battle, me, mo.choice, fo.choice, true) })) }));
-		const score1 = (cells: { fo: { w: number }; v: number }[]) => {
-			const tw = cells.reduce((a, c) => a + c.fo.w, 0) || 1;
-			const exp = cells.reduce((a, c) => a + c.v * c.fo.w, 0) / tw;
-			return exp * 0.75 + Math.min(...cells.map(c => c.v)) * 0.25;
-		};
+	const cfg = searchCfg(me, skill);
+	const over = () => now() - t0 > cfg.budget;
+	const score1 = (cells: { fo: { w: number }; v: number }[]) => {
+		const tw = cells.reduce((a, c) => a + c.fo.w, 0) || 1;
+		const exp = cells.reduce((a, c) => a + c.v * c.fo.w, 0) / tw;
+		return exp * 0.75 + Math.min(...cells.map(c => c.v)) * 0.25;
+	};
+	/** 한 번의 난수(시드)로 후보들을 평가: 1턴 → (강한 AI) 좋은 가지부터 2턴 */
+	const evalWithSeed = (opts: typeof myOpts) => {
+		searchSeed = PRNG.generateSeed();
+		const grid = opts.map(mo => ({ mo, cells: foeMoves.map(fo => ({ fo, r: simulateTurn(ser, battle, me, mo.choice, fo.choice, true) })) }));
 		const rows = grid.filter(g => g.cells.every(c => c.r)).map(g => ({ mo: g.mo, cells: g.cells.map(c => ({ fo: c.fo, v: c.r!.v, c: c.r!.c })) }));
-		// 2단계(강한 AI): 1단계 점수가 좋은 선택부터, 각 결과에서 한 턴 더 내다봄 (시간 제한 안에서)
 		if (depth >= 2) {
 			const order = rows.slice().sort((a, b) => score1(b.cells) - score1(a.cells));
 			for (const row of order) {
-				if (now() - t0 > budget) break;
+				if (over()) break;
 				for (const cell of row.cells) {
-					if (cell.fo.w <= 0 || now() - t0 > budget) continue;
-					const v2 = secondTurn(cell.c, battle, me, skill);
+					if (cell.fo.w <= 0 || over()) continue;
+					const v2 = secondTurn(cell.c, battle, me, skill, over);
 					if (v2 !== null) cell.v = cell.v * 0.35 + v2 * 0.65;
 				}
 			}
 		}
-		for (const row of rows) results.push({ choice: row.mo.choice, v: score1(row.cells) + (row.mo.base - 100) * 0.01 });
+		return rows.map(r => ({ choice: r.mo.choice, v: score1(r.cells) }));
+	};
+	try {
+		// 1회차: 모든 후보. 그 뒤 시간이 남으면 상위 후보만 다른 난수(급소·명중·데미지 난수)로 다시 돌려 평균 → 운 때문에 잘못 고르는 일을 줄임
+		const sum: { [c: string]: { v: number; n: number } } = {};
+		const add = (rs: { choice: string; v: number }[]) => { for (const r of rs) { const e = sum[r.choice] ||= { v: 0, n: 0 }; e.v += r.v; e.n++; } };
+		add(evalWithSeed(myOpts));
+		for (let k = 1; k < cfg.seeds && !over(); k++) {
+			const top = Object.entries(sum).sort((a, b) => b[1].v / b[1].n - a[1].v / a[1].n).slice(0, 3).map(([c]) => c);
+			add(evalWithSeed(myOpts.filter(o => top.includes(o.choice))));
+		}
+		for (const mo of myOpts) { const e = sum[mo.choice]; if (e) results.push({ choice: mo.choice, v: e.v / e.n + (mo.base - 100) * 0.01 }); }
 	} finally { searchSeed = null; }
 	if (!results.length) return null;
 	results.sort((a, b) => b.v - a.v);
@@ -999,8 +1010,16 @@ function searchDepth(me: 'p1' | 'p2', skill: number): number {
 	if (o && o[me]) return o[me];
 	return skill >= 0.9 ? 2 : 1;
 }
+/** 숙고 시간·난수 반복 횟수: 실력 0.9 이상은 최대 5초 (테스트에서는 __searchCfg 로 진영별 지정).
+ *  같은 수를 다른 난수로 여러 번 돌려 평균 내는 것(seeds>1)은 자체 대전 360판에서 51.1%로 효과가 없어 기본은 1번 */
+function searchCfg(me: 'p1' | 'p2', skill: number): { budget: number; seeds: number } {
+	const o = (globalThis as any).__searchCfg?.[me];
+	if (o) return { budget: o.budget ?? 5000, seeds: o.seeds ?? 8 };
+	const b = (globalThis as any).__laBudget;
+	return skill >= 0.9 ? { budget: b ?? 5000, seeds: 1 } : { budget: b ?? 700, seeds: 1 };
+}
 /** 한 턴 뒤 상태(c)에서 양쪽이 한 턴 더 두었을 때의 평가: 내 상위 후보 3개 중 최선 (상대는 상위 2개 가중 + 최악 25%) */
-function secondTurn(c: any, battle: Battle, me: 'p1' | 'p2', skill: number): number | null {
+function secondTurn(c: any, battle: Battle, me: 'p1' | 'p2', skill: number, over: () => boolean = () => false): number | null {
 	if (c.ended) return evalState(c, me);
 	const foeId = me === 'p1' ? 'p2' : 'p1';
 	const u = c[me].active[0], f = c[foeId].active[0];
@@ -1016,6 +1035,7 @@ function secondTurn(c: any, battle: Battle, me: 'p1' | 'p2', skill: number): num
 	try { ser1 = State.serializeBattle(c); } catch { return null; }
 	let best = -Infinity;
 	for (const a of mine) {
+		if (over() && best > -Infinity) break;
 		const vs: number[] = [];
 		for (const t of theirs) { const v = simulateTurn(ser1, battle, me, a, t); if (v !== null) vs.push(v); }
 		if (!vs.length) continue;

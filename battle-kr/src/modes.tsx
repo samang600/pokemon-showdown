@@ -72,7 +72,6 @@ async function chooseFormat(title: string, desc?: string, extended = false, opts
 			{ value: 'doubles' as Fmt, label: extended ? '더블 4vs4' : '더블배틀', desc: '2마리씩 동시에 싸웁니다 · 4마리', icon: '②' },
 			...(extended ? [
 				{ value: 'singles6' as Fmt, label: '싱글 6vs6', desc: '6마리 전원으로 풀배틀', icon: '⑥' },
-				{ value: 'doubles64' as Fmt, label: '더블 6→4', desc: '6마리를 데리고 배틀마다 4마리를 골라 더블배틀 (챔피언스 방식)', icon: '④' },
 				{ value: 'doubles6' as Fmt, label: '더블 6vs6', desc: '6마리 전원으로 더블 풀배틀', icon: '⑥' },
 			] : []),
 		]} onPick={r} />);

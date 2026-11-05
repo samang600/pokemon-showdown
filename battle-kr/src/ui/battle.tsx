@@ -682,8 +682,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 	}
 
-	function submit(choiceParts: string[]) {
+	async function submit(choiceParts: string[]) {
 		const s = sessionRef.current!;
+		// 강한 AI 는 최대 5초까지 숙고하므로, 그동안 화면이 멈춘 것처럼 보이지 않게 먼저 안내를 그려 둠
+		if (setup.aiSkill >= 0.9 && !setup.replay) {
+			setPhase('playing');
+			setMessage(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}${josaSubject(setup.p2.name)} 생각하고 있다…`);
+			await new Promise(r => setTimeout(r, 50));
+		}
 		const lines = s.choose(choiceParts.join(', '));
 		if (!lines) {
 			toast('선택할 수 없습니다: ' + (s.lastError.replace(/^\[.*?\]\s*/, '') || '다시 골라 주세요'));

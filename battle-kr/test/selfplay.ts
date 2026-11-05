@@ -10,7 +10,8 @@ import { rankerTeam } from '../src/pokedb';
 import { KoreanText, parseLine } from '../src/text';
 /** o.aSmogon/bSmogon: 각 팀을 Smogon 통계로 만들지 / o.quality: 통계 세트의 쏠림 / o.pick: 6마리 중 n마리 (A 는 aiPickEntry, B 는 무작위) */
 (window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, _unused = false, size = 0,
-	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number; depthA?: number; depthB?: number; budget?: number; aRanker?: boolean; minBstB?: number } = {}) => {
+	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number; depthA?: number; depthB?: number; budget?: number; aRanker?: boolean; minBstB?: number; cfgA?: { budget?: number; seeds?: number }; cfgB?: { budget?: number; seeds?: number } } = {}) => {
+	(globalThis as any).__searchCfg = o.cfgA || o.cfgB ? { p1: o.cfgA, p2: o.cfgB } : null;
 	(globalThis as any).__searchDepth = o.depthA || o.depthB ? { p1: o.depthA || 1, p2: o.depthB || 1 } : null;
 	(globalThis as any).__laBudget = o.budget;
 	const think: any = { p1: [] as number[], p2: [] as number[] };

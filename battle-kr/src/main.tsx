@@ -96,10 +96,10 @@ function Records({ onBack, onPlay }: { onBack: () => void; onPlay: (rp: SavedRep
 	const r = loadRecords();
 	const rows: [string, string][] = [
 		['배틀타워 싱글 3vs3', `${r.best['tower-singles'] || 0}연승`], ['배틀타워 더블 4vs4', `${r.best['tower-doubles'] || 0}연승`],
-		['배틀타워 싱글 6vs6', `${r.best['tower-singles6'] || 0}연승`], ['배틀타워 더블 6→4', `${r.best['tower-doubles64'] || 0}연승`], ['배틀타워 더블 6vs6', `${r.best['tower-doubles6'] || 0}연승`],
+		['배틀타워 싱글 6vs6', `${r.best['tower-singles6'] || 0}연승`], ['배틀타워 더블 6vs6', `${r.best['tower-doubles6'] || 0}연승`],
 		['팩토리 싱글 Lv50', `${r.best['factory-singles-50'] || 0}연승`], ['팩토리 싱글 오픈', `${r.best['factory-singles-100'] || 0}연승`],
 		['팩토리 더블 Lv50', `${r.best['factory-doubles-50'] || 0}연승`], ['팩토리 더블 오픈', `${r.best['factory-doubles-100'] || 0}연승`],
-		['팩토리 싱글 6vs6 Lv50', `${r.best['factory-singles6-50'] || 0}연승`], ['팩토리 더블 6→4 Lv50', `${r.best['factory-doubles64-50'] || 0}연승`], ['팩토리 더블 6vs6 Lv50', `${r.best['factory-doubles6-50'] || 0}연승`],
+		['팩토리 싱글 6vs6 Lv50', `${r.best['factory-singles6-50'] || 0}연승`], ['팩토리 더블 6vs6 Lv50', `${r.best['factory-doubles6-50'] || 0}연승`],
 	];
 	return <Screen title="기록" onBack={onBack}>
 		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패{r.battles ? ` · 승률 ${Math.round(r.wins / r.battles * 100)}%` : ''}</span></div>
