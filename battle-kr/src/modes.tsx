@@ -1,11 +1,11 @@
 /** 게임 모드 진행 (배틀타워 · 배틀팩토리 · PWT · 네임드 트레이너 · 프리 배틀) */
 import { h } from 'preact';
-import { ask } from './ui/core';
+import { ask, abortMode } from './ui/core';
 import { BattleView, type BattleSetup, type BattleResult } from './ui/battle';
 import { PickScreen, InfoScreen, SwapScreen, ChoiceScreen, BracketView } from './ui/screens';
 import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, FACTORY_TIERS, type PSet } from './sets';
-import { NAMED, CUPS, REGIONS, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, type NamedTrainer } from './trainers';
-import { SPRITE_URL } from './trainer-lines';
+import { NAMED, CUPS, REGIONS, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, namedTitle, type NamedTrainer } from './trainers';
+import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
 import { speciesKo, spriteId, megaStonesFor, type Gen } from './data';
 
@@ -13,7 +13,7 @@ type Fmt = 'singles' | 'doubles';
 const BACK = Symbol('back');
 
 function battle(setup: BattleSetup): Promise<BattleResult> {
-	return ask<BattleResult>(resolve => <BattleView key={Math.random()} setup={setup} onEnd={resolve} />);
+	return ask<BattleResult>(resolve => <BattleView key={Math.random()} setup={setup} onEnd={r => { if (r.quit) abortMode(); resolve(r); }} />);
 }
 function playerName() { return loadSettings().playerName || '플레이어'; }
 function playerSprite() { return loadSettings().playerSprite || 'lucas'; }
@@ -29,16 +29,17 @@ async function chooseFormat(title: string, desc?: string): Promise<Fmt | typeof 
 }
 
 /** 내 팀 고르기: 저장된 팀 또는 렌탈 */
-async function chooseTeam(gen: Gen, title: string, allowRental = true): Promise<PSet[] | typeof BACK> {
+async function chooseTeam(gen: Gen, title: string, allowRental = true, cheat = false): Promise<PSet[] | typeof BACK> {
 	const lastId = load<string>('lastTeam', '');
-	const teams = loadTeams().filter(t => t.sets.length >= 3).sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0));
+	// 치트 팀은 치트 배틀에서만
+	const teams = loadTeams().filter(t => !!t.cheat === cheat && t.sets.length >= (cheat ? 1 : 3)).sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0));
 	const opts: { value: SavedTeam | 'rental'; label: string; desc?: string; icon?: any; badge?: string }[] = teams.map(t => ({
 		value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '), badge: t.id === lastId ? '최근 사용' : undefined,
 		icon: <span class="mini"><img class="sprite" src={`sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
 	}));
 	if (allowRental) opts.push({ value: 'rental', label: '추천 렌탈 팀', desc: '무작위로 6마리를 빌립니다', icon: '🎲' });
 	const v = await ask<SavedTeam | 'rental' | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
-		intro={!teams.length ? <p class="hint">저장된 팀(3마리 이상)이 없습니다. 메인 메뉴 → 팀 편집에서 만들 수 있어요.</p> : undefined}
+		intro={!teams.length ? <p class="hint">{cheat ? '치트 팀이 없습니다. 메인 메뉴 → 팀 편집 → 🃏 치트 팀에서 만들 수 있어요.' : '저장된 팀(3마리 이상)이 없습니다. 메인 메뉴 → 팀 편집에서 만들 수 있어요.'}</p> : undefined}
 		options={opts} onPick={r} />);
 	if (v === BACK) return BACK;
 	if (v === 'rental') return randomTeam({ gen, size: 6, minBst: 480 });
@@ -64,10 +65,11 @@ function towerOpponent(streak: number, fmt: Fmt) {
 	}
 	// 7의 배수 번째(세트 마지막): 네임드 트레이너가 등장 (세트가 오를수록 관장 → 사천왕 → 챔피언)
 	if (battleNo % 7 === 0) {
-		const role = tier <= 1 ? 'leader' : tier <= 3 ? 'elite' : 'champion';
-		const t = rng.pick(NAMED.filter(x => x.role === role));
+		// 7연승마다: 초반엔 관장·간부, 중반엔 사천왕·라이벌, 후반엔 챔피언·보스·주인공
+		const roles = tier <= 1 ? ['leader', 'admin'] : tier <= 3 ? ['elite', 'rival'] : ['champion', 'boss', 'hero'];
+		const t = rng.pick(NAMED.filter(x => roles.includes(x.role)));
 		const team = namedTeam(t, n);
-		return { name: t.name, title: ROLE_KO[t.role], team, skill: 0.9 + tier * 0.02, boss: '', line: t.line, sprite: namedSprite(t), lines: namedLines(t), special: true };
+		return { name: t.name, title: namedTitle(t), team, skill: 0.9 + tier * 0.02, boss: '', line: t.line, sprite: namedSprite(t), lines: namedLines(t), special: true };
 	}
 	const ranges = [[380, 490], [430, 520], [460, 545], [480, 600], [490, 680]];
 	const [minBst, maxBst] = ranges[Math.min(tier, ranges.length - 1)];
@@ -237,7 +239,7 @@ function namedTeam(t: NamedTrainer, size: number, gen: Gen = 9): PSet[] {
 	const ace = team[team.length - 1];
 	const stones = megaStonesFor(ace.species);
 	if (stones.length) ace.item = rng.pick(stones);
-	return dedupeItems(assignGimmicks(team, { mega: t.role === 'leader' ? 0.5 : 0.9, z: 0.6 }));
+	return dedupeItems(assignGimmicks(team, { mega: ['leader', 'admin'].includes(t.role) ? 0.5 : 0.9, z: 0.6 }));
 }
 
 export async function runPWT() {
@@ -262,7 +264,7 @@ export async function runPWT() {
 	let entrants: { name: string; title: string; team: () => PSet[]; skill: number; line?: string; named?: NamedTrainer; sprite?: string; lines?: any }[];
 	const named = cup.trainers().slice(0, 7).map(id => namedById(id));
 	if (named.length) {
-		entrants = named.map(t => ({ name: t.name, title: ROLE_KO[t.role] === '챔피언' ? '챔피언' : t.role === 'elite' ? '사천왕' : '관장', team: () => namedTeam(t, 6), skill: t.role === 'champion' ? 0.95 : t.role === 'elite' ? 0.88 : 0.8, line: t.line, named: t, sprite: namedSprite(t), lines: namedLines(t) }));
+		entrants = named.map(t => ({ name: t.name, title: t.role === 'champion' ? '챔피언' : t.role === 'elite' ? '사천왕' : t.role === 'leader' ? '관장' : namedTitle(t), team: () => namedTeam(t, 6), skill: ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : ['elite', 'rival'].includes(t.role) ? 0.88 : 0.8, line: t.line, named: t, sprite: namedSprite(t), lines: namedLines(t) }));
 	} else {
 		entrants = Array.from({ length: 7 }, () => {
 			const tr = randomTrainer();
@@ -336,18 +338,25 @@ export async function runPWT() {
 }
 
 // ───────────── 네임드 트레이너 ─────────────
+const ROLE_ORDER = ['leader', 'elite', 'champion', 'hero', 'rival', 'admin', 'boss'];
+function regionSummary(reg: string) {
+	const list = NAMED.filter(t => t.region === reg);
+	const n = (roles: string[]) => list.filter(t => roles.includes(t.role)).length;
+	return [`관장·사천왕·챔피언 ${n(['leader', 'elite', 'champion'])}`, n(['hero', 'rival']) ? `주인공·라이벌 ${n(['hero', 'rival'])}` : '',
+		n(['admin', 'boss']) ? `악의 조직 ${n(['admin', 'boss'])}` : ''].filter(Boolean).join(' · ');
+}
 export async function runNamed() {
 	while (true) {
 		const region = await ask<NamedTrainer['region'] | typeof BACK>(r => <ChoiceScreen title="네임드 트레이너" onBack={() => r(BACK)}
-			intro={<p class="hint">역대 체육관 관장·사천왕·챔피언과 대전합니다. (레벨 50)</p>}
-			options={REGIONS.map(reg => ({ value: reg, label: `${reg} 지방`, desc: NAMED.filter(t => t.region === reg).map(t => t.name).join(' · '), icon: '🗺' }))}
+			intro={<p class="hint">역대 체육관 관장·사천왕·챔피언, 주인공·라이벌, 악의 조직 간부·보스와 대전합니다. (레벨 50)</p>}
+			options={REGIONS.map(reg => ({ value: reg, label: `${reg} 지방`, desc: regionSummary(reg), icon: '🗺' }))}
 			onPick={r} />);
 		if (region === BACK) return;
 		while (true) {
 			const t = await ask<NamedTrainer | typeof BACK>(r => <ChoiceScreen title={`${region} 지방`} onBack={() => r(BACK)}
-				options={NAMED.filter(x => x.region === region).map(x => ({
+				options={NAMED.filter(x => x.region === region).sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)).map(x => ({
 					value: x, label: x.name, desc: x.title, badge: loadRecords().named[x.id] ? `✓${loadRecords().named[x.id]}` : undefined,
-					icon: <img class="trainer-icon" src={SPRITE_URL(namedSprite(x))} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />,
+					icon: <img class="trainer-icon" src={SPRITE_URL(namedSprite(x))} onError={trainerImgError} />,
 				}))} onPick={r} />);
 			if (t === BACK) break;
 			const mode = await ask<'s3' | 's6' | 'd4' | 'd6' | typeof BACK>(r => <ChoiceScreen title={`${t.name} · 규칙`} onBack={() => r(BACK)}
@@ -369,8 +378,8 @@ export async function runNamed() {
 				opponent={{ name: t.name, team: oppTeam }} onDone={r} />) : myTeam;
 			const oppPick = size < 6 ? [...rng.shuffle(oppTeam.slice(0, -1)).slice(0, size - 1), oppTeam[oppTeam.length - 1]] : oppTeam;
 			const res = await battle({
-				gen: 9, doubles, aiSkill: t.role === 'champion' ? 0.95 : 0.85, bg: t.role === 'champion' ? 'champion' : 'pwt',
-				label: `${t.title}`, p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: t.name, title: ROLE_KO[t.role], team: oppPick, line: t.line, sprite: namedSprite(t), lines: namedLines(t) },
+				gen: 9, doubles, aiSkill: ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, bg: ['champion', 'boss', 'hero'].includes(t.role) ? 'champion' : 'pwt',
+				label: `${t.title}`, p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: t.name, title: namedTitle(t), team: oppPick, line: t.line, sprite: namedSprite(t), lines: namedLines(t) },
 			});
 			if (res.win) updateRecords(r => { r.named[t.id] = (r.named[t.id] || 0) + 1; });
 			await ask<void>(r => <InfoScreen title={t.name} trainer={namedSprite(t)} heading={res.win ? `${t.name}에게 승리했다!` : `${t.name}에게 졌다…`}
@@ -380,13 +389,15 @@ export async function runNamed() {
 }
 
 // ───────────── 프리 배틀 ─────────────
-export async function runFree() {
-	const fmt = await chooseFormat('프리 배틀', '내 팀으로, 내가 만든 다른 팀이나 무작위 팀과 바로 대전합니다. 기록에는 남지 않아요.');
+export async function runCheat() { return runFree(true); }
+export async function runFree(cheat = false) {
+	const modeName = cheat ? '치트 배틀' : '프리 배틀';
+	const fmt = await chooseFormat(modeName, cheat ? '마음대로 만든 치트 팀으로 대전합니다. 승패는 전적에 남지 않아요.' : '내 팀으로, 내가 만든 다른 팀이나 무작위 팀과 바로 대전합니다. 기록에는 남지 않아요.');
 	if (fmt === BACK) return;
-	const my = await chooseTeam(9, '내 팀');
+	const my = await chooseTeam(9, '내 팀', true, cheat);
 	if (my === BACK) return;
-	// 상대 팀: 저장된 팀 / 무작위
-	const teams = loadTeams().filter(t => t.sets.length >= 1);
+	// 상대 팀: 저장된 팀 / 무작위 (치트 팀은 치트 배틀에서만)
+	const teams = loadTeams().filter(t => t.sets.length >= 1 && (cheat || !t.cheat));
 	const oppPick = await ask<SavedTeam | 'random' | 'strong' | typeof BACK>(r => <ChoiceScreen title="상대 팀" onBack={() => r(BACK)}
 		options={[
 			{ value: 'random' as const, label: '무작위 팀', desc: '일반 트레이너의 무작위 6마리', icon: '🎲' },
@@ -411,8 +422,8 @@ export async function runFree() {
 		if (rematch) ({ oppTeam, oppName, oppTitle, oppSprite, oppLines } = rematch);
 		else if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
 		else if (oppPick === 'strong') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: fmt === 'doubles' });
-		else { oppTeam = withLevel(oppPick.sets.map(cloneSet), 50); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
-		const myTeam = withLevel(my, 50);
+		else { oppTeam = oppPick.cheat ? oppPick.sets.map(cloneSet) : withLevel(oppPick.sets.map(cloneSet), 50); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
+		const myTeam = cheat ? my : withLevel(my, 50);
 		const size = await ask<number>(r => <ChoiceScreen title="참가 마릿수" options={[
 			{ value: n, label: `${n}마리 (${fmt === 'doubles' ? '더블' : '싱글'} 표준)`, desc: '상대 팀을 보고 고릅니다', icon: String(n) },
 			{ value: 6, label: '풀배틀 6마리', desc: '전원 참가', icon: '6' },
@@ -421,10 +432,10 @@ export async function runFree() {
 			opponent={{ name: oppName, team: oppTeam }} onDone={r} />) : myTeam;
 		const oppSel = size < oppTeam.length ? rng.shuffle(oppTeam).slice(0, size) : oppTeam;
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: skill, bg: 'field', label: '프리 배틀',
+			gen: 9, doubles: fmt === 'doubles', aiSkill: skill, bg: 'field', label: modeName, noRecord: true, cheat,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: oppName, title: oppTitle, team: oppSel, sprite: oppSprite, lines: oppLines },
 		});
-		const again = await ask<'same' | 'new' | 'quit'>(r => <InfoScreen title="프리 배틀" heading={res.win ? '승리!' : '패배…'}
+		const again = await ask<'same' | 'new' | 'quit'>(r => <InfoScreen title={modeName} heading={res.win ? '승리!' : '패배…'}
 			actions={[{ label: '같은 상대와 다시', onClick: () => r('same') }, { label: '다른 상대와', kind: 'ghost', onClick: () => r('new') }, { label: '메뉴로', kind: 'ghost', onClick: () => r('quit') }]} />);
 		if (again === 'quit') return;
 		if (again === 'same') { rematch = { oppTeam, oppName, oppTitle, oppSprite, oppLines }; } else rematch = null;

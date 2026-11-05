@@ -9,7 +9,13 @@ let setViewFn: ((v: VNode | null) => void) | null = null;
 export function bindView(fn: (v: VNode | null) => void) { setViewFn = fn; }
 export function show(node: VNode | null) { setViewFn?.(node); }
 /** render(resolve) 가 그린 화면에서 resolve 가 불릴 때까지 기다림 */
+/** 배틀 중 '메인 메뉴로' — 진행 중인 모드를 끝낸다 */
+export class QuitToMenu extends Error { constructor() { super('quit'); } }
+let aborting = false;
+export function abortMode() { aborting = true; }
+export function resetAbort() { aborting = false; }
 export function ask<T>(render: (resolve: (v: T) => void) => VNode): Promise<T> {
+	if (aborting) return Promise.reject(new QuitToMenu());
 	return new Promise<T>(resolve => {
 		let done = false;
 		const once = (v: T) => { if (!done) { done = true; resolve(v); } };

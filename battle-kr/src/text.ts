@@ -418,7 +418,7 @@ export class KoreanText {
 		case '-formechange': case 'detailschange': {
 			const sp = (args[2] || '').split(',')[0];
 			if (cmd === 'detailschange' && /-Mega/.test(sp)) {
-				return F(T('transformMega'), { POKEMON: pk(args[1]), SPECIES: speciesKo(sp.replace(/-Mega.*$/, '')) });
+				return F(T('transformMega'), { POKEMON: pk(args[1]), SPECIES: speciesKo(sp).replace(/^메가/, '').replace(/\(([^)]*)\)$/, '') || speciesKo(sp.replace(/-Mega.*$/, '')) });
 			}
 			if (!kw.msg) return '';
 			const from = effectInfo(kw.from);

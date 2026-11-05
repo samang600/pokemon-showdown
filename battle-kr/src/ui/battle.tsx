@@ -13,7 +13,7 @@ import { estimateDamage } from '../ai';
 import * as FX from '../fx';
 import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries, pickBattleMusic, animSfxVolume, vibrate } from '../sound';
 import { saveSettings, loadSettings as loadSettings2 } from '../store';
-import { SPRITE_URL } from '../trainer-lines';
+import { SPRITE_URL, trainerImgError } from '../trainer-lines';
 import { loadAnim, preloadAnim, playAnim, animIdFor, cancelAnims } from '../anim-player';
 
 export interface BattleSetup {
@@ -23,14 +23,18 @@ export interface BattleSetup {
 	p2: { name: string; title?: string; team: PSet[]; line?: string; sprite?: string; lines?: { intro?: string; ace?: string; lose?: string; win?: string } };
 	aiSkill: number;
 	label?: string; // 예: '배틀타워 12번째'
+	/** 전적에 넣지 않음 (프리·치트 배틀) */
+	noRecord?: boolean;
+	/** 치트 배틀: 능력 포인트 합계 제한 없음 */
+	cheat?: boolean;
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
 }
-export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number }
+export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
 
 interface Mon {
 	ident: string; nick: string; species: string; level: number; gender: string; shiny: boolean;
 	hp: number; maxhp: number; status: string; fainted: boolean; boosts: { [k: string]: number };
-	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[];
+	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[]; pendingSpecies?: string;
 }
 interface SideScene { id: string; name: string; active: (Mon | null)[]; team: Mon[]; cond: { [id: string]: number }; teamSize: number }
 interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number }
@@ -75,7 +79,7 @@ function slotOf(ident: string) {
 const SPEED_MS: { [k: number]: number } = { 1: 1350, 2: 850, 3: 420, 4: 200 };
 const SPEED_LABEL: { [k: number]: string } = { 1: '▶ ×0.5', 2: '▶ ×1', 3: '▶▶ ×2', 4: '▶▶▶ ×4' };
 /** 기술 애니메이션 재생 배속 */
-const ANIM_SPEED: { [k: number]: number } = { 1: 0.85, 2: 1, 3: 1.5, 4: 2.2 };
+const ANIM_SPEED: { [k: number]: number } = { 1: 0.7, 2: 1, 3: 2, 4: 3 };
 
 export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: BattleResult) => void }) {
 	const settings = useRef(loadSettings()).current;
@@ -124,9 +128,11 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	const gen = setup.gen;
 	/** 배틀 중 배속 버튼: ×1 → ×2 → ×4 → ×0.5 → … (설정의 메시지 속도와 같음) */
+	const syncFxSpeed = () => FX.setFxSpeed(fastRef.current ? 3 : ANIM_SPEED[settings.speed] || 1);
 	const cycleSpeed = () => {
 		const next = (settings.speed % 4 + 1) as 1 | 2 | 3 | 4;
 		settings.speed = next;
+		syncFxSpeed();
 		const st = loadSettings2(); st.speed = next; saveSettings(st);
 		skipRef.current?.();
 		rerender();
@@ -165,7 +171,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	function animate(mon: Mon | null, anim: string, ms = 500) {
 		if (!mon) return;
 		mon.anim = anim;
-		setTimeout(() => { if (mon.anim === anim) { mon.anim = ''; rerender(); } }, ms);
+		setTimeout(() => { if (mon.anim === anim) { mon.anim = ''; rerender(); } }, ms / FX.fxSpeed());
 	}
 
 	/** 슬롯 위 포켓몬 몸통 중심 좌표 (arena 기준 px) */
@@ -183,6 +189,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const backRef = useRef<HTMLCanvasElement | null>(null);
 	const animBgRef = useRef<HTMLDivElement | null>(null);
 	const animUsedRef = useRef<ParsedLine | null>(null);
+	const [menuOpen, setMenuOpen] = useState(false);
 	const [fieldOpen, setFieldOpen] = useState(false);
 	useEffect(() => {
 		const el = arenaRef.current; if (!el) return;
@@ -213,8 +220,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!anim || !frontRef.current || !backRef.current || !animBgRef.current) return false;
 		const userPt = slotPoint(user); if (!userPt) return false;
 		let tgt = target && /^p\d[a-c]/.test(target) ? target : '';
-		if (!tgt || tgt.slice(0, 3) === user.slice(0, 3)) {
-			// 자신 대상/대상 없음: 반대편 첫 포켓몬을 가상 대상으로
+		// 용의춤·칼춤처럼 자신·우리 편에게 쓰는 기술은 애니메이션도 자신에게 (PokéRogue 와 같음)
+		const mvTarget = sessionRef.current?.battle.dex.moves.get(toID(moveName))?.target || '';
+		const selfMove = ['self', 'allySide', 'allyTeam', 'adjacentAllyOrSelf', 'allies'].includes(mvTarget);
+		if (selfMove && (!tgt || tgt.slice(0, 2) === user.slice(0, 2))) tgt = tgt && tgt.slice(0, 3) !== user.slice(0, 3) ? tgt : user;
+		else if (!tgt || tgt.slice(0, 3) === user.slice(0, 3)) {
+			// 대상 없음(스텔스록·날씨 등): 반대편 첫 포켓몬을 가상 대상으로
 			const foe = user.startsWith('p1') ? 'p2' : 'p1';
 			const idx = sceneRef.current[foe].active.findIndex(m => m && !m.fainted);
 			tgt = `${foe}${'ab'[Math.max(0, idx)]}: x`;
@@ -224,7 +235,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		await playAnim(anim, {
 			front: frontRef.current, back: backRef.current, bgLayer: animBgRef.current,
 			userPt, targetPt, userEl: slotEl(user), targetEl: slotEl(tgt), k: scale * 0.85, userIsFoe: user.startsWith('p2'),
-			sfxVolume: animSfxVolume(), speed: fastRef.current ? 2.5 : ANIM_SPEED[settings.speed] || 1,
+			sfxVolume: animSfxVolume(), speed: FX.fxSpeed(),
 		});
 		return true;
 	}
@@ -248,7 +259,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		const to = slotPoint(target || '') || hits[0] || from;
 		if (!hits.length) hits = [to];
-		const impact = FX.playMove(layer, arena, { id: mid, type, category: cat, flags: simMove?.flags || {}, target: tt, basePower: simMove?.basePower }, from, to, scale, hits);
+		const impact = (1 / FX.fxSpeed()) * FX.playMove(layer, arena, { id: mid, type, category: cat, flags: simMove?.flags || {}, target: tt, basePower: simMove?.basePower }, from, to, scale, hits);
 		const hitSound = RXp(/explosion|selfdestruct|boomburst|eruption|mindblown/, mid) ? 'hitExplode' : RXp(/punch|fist|kick|slam|smash|hammer|tackle|headbutt|rush|charge|press|chop/, mid) ? 'hitPunch' : RXp(/slash|cut|claw|blade|sword|edge|scissor|wing|razor|fang|bite|crunch/, mid) ? 'hitSlash' : 'hit';
 		pendingHitRef.current = { at: impact, sound: hitSound };
 		return impact;
@@ -267,7 +278,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (prev) { prev.boosts = {}; prev.vol = new Set(); prev.transformed = undefined; }
 			const mon = findMon(ident, args[2]);
 			const d = parseDetails(args[2]);
-			mon.species = d.species; mon.level = d.level; mon.gender = d.gender; mon.shiny = d.shiny;
+			mon.species = d.species; mon.level = d.level; mon.gender = d.gender; mon.shiny = d.shiny; mon.pendingSpecies = undefined;
 			const hp = parseHP(args[3]);
 			mon.hp = hp.hp; mon.maxhp = hp.maxhp || mon.maxhp; mon.status = hp.status === 'fnt' ? '' : hp.status;
 			mon.fainted = false; mon.boosts = {}; mon.vol = new Set();
@@ -279,9 +290,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const from = { x: own ? -10 : layer.clientWidth + 10, y: to.y - 30 * scale };
 				mon.hidden = true;
 				sfx('ballThrow');
-				const t = FX.ballOut(layer, from, to, scale);
+				const t = FX.ballOut(layer, from, to, scale) / FX.fxSpeed();
 				setTimeout(() => { mon.hidden = false; mon.anim = 'enter'; rerender(); sfx('ballOpen'); cry(toID(mon.species)); setTimeout(() => { if (mon.anim === 'enter') { mon.anim = ''; rerender(); } }, 500); }, t);
-				return t + 450;
+				return t + 450 / FX.fxSpeed();
 			}
 			animate(mon, 'enter', 600);
 			cry(toID(mon.species));
@@ -409,7 +420,18 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		case 'detailschange': case '-formechange': {
 			const m = activeMon(args[1]);
-			if (m) { const d = parseDetails(args[2]); if (cmd === 'detailschange') m.species = d.species; else m.transformed = d.species; }
+			if (!m) return 0;
+			const d = parseDetails(args[2]);
+			// 기절 직후 원래 모습으로 돌아가는 줄([silent]) — 쓰러지는 연출은 메가진화 모습 그대로
+			if (cmd === 'detailschange' && m.fainted) { m.pendingSpecies = d.species; return 0; }
+			if (cmd === 'detailschange' && /-(Mega|Primal|Ultra)\b/.test(d.species) && !/-(Mega|Primal|Ultra)\b/.test(m.species)) {
+				// 메가진화·원시회귀·울트라버스트: 빛기둥 연출을 먼저, 그 뒤 그림 교체
+				sfx('mega'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, /Primal/.test(d.species) ? '#ffb040' : '#ff80ff', scale);
+				m.anim = 'evolve'; rerender();
+				setTimeout(() => { m.species = d.species; m.anim = 'enter'; rerender(); cry(toID(d.species)); setTimeout(() => { if (m.anim === 'enter') { m.anim = ''; rerender(); } }, 600 / FX.fxSpeed()); }, 750 / FX.fxSpeed());
+				return 1300;
+			}
+			if (cmd === 'detailschange') m.species = d.species; else m.transformed = d.species;
 			return 300;
 		}
 		case '-terastallize': {
@@ -418,12 +440,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			sfx('tera'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, TYPE_COLOR[args[2]] || '#fff', scale);
 			return 800;
 		}
-		case '-mega': case '-primal': case '-burst': {
-			const m = activeMon(args[1]); animate(m, 'enter', 600);
-			sfx('mega'); const pt = slotPoint(args[1]); if (pt && fxRef.current) FX.pillar(fxRef.current, pt, '#ff80ff', scale);
-			if (m) cry(toID(m.species), { delay: 600 });
-			return 900;
-		}
+		case '-mega': case '-primal': case '-burst':
+			// 연출은 모습이 바뀌는 detailschange 에서 이미 함 (빛기둥 → 그림 교체)
+			return 0;
 		case '-item': { const m = activeMon(args[1]); if (m) m.item = args[2]; return 0; }
 		case '-enditem': { const m = activeMon(args[1]); if (m) m.item = ''; return 0; }
 		case '-ability': { const m = activeMon(args[1]); if (m) m.ability = args[2]; return 0; }
@@ -439,6 +458,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	async function play(lines: string[]) {
 		setPhase('playing');
+		// 메가진화: "키스톤이 반응했다" 메시지를 먼저 보여 주고, 그다음 빛기둥 → 모습 교체
+		lines = lines.slice();
+		for (let i = 0; i + 1 < lines.length; i++) {
+			if (/^\|detailschange\|[^|]+\|[^|,]*-(Mega|Primal|Ultra)/.test(lines[i]) && /^\|-(mega|primal|burst)\|/.test(lines[i + 1]) &&
+				lines[i].split('|')[2] === lines[i + 1].split('|')[2]) { [lines[i], lines[i + 1]] = [lines[i + 1], lines[i]]; i++; }
+		}
 		const kt = textRef.current!;
 		for (const line of lines) {
 			const p = parseLine(line);
@@ -484,13 +509,13 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				rerender();
 				const used = await tryRebornAnim(p);
 				if (!used) {
-					const d = apply(p); rerender();
+					const d = apply(p) / FX.fxSpeed(); rerender();
 					await wait(Math.max(d, SPEED_MS[settings.speed] * 0.6));
 				} else { pendingHitRef.current = { at: 0, sound: '' }; await wait(120); }
 				for (const m of msgs) { showMsg(m); await wait(readMs(m)); }
 				continue;
 			}
-			const delay = apply(p);
+			const delay = apply(p) / FX.fxSpeed();
 			rerender();
 			if (p.cmd === 'turn') { pushLog(text); continue; }
 			for (const m of msgs) {
@@ -503,7 +528,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (s.ended) {
 			setPhase('ended');
 			const win = s.winner === setup.p1.name;
-			updateRecords(r => { r.battles++; if (win) r.wins++; });
+			if (!setup.noRecord) updateRecords(r => { r.battles++; if (win) r.wins++; });
 			if (win) playMusic('victory'); else stopMusic();
 			const left = s.battle.p1.pokemon.filter((x: any) => !x.fainted).length;
 			showMsg(win ? `${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}에게 이겼다! (${s.battle.turn}턴 · 남은 포켓몬 ${left}마리)` : `눈앞이 깜깜해졌다… (${s.battle.turn}턴)`);
@@ -589,6 +614,22 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		setMenu(req.forceSwitch ? 'switch' : 'main');
 	}
 
+	/** 배틀을 그만두고 메인 메뉴로 (끝나지 않은 배틀은 패배로 기록) */
+	async function quitToMenu() {
+		setMenuOpen(false);
+		const s = sessionRef.current!;
+		const ended = s.ended;
+		if (!ended && !(await confirmBox('메인 메뉴로', setup.noRecord ? '배틀을 그만두고 메인 메뉴로 돌아갈까요?' :
+			'배틀을 그만두고 메인 메뉴로 돌아갈까요?\n이 배틀은 패배로 기록되고, 진행 중인 연승 도전은 끝납니다.', '메인 메뉴로', '계속 싸운다'))) return;
+		skipRef.current?.();
+		cancelAnims();
+		stopMusic();
+		if (!ended && !setup.noRecord) updateRecords(r => { r.battles++; });
+		const alive = (side: 'p1' | 'p2') => s.battle[side].pokemon.filter((p: any) => !p.fainted).length;
+		const win = ended && s.winner === setup.p1.name;
+		onEnd({ win, forfeit: !win, turns: s.battle.turn, p1Left: alive('p1'), p2Left: alive('p2'), quit: true });
+	}
+
 	async function forfeit() {
 		if (!(await confirmBox('기권', '정말 기권할까요? 이 승부는 패배로 기록됩니다.', '기권', '취소'))) return;
 		const lines = sessionRef.current!.forfeit();
@@ -598,10 +639,11 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	useEffect(() => {
 		const s = new Session({
 			gen: setup.gen, doubles: setup.doubles, aiSkill: setup.aiSkill,
-			p1: { name: setup.p1.name, team: toSimTeam(setup.p1.team) as any },
-			p2: { name: setup.p2.name, team: toSimTeam(setup.p2.team) as any },
+			p1: { name: setup.p1.name, team: toSimTeam(setup.p1.team, !!setup.cheat) as any },
+			p2: { name: setup.p2.name, team: toSimTeam(setup.p2.team, !!setup.cheat) as any },
 		});
 		sessionRef.current = s;
+		syncFxSpeed();
 		textRef.current = new KoreanText({
 			gen: setup.gen, ownSide: 'p1', doubles: setup.doubles,
 			trainerName: side => side === 'p1' ? setup.p1.name : (setup.p2.title ? `${setup.p2.title} ${setup.p2.name}` : setup.p2.name),
@@ -835,12 +877,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		if (phase !== 'input' || !req) {
 			return <div class="controls waiting">
-				<button class={'btn small' + (fast ? ' on' : '')} onClick={() => { fastRef.current = !fastRef.current; setFast(fastRef.current); skipRef.current?.(); const st = loadSettings2(); st.fastForward = fastRef.current; saveSettings(st); }}>
+				<button class={'btn small' + (fast ? ' on' : '')} onClick={() => { fastRef.current = !fastRef.current; setFast(fastRef.current); syncFxSpeed(); rerender(); skipRef.current?.(); const st = loadSettings2(); st.fastForward = fastRef.current; saveSettings(st); }}>
 					{fast ? '▶▶ 빨리감기 켜짐' : '▶▶ 빨리감기'}</button>
 			</div>;
 		}
 		const back = (parts.length || menu !== 'main') && !(req.forceSwitch && !parts.length) ?
-			<button class="btn small" onClick={() => {
+			<button class="btn small ctl-back" onClick={() => {
 				if (menu === 'target') setMenu('moves');
 				else if (menu !== 'main' && !req.forceSwitch) setMenu('main');
 				else cancelChoice();
@@ -885,7 +927,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!mon || (mon.fainted && !mon.anim)) return <div class="info empty" key={i} />;
 		const boosts = Object.entries(mon.boosts).filter(([, v]) => v);
 		const vols = [...mon.vol].filter(v => VOLATILE_KO[v]);
-		return <div class={'info ' + (own ? 'own' : 'foe') + ' i' + i} key={i} onClick={() => setDetail({ mon, own })}>
+		// 포켓몬마다 새 상자 (교체 때 HP 바가 이전 포켓몬 값에서 늘거나 주는 것처럼 보이지 않게)
+		return <div class={'info ' + (own ? 'own' : 'foe') + ' i' + i} key={mon.ident + ':' + i} onClick={() => setDetail({ mon, own })}>
 			<div class="info-top">
 				<b class="info-name">{mon.nick}</b>
 				{mon.gender && <span class={'gender ' + mon.gender}>{mon.gender === 'M' ? '♂' : '♀'}</span>}
@@ -959,14 +1002,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	}
 
 	const slots = setup.doubles ? [0, 1] : [0];
-	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')}>
+	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')} style={{ '--spd': FX.fxSpeed() } as any}>
 		<div class={'arena' + (trainerVis.foe ? ' t-foe' : '')} ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
 			<div class="arena-bg" />
 			<div class={'weather-ov ' + (scene.weather || '') + ' ' + [...scene.pseudo].join(' ')} />
 			<div class="anim-bg-layer" ref={animBgRef} />
 			<canvas class="anim-canvas back" ref={backRef} />
-			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
-			{setup.p1.sprite && <img class={'trainer-spr own' + (trainerVis.own ? ' in' : '')} src={SPRITE_URL(setup.p1.sprite)} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={trainerImgError} />}
+			{setup.p1.sprite && <img class={'trainer-spr own' + (trainerVis.own ? ' in' : '')} src={SPRITE_URL(setup.p1.sprite)} alt="" onError={trainerImgError} />}
 			{slots.map(i => spriteSlot(scene.p2.active[i] || null, false, i))}
 			{slots.map(i => spriteSlot(scene.p1.active[i] || null, true, i))}
 			<canvas class="anim-canvas front" ref={frontRef} />
@@ -976,6 +1019,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
 				<button class="badge speed-btn" onClick={e => { e.stopPropagation(); cycleSpeed(); }}>{SPEED_LABEL[settings.speed]}</button>
 				<button class="badge field-btn" onClick={e => { e.stopPropagation(); setFieldOpen(true); }}>필드 ▸</button>
+				<button class="badge menu-btn" onClick={e => { e.stopPropagation(); setMenuOpen(true); }} aria-label="메뉴">☰ 메뉴</button>
 			</div>
 			<div class="hud-cond">
 				{scene.weather && WEATHER_KO[scene.weather] && <span class="chip weather">{WEATHER_KO[scene.weather]}</span>}
@@ -997,6 +1041,16 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			</div>
 			{controls()}
 		</div>
+		{menuOpen && <Modal title="메뉴" onClose={() => setMenuOpen(false)}>
+			<div class="battle-menu">
+				<button class="btn big" onClick={() => setMenuOpen(false)}>배틀로 돌아가기</button>
+				<button class="btn big" onClick={() => { setMenuOpen(false); setShowLog(true); }}>배틀 기록</button>
+				<button class="btn big" onClick={() => { setMenuOpen(false); setFieldOpen(true); }}>필드 상황</button>
+				<button class="btn big" onClick={() => cycleSpeed()}>배속 {SPEED_LABEL[settings.speed]}</button>
+				{phase === 'input' && <button class="btn big" onClick={() => { setMenuOpen(false); forfeit(); }}>기권</button>}
+				<button class="btn big danger" onClick={quitToMenu}>메인 메뉴로</button>
+			</div>
+		</Modal>}
 		{fieldOpen && <FieldModal session={sessionRef.current!} onClose={() => setFieldOpen(false)} />}
 		{showLog && <Modal title="배틀 기록" onClose={() => setShowLog(false)}>
 			<button class="btn small" onClick={() => { navigator.clipboard?.writeText(log.join('\n')).then(() => toast('배틀 기록을 복사했습니다'), () => toast('복사하지 못했습니다')); }}>기록 복사</button>

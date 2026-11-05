@@ -673,3 +673,20 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .avatar-pick button { border-radius: 8px; } .avatar-pick button.on { outline: 2px solid var(--p-hi); background: rgba(255,216,74,.15); }
 .ev-row { grid-template-columns: 54px 26px 30px minmax(0, 1fr) 30px 22px 34px; }
 .ev-label { white-space: nowrap; font-size: 12.5px; }
+/* 배속: 배틀 연출 시간을 --spd 로 나눔 */
+.battle { --spd: 1; }
+.slot.enter .sprite, .slot.enter .sprite-fallback { animation-duration: calc(.5s / var(--spd)); }
+.slot.leave .sprite { animation-duration: calc(.45s / var(--spd)); }
+.slot.faint .sprite { animation-duration: calc(.8s / var(--spd)); }
+.slot.hit .sprite { animation-duration: calc(.48s / var(--spd)); }
+.slot.attack-own, .slot.attack-foe { animation-duration: calc(.4s / var(--spd)); }
+.slot.boost::after, .slot.unboost::after { animation-duration: calc(.5s / var(--spd)); }
+.battle .hpbar-fill { transition-duration: calc(.6s / var(--spd)), calc(.3s / var(--spd)); }
+.trainer-spr { transition-duration: calc(.45s / var(--spd)); }
+/* 메가진화 직전: 하얗게 빛남 */
+.slot.evolve .sprite { animation: evolveGlow .25s steps(2) infinite; }
+@keyframes evolveGlow { 50% { filter: brightness(3) saturate(0) drop-shadow(0 0 6px #fff); } }
+.battle-menu { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.menu-btn { color: #fff; cursor: pointer; }
+.cheat-tag { font-size: 11px; padding: 0 6px; border-radius: 8px; background: #b0308a; color: #fff; margin-left: 4px; }
+.cheat-note { margin: 4px; padding: 6px 8px; border-radius: 8px; background: rgba(176,48,138,.35); box-shadow: inset 0 0 0 1px #e070c0; font-size: 13px; }

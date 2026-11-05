@@ -93,7 +93,10 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 	// 상대 전용 변형은 사용자/대상 앵커를 바꿔 그린다 (PokéRogue isOppAnim 과 동일)
 	const swap = ctx.userIsFoe && anim.length > 1;
 	const U = swap ? ctx.targetPt : ctx.userPt, T = swap ? ctx.userPt : ctx.targetPt;
-	const uEl = swap ? ctx.targetEl : ctx.userEl, tEl = swap ? ctx.userEl : ctx.targetEl;
+	const uEl = swap ? ctx.targetEl : ctx.userEl;
+	// 자신에게 쓰는 기술: 사용자 = 대상 (같은 그림을 한 번만 움직임)
+	const tEl0 = swap ? ctx.userEl : ctx.targetEl;
+	const tEl = tEl0 === uEl ? null : tEl0;
 	const reversed = !swap && ctx.userIsFoe; // 오른쪽→왼쪽으로 재생되는 경우 그림 좌우 반전
 	const k = ctx.k;
 	const sheet = variant.g ? images[variant.g] : null;
@@ -144,8 +147,8 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 			for (const c of frame) {
 				const [t, x, y, zx, zy, gf, op, pr, fo, bt, mi, an, vis] = c;
 				if (t === 0 || t === 1) {
-					const el = t === 0 ? uEl : tEl;
-					const anchor = t === 0 ? U : T;
+					const el = t === 0 ? uEl : (tEl || uEl);
+					const anchor = t === 0 || !tEl ? U : T;
 					if (!el) continue;
 					const p = pos(x, y, fo);
 					const dx = p.x - anchor.x, dy = p.y - anchor.y;
@@ -153,7 +156,7 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 					el.style.visibility = vis ? '' : 'hidden';
 					el.style.opacity = String(op / 255);
 					if (zx !== 100 || zy !== 100 || an) el.style.scale = `${zx / 100} ${zy / 100}`;
-					if (t === 0) userMoved = true; else targetMoved = true;
+					if (t === 0 || !tEl) userMoved = true; else targetMoved = true;
 					continue;
 				}
 				if (!sheet || !vis) continue;

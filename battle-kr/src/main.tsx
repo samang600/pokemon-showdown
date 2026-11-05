@@ -1,10 +1,10 @@
 import './ps/registry';
 import { h, render, type VNode } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { bindView, Screen, Sprite, toast } from './ui/core';
+import { bindView, Screen, Sprite, toast, QuitToMenu, resetAbort } from './ui/core';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
-import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
+import { runTower, runFactory, runPWT, runNamed, runFree, runCheat } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings, type GimmickRule } from './store';
 import { CUPS, NAMED } from './trainers';
 import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume, BGM_CHOICES } from './sound';
@@ -14,8 +14,9 @@ const MODES = [
 	{ id: 'tower', name: '배틀타워', sub: '연승 도전', run: runTower, color: '#3a6df0', icon: '🗼', mon: 'garchomp' },
 	{ id: 'factory', name: '배틀팩토리', sub: '렌탈 배틀', run: runFactory, color: '#e0812b', icon: '🏭', mon: 'metagross' },
 	{ id: 'pwt', name: 'PWT', sub: '월드 토너먼트', run: runPWT, color: '#d23a6a', icon: '🏆', mon: 'hydreigon' },
-	{ id: 'named', name: '네임드 트레이너', sub: '관장 · 사천왕 · 챔피언', run: runNamed, color: '#7a4ad8', icon: '⭐', mon: 'dragonite' },
-	{ id: 'free', name: '프리 배틀', sub: '싱글 · 더블 바로 대전', run: runFree, color: '#2a9d6a', icon: '⚔', mon: 'lucario' },
+	{ id: 'named', name: '네임드 트레이너', sub: '관장 · 챔피언 · 라이벌 · 악당', run: runNamed, color: '#7a4ad8', icon: '⭐', mon: 'dragonite' },
+	{ id: 'free', name: '프리 배틀', sub: '싱글 · 더블 바로 대전', run: () => runFree(), color: '#2a9d6a', icon: '⚔', mon: 'lucario' },
+	{ id: 'cheat', name: '치트 배틀', sub: '마음대로 · 전적 없음', run: runCheat, color: '#b0308a', icon: '🃏', mon: 'mew' },
 ];
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
@@ -57,7 +58,7 @@ function Home({ go }: { go: (v: string) => void }) {
 		</div>
 		{suspended && <div class="notice">쉬는 중인 도전이 있어요. 해당 시설에 들어가면 이어서 할 수 있습니다.</div>}
 		<div class="mode-grid">
-			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 || i === 4 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
+			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
 				<span class="mode-icon">{m.icon}</span>
 				<span class="mode-text"><b>{m.name}</b><small>{m.sub}</small>{badge[m.id] && <em>{badge[m.id]}</em>}</span>
 				<span class="mode-mon"><Sprite species={m.mon} gen={9} size={64} anim={false} /></span>
@@ -162,7 +163,9 @@ function App() {
 		if (r.startsWith('mode:')) {
 			const m = MODES.find(x => x.id === r.slice(5))!;
 			setRoute('mode');
-			try { await m.run(); } catch (e: any) { console.error(e); toast('오류: ' + (e?.message || e)); }
+			resetAbort();
+			try { await m.run(); } catch (e: any) { if (!(e instanceof QuitToMenu)) { console.error(e); toast('오류: ' + (e?.message || e)); } }
+			resetAbort();
 			setModeView(null);
 			setRoute('home');
 			playMusic('title');
@@ -177,10 +180,10 @@ function App() {
 			const backBtn = document.querySelector('.bar .icon-btn[aria-label="뒤로"]') as HTMLButtonElement | null;
 			if (document.querySelector('.modal-bg')) { (document.querySelector('.modal-bg') as HTMLElement).click(); return true; }
 			if (backBtn) { backBtn.click(); return true; }
-			const ctlBack = document.querySelector('.ctl-head .btn') as HTMLButtonElement | null; // 배틀 명령창의 ‹ 뒤로
+			const ctlBack = document.querySelector('.ctl-head .ctl-back') as HTMLButtonElement | null; // 배틀 명령창의 ◀ 뒤로
 			if (ctlBack) { ctlBack.click(); return true; }
-			const forfeit = document.querySelector('.cmd-grid .cmd:last-child') as HTMLButtonElement | null;
-			if (forfeit) { forfeit.click(); return true; } // 기권 확인 창
+			const menu = document.querySelector('.hud-top .menu-btn') as HTMLButtonElement | null;
+			if (menu) { menu.click(); return true; } // 배틀 메뉴 (메인 메뉴로·기권)
 			if (document.querySelector('.battle')) return true; // 연출 중엔 무시
 			if (route !== 'home' && route !== 'title') { setRoute('home'); return true; }
 			if (route === 'home') { setRoute('title'); return true; }

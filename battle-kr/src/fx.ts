@@ -29,8 +29,14 @@ function px(layer: HTMLElement, x: number, y: number, w: number, h: number, colo
 	layer.appendChild(el);
 	return el;
 }
+/** 배속 (배틀 화면의 배속 버튼) — 모든 연출 시간을 이 값으로 나눔 */
+let SPEED = 1;
+export function setFxSpeed(v: number) { SPEED = Math.max(0.5, Math.min(4, v)); }
+export function fxSpeed() { return SPEED; }
+const later = (fn: () => void, ms: number) => setTimeout(fn, ms / SPEED);
 function anim(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOptions) {
 	const a = el.animate(frames, { easing: 'steps(6)', fill: 'forwards', ...opts });
+	a.playbackRate = SPEED;
 	a.onfinish = () => el.remove();
 	return a;
 }
@@ -83,7 +89,7 @@ export function beam(layer: HTMLElement, from: Pt, to: Pt, type: string, s: numb
 			{ transform: `rotate(${ang}rad) scaleX(1)`, opacity: 1, offset: 0.8 }, { transform: `rotate(${ang}rad) scaleX(1)`, opacity: 0 }], { duration: dur, delay, easing: 'steps(8)' });
 	};
 	mk(14 * s, c, 0); mk(7 * s, l, 40); mk(3 * s, '#fff', 80);
-	setTimeout(() => burst(layer, to, type, s, true), dur * 0.3);
+	later(() => burst(layer, to, type, s, true), dur * 0.3);
 	return dur;
 }
 
@@ -100,7 +106,7 @@ export function bolt(layer: HTMLElement, to: Pt, type: string, s: number, count 
 			anim(el, [{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: 260, delay: k * 130 + i * 12, easing: 'steps(3)' });
 			x = nx; y = ny;
 		}
-		setTimeout(() => { flash(layer, l, 90); burst(layer, to, type, s); }, k * 130 + 90);
+		later(() => { flash(layer, l, 90); burst(layer, to, type, s); }, k * 130 + 90);
 	}
 }
 
@@ -115,7 +121,7 @@ export function projectile(layer: HTMLElement, from: Pt, to: Pt, type: string, s
 		anim(el, [{ transform: 'translate(0,0)', opacity: 0.9 }, { transform: `translate(${(to.x - from.x) * 0.5 + j()}px,${(to.y - from.y) * 0.5 - 20 * s}px)`, opacity: 1 },
 			{ transform: `translate(${to.x - from.x}px,${to.y - from.y}px)`, opacity: 0.8 }], { duration: dur, delay: i * 35, easing: 'steps(8)' });
 	}
-	setTimeout(() => burst(layer, to, type, s, big), dur + count * 35 - 60);
+	later(() => burst(layer, to, type, s, big), dur + count * 35 - 60);
 	return dur + count * 35;
 }
 
@@ -130,7 +136,7 @@ export function stream(layer: HTMLElement, from: Pt, to: Pt, type: string, s: nu
 		anim(el, [{ transform: 'translate(0,0) scale(.5)', opacity: 1 }, { transform: `translate(${to.x - from.x + sp}px,${to.y - from.y + sp}px) scale(1.4)`, opacity: 0.2 }],
 			{ duration: 320, delay: i * (dur / n), easing: 'steps(6)' });
 	}
-	setTimeout(() => burst(layer, to, type, s, true), dur * 0.45);
+	later(() => burst(layer, to, type, s, true), dur * 0.45);
 	return dur;
 }
 
@@ -153,7 +159,7 @@ export function wave(layer: HTMLElement, to: Pt, type: string, s: number, fromLe
 		const el = px(layer, fromLeft ? -20 : w + 20, to.y + rnd(-30, 20) * s, rnd(16, 40) * s, rnd(5, 9) * s, i % 2 ? c : l, type === 'Water' ? 'border-radius:50%' : '');
 		anim(el, [{ transform: 'translateX(0)', opacity: 0.9 }, { transform: `translateX(${(fromLeft ? 1 : -1) * (w + 60)}px)`, opacity: 0.6 }], { duration: 700, delay: i * 30, easing: 'steps(10)' });
 	}
-	setTimeout(() => burst(layer, to, type, s, true), 350);
+	later(() => burst(layer, to, type, s, true), 350);
 }
 
 /** 하늘에서 떨어짐 (운석·낙석·유성) */
@@ -164,7 +170,7 @@ export function rain(layer: HTMLElement, to: Pt, type: string, s: number, count 
 		const tx = to.x + rnd(-40, 40) * s;
 		const el = px(layer, tx + 60 * s, -20, sz, sz, i % 2 ? c : d, type === 'Rock' || type === 'Ground' ? '' : 'border-radius:50%');
 		anim(el, [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${-60 * s}px,${to.y + 20 + rnd(-10, 10) * s}px)`, opacity: 1 }], { duration: 300, delay: i * 70, easing: 'steps(5)' });
-		setTimeout(() => burst(layer, { x: tx, y: to.y }, type, s), i * 70 + 280);
+		later(() => burst(layer, { x: tx, y: to.y }, type, s), i * 70 + 280);
 	}
 }
 
@@ -235,7 +241,7 @@ export function bite(layer: HTMLElement, at: Pt, type: string, s: number) {
 			anim(el, [{ transform: 'translateY(0)', opacity: 0 }, { transform: `translateY(${-dir * 18 * s}px)`, opacity: 1, offset: 0.5 }, { transform: `translateY(${-dir * 18 * s}px)`, opacity: 0 }], { duration: 400, easing: 'steps(4)' });
 		}
 	}
-	setTimeout(() => burst(layer, at, type, s), 180);
+	later(() => burst(layer, at, type, s), 180);
 }
 
 export function crescent(layer: HTMLElement, from: Pt, to: Pt, type: string, s: number, count = 2) {
@@ -243,7 +249,7 @@ export function crescent(layer: HTMLElement, from: Pt, to: Pt, type: string, s: 
 	for (let i = 0; i < count; i++) {
 		const el = px(layer, from.x, from.y, 30 * s, 30 * s, 'transparent', `border:${4 * s}px solid ${i % 2 ? l : c};border-color:${l} transparent transparent transparent;border-radius:50%`);
 		anim(el, [{ transform: 'translate(0,0) rotate(0deg)', opacity: 1 }, { transform: `translate(${to.x - from.x}px,${to.y - from.y}px) rotate(540deg)`, opacity: 0.9 }], { duration: 380, delay: i * 120, easing: 'steps(8)' });
-		setTimeout(() => slash(layer, to, type, s, 2, 20 + i * 40), i * 120 + 340);
+		later(() => slash(layer, to, type, s, 2, 20 + i * 40), i * 120 + 340);
 	}
 }
 
@@ -254,7 +260,7 @@ export function throwRocks(layer: HTMLElement, from: Pt, to: Pt, type: string, s
 		const el = px(layer, from.x, from.y - 20 * s, sz, sz, i % 2 ? c : d, round ? 'border-radius:50%' : `clip-path:polygon(50% 0,100% 40%,80% 100%,20% 100%,0 40%)`);
 		anim(el, [{ transform: 'translate(0,0) rotate(0)', opacity: 1 }, { transform: `translate(${(to.x - from.x) / 2}px,${(to.y - from.y) / 2 - 40 * s}px) rotate(180deg)`, opacity: 1 },
 			{ transform: `translate(${to.x - from.x + rnd(-10, 10) * s}px,${to.y - from.y}px) rotate(360deg)`, opacity: 1 }], { duration: 420, delay: i * 90, easing: 'steps(8)' });
-		setTimeout(() => burst(layer, to, type, s), i * 90 + 400);
+		later(() => burst(layer, to, type, s), i * 90 + 400);
 	}
 }
 
@@ -269,7 +275,7 @@ export function sparkle(layer: HTMLElement, at: Pt, type: string, s: number, dow
 export function shake(el: HTMLElement, strong = false, dur = 0) {
 	const d = strong ? 6 : 3;
 	el.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${d}px,${-d}px)` }, { transform: `translate(${-d}px,${d}px)` }, { transform: `translate(${d}px,0)` }, { transform: 'translate(0,0)' }],
-		{ duration: dur || (strong ? 320 : 220), easing: 'steps(4)', iterations: dur ? 2 : 1 });
+		{ duration: (dur || (strong ? 320 : 220)) / SPEED, easing: 'steps(4)', iterations: dur ? 2 : 1 });
 }
 export function flash(layer: HTMLElement, color = '#fff', dur = 180) {
 	const el = document.createElement('div');
@@ -295,7 +301,7 @@ export function ballOut(layer: HTMLElement, from: Pt, to: Pt, s: number): number
 	const dur = 420;
 	anim(ball, [{ transform: 'translate(0,0) rotate(0)' }, { transform: `translate(${(to.x - from.x) / 2}px,${(to.y - from.y) / 2 - 50 * s}px) rotate(360deg)` },
 		{ transform: `translate(${to.x - from.x}px,${to.y - from.y}px) rotate(720deg)` }], { duration: dur, easing: 'steps(10)' });
-	setTimeout(() => {
+	later(() => {
 		flash(layer, '#fff', 140);
 		const glow = px(layer, to.x, to.y, 8 * s, 8 * s, '#fff', 'border-radius:50%;box-shadow:0 0 12px 6px #fff');
 		anim(glow, [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(6)', opacity: 0 }], { duration: 380, easing: 'steps(6)' });
@@ -356,7 +362,7 @@ export function playMove(layer: HTMLElement, arena: HTMLElement, m: MoveFxInfo, 
 		const d = beam(layer, from, to, t, s, strong ? 750 : 600); return d * 0.3;
 	}
 	if (RX(/thunder|bolt|volt|zap|discharge|electro|shock|spark|wildcharge|plasma|risingvoltage|boltbeak|fusionbolt|thunderous|thunderbolt|thunderclap|supercellslam/, id) && t === 'Electric') {
-		if (RX(/wildcharge|volttackle|boltbeak|spark|thunderpunch|thunderfang|supercellslam|zingzap|plasmafists|thunderouskick/, id)) { punch(layer, to, t, s); setTimeout(() => bolt(layer, to, t, s, 1), 60); return 120; }
+		if (RX(/wildcharge|volttackle|boltbeak|spark|thunderpunch|thunderfang|supercellslam|zingzap|plasmafists|thunderouskick/, id)) { punch(layer, to, t, s); later(() => bolt(layer, to, t, s, 1), 60); return 120; }
 		each(p => bolt(layer, p, t, s, strong ? 3 : 2)); return 110;
 	}
 	if (RX(/flamethrower|fireblast|heatwave|overheat|flamecharge|inferno|lavaplume|fierydance|magmastorm|burnup|searingshot|ember|blazekick|incinerate|mysticalfire|scald|steameruption|hydropump|surf|muddywater|waterpulse|watergun|bubble|sludge|acid|gunkshot|venoshock|dragonbreath|dragonpulse|icywind|blizzard|frostbreath|powdersnow|glaciate|dragonenergy|breakingswipe|snarl|darkpulse|hex|shadowball|nightshade|psyshock|psychic$|extrasensory|futuresight|storedpower|expandingforce|energyball|gigadrain|leafstorm|petalblizzard|bugbuzz|airslash|hurricane|gust|aircutter|razorwind|ominouswind|silverwind|fairywind|dazzlinggleam|drainingkiss|sparklingaria|oceanicoperetta|hyperspacefury|spacialrend|roaroftime|originpulse|precipiceblades|clangingscales|coreenforcer|overdrive|torchsong|bittermalice|infernalparade|makeitrain|ragingbull|armorcannon|bleakwindstorm|wildboltstorm|sandsearstorm|springtidestorm|psyblade|lumina|ivycudgel|electroshot|matchagotcha|syrupbomb|tachyoncutter/, id) && category === 'Special' || (category === 'Special' && RX(/flame|fire|heat|burn|water|hydro|aqua|ice|frost|freeze|snow|sludge|acid|poison|dragon|psy|shadow|dark|leaf|energy|air|wind|storm|fairy|gleam/, id))) {

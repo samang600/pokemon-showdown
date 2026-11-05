@@ -533,6 +533,41 @@ function shouldSwitch(battle: Battle, user: Pokemon, side: any, opts: Option[], 
 	// 9. 공격 능력이 크게 떨어짐
 	const main = user.getStat('atk', true, true) >= user.getStat('spa', true, true) ? 'atk' : 'spa';
 	if ((user.boosts[main] || 0) <= -3 && hpFrac > 0.3) return cand.i;
+
+	// ── 능동적인 교체 (실전 플레이어처럼) ──
+	// 방금 나온 포켓몬은 다시 바로 바꾸지 않음 (서로 계속 바꾸기만 하는 것 방지)
+	if ((user.activeTurns || 0) < 1) return null;
+	const myKO = foes.some(f => canKO(battle, user, f) && outspeeds(battle, user, f));
+	// 10. 구애 계열로 묶였는데 그 기술이 상대에게 안 듣거나 별로임
+	// 더블은 교체 한 번의 손해가 커서 능동 교체를 하지 않음 (자체 대전: 더블에서는 오히려 승률이 떨어짐)
+	if (battle.gameType === 'doubles') return null;
+	const locked = user.volatiles['choicelock']?.move;
+	if (locked && foes.every(f => estimateDamage(battle, user, f, locked) < 0.25) && cand.score > cur) return cand.i;
+	// 11. 재생력: 체력이 줄었고 지금 할 일이 별로 없으면 빠져서 회복
+	if (user.getAbility().id === 'regenerator' && hpFrac < 0.55 && hpFrac > 0.15 && bestOpt < 110 && cand.score > cur - 0.2 && Math.random() < 0.6) return cand.i;
+	// 더블에서는 교체 한 번의 손해가 커서 아래 능동 교체는 싱글에서만 (자체 대전 결과 반영)
+	if (battle.gameType === 'doubles') return null;
+	// 12. 상대 예상 기술을 무효·반감으로 받아낼 동료가 있으면 그쪽으로 (받아내고 반격)
+	for (const f of foes) {
+		const pred = predictedMove(battle, f, user);
+		if (!pred.move || pred.damage < 0.45 || myKO) continue;
+		let best: { i: number; v: number } | null = null;
+		side.pokemon.forEach((p: Pokemon, i: number) => {
+			if (i < side.active.length || p.fainted || exclude.has(i)) return;
+			const taken = estimateDamage(battle, f, p, pred.move);
+			const back = bestDamage(battle, p, f);
+			if (taken <= 0.2 && back >= 0.3) {
+				const v = back - taken + (taken === 0 ? 0.5 : 0);
+				if (!best || v > best.v) best = { i, v };
+			}
+		});
+		if (best && Math.random() < 0.75) return (best as { i: number }).i;
+	}
+	// 13. 상대가 능력을 크게 올렸는데 나는 못 쓰러뜨림 → 더 잘 맞서는 동료로
+	for (const f of foes) {
+		const boosts = Object.values(f.boosts as any).reduce((a: number, b: any) => a + Math.max(0, b), 0) as number;
+		if (boosts >= 2 && !canKO(battle, user, f) && cand.score > cur + 0.5 && Math.random() < 0.7) return cand.i;
+	}
 	return null;
 }
 

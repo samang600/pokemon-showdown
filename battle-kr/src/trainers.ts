@@ -1,13 +1,14 @@
 /** 네임드 트레이너 · 일반 트레이너 · PWT 대회 데이터 */
 import { rng } from './sets';
 import { CLASS_SPRITES, NAMED_SPRITE, NAMED_LINES, genericLines } from './trainer-lines';
+import { NAMED_LORE, EXTRA_NAMED } from './trainer-lore';
 
 export interface NamedTrainer {
 	id: string;
 	name: string;
 	title: string; // 예: '회색체육관 관장'
 	region: '관동' | '성도' | '호연' | '신오' | '하나' | '칼로스' | '알로라' | '가라르' | '팔데아';
-	role: 'leader' | 'elite' | 'champion';
+	role: 'leader' | 'elite' | 'champion' | 'hero' | 'rival' | 'admin' | 'boss';
 	team: string[]; // 종족 ID 6마리 (앞쪽이 에이스 순서 아님)
 	ace: string; // 마지막에 나오는 에이스
 	line?: string; // 승부 시작 대사
@@ -16,7 +17,7 @@ export interface NamedTrainer {
 const T = (id: string, name: string, title: string, region: NamedTrainer['region'], role: NamedTrainer['role'],
 	team: string[], line?: string): NamedTrainer => ({ id, name, title, region, role, team, ace: team[team.length - 1], line });
 
-export const NAMED: NamedTrainer[] = [
+const BASE_NAMED: NamedTrainer[] = [
 	// ── 관동 ──
 	T('brock', '웅', '관동 체육관 관장 · 바위', '관동', 'leader', ['kabutops', 'omastar', 'aerodactyl', 'golem', 'rhyperior', 'steelix'], '단단한 의지의 바위 포켓몬을 보여주지!'),
 	T('misty', '이슬', '관동 체육관 관장 · 물', '관동', 'leader', ['golduck', 'quagsire', 'lapras', 'politoed', 'gyarados', 'starmie'], '내 물 포켓몬의 실력, 얕보지 마!'),
@@ -145,8 +146,17 @@ export const NAMED: NamedTrainer[] = [
 	T('kieran', '카지', '블루베리 전 챔피언', '팔데아', 'champion', ['dipplin', 'ursalunabloodmoon', 'incineroar', 'dragonite', 'porygonz', 'hydrapple'], '…이번엔 절대 안 져.'),
 ];
 
+/** 관장·사천왕·챔피언 + 주인공·라이벌·악의 조직 (대사는 trainer-lore.ts 의 로어 대사 우선) */
+export const NAMED: NamedTrainer[] = [
+	...BASE_NAMED.map(t => ({ ...t, line: NAMED_LORE[t.id]?.line || t.line })),
+	...EXTRA_NAMED.map(e => ({ id: e.id, name: e.name, title: e.title, region: e.region as NamedTrainer['region'], role: e.role,
+		team: e.team, ace: e.team[e.team.length - 1], line: e.line })),
+];
+const EXTRA_SPRITE: { [id: string]: string } = Object.fromEntries(EXTRA_NAMED.map(e => [e.id, e.sprite]));
+/** 배틀 메시지에 붙는 호칭 (관장·사천왕·챔피언, 그 밖은 '로켓단 보스' 같은 직함) */
+export function namedTitle(t: NamedTrainer) { return ['leader', 'elite', 'champion'].includes(t.role) ? ROLE_KO[t.role] : t.title; }
 export const REGIONS: NamedTrainer['region'][] = ['관동', '성도', '호연', '신오', '하나', '칼로스', '알로라', '가라르', '팔데아'];
-export const ROLE_KO = { leader: '체육관 관장', elite: '사천왕', champion: '챔피언' };
+export const ROLE_KO: { [role: string]: string } = { leader: '체육관 관장', elite: '사천왕', champion: '챔피언', hero: '주인공', rival: '라이벌', admin: '간부', boss: '보스' };
 
 // ── 일반 트레이너 ──
 export interface TrainerClass { name: string; types?: string[] }
@@ -176,8 +186,10 @@ export function randomTrainer() {
 	return { className: c.name, name: rng.pick(female ? NAMES_F : NAMES_M), female, types: c.types, sprite, lines: genericLines() };
 }
 
-export function namedSprite(t: NamedTrainer) { return NAMED_SPRITE[t.id] || t.id; }
+export function namedSprite(t: NamedTrainer) { return EXTRA_SPRITE[t.id] || NAMED_SPRITE[t.id] || t.id; }
 export function namedLines(t: NamedTrainer) {
+	const l = NAMED_LORE[t.id] || EXTRA_NAMED.find(e => e.id === t.id);
+	if (l) return { intro: l.line || t.line || '', ace: l.ace, lose: l.lose, win: l.win };
 	return { intro: t.line || '', ...(NAMED_LINES[t.id] || genericLines()) };
 }
 

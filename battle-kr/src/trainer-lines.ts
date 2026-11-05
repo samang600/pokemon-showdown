@@ -6,7 +6,7 @@
 export interface Lines { ace: string; lose: string; win: string }
 
 export const NAMED_SPRITE: { [id: string]: string } = {
-	kukui: 'kukui', hau: 'hau', kieran: 'kieran',
+	kukui: 'kukui', hau: 'hau', kieran: 'kieran', cheren: 'cheren-gen5bw2',
 	lorelei: 'lorelei-gen3', agatha: 'agatha-gen3', tateliza: 'tateandliza-gen3', phoebe: 'phoebe-gen3', drake: 'drake-gen3',
 };
 
@@ -156,6 +156,13 @@ export function genericLines() {
 
 /** 트레이너 그림: 앱 안에 들어 있음 (scripts/fetch-sprites.sh) */
 export const SPRITE_URL = (id: string) => `sprites/trainers/${id}.png`;
+/** 앱 안에 그림이 없으면 서버에서, 그래도 없으면 숨김 */
+export function trainerImgError(e: Event) {
+	const img = e.target as HTMLImageElement;
+	const m = /sprites\/trainers\/([^/]+\.png)$/.exec(img.getAttribute('src') || '');
+	if (m && !img.src.startsWith('https:')) img.src = `https://play.pokemonshowdown.com/sprites/trainers/${m[1]}`;
+	else img.style.display = 'none';
+}
 export const PLAYER_SPRITES = [
 	{ id: 'lucas', name: '소년 A' }, { id: 'dawn', name: '소녀 A' }, { id: 'hilbert', name: '소년 B' }, { id: 'hilda', name: '소녀 B' },
 ];

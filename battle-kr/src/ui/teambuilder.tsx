@@ -4,7 +4,7 @@ import { useMemo, useState } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
 	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, type Gen, type StatID } from '../data';
 import { typeEff } from './calc';
-import { randomSetFor, applySpread, randomTeam, normalizeSP, spOf, spToEv, SP_MAX, SP_TOTAL, type PSet } from '../sets';
+import { randomSetFor, applySpread, randomTeam, normalizeSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, type PSet } from '../sets';
 import { loadTeams, upsertTeam, deleteTeam, newId, load, save, type SavedTeam } from '../store';
 import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast, confirmBox, ItemIcon, CatIcon } from './core';
 import { SetCard } from './screens';
@@ -37,8 +37,9 @@ export function newSet(species: string, gen: Gen): PSet {
 /** 팀 목록 */
 export function TeamList({ onBack, onEdit }: { onBack: () => void; onEdit: (t: SavedTeam) => void }) {
 	const [teams, setTeams] = useState(loadTeams());
-	const create = (gen: Gen, random: boolean) => {
-		const t: SavedTeam = { id: newId(), name: `팀 ${teams.length + 1}`, gen, sets: random ? randomTeam({ gen, size: 6, minBst: 470 }) : [], updated: Date.now() };
+	const create = (gen: Gen, random: boolean, cheat = false) => {
+		const t: SavedTeam = { id: newId(), name: cheat ? `치트 팀 ${teams.filter(x => x.cheat).length + 1}` : `팀 ${teams.length + 1}`, gen,
+			sets: random ? randomTeam({ gen, size: 6, minBst: 470 }) : [], updated: Date.now(), ...(cheat ? { cheat: true } : {}) };
 		upsertTeam(t);
 		onEdit(t);
 	};
@@ -46,12 +47,14 @@ export function TeamList({ onBack, onEdit }: { onBack: () => void; onEdit: (t: S
 		<div class="row wrap">
 			<button class="btn primary" onClick={() => create(9, false)}>+ 새 팀</button>
 			<button class="btn ghost" onClick={() => create(9, true)}>🎲 추천 팀 받기</button>
+			<button class="btn ghost" onClick={() => create(9, false, true)}>🃏 치트 팀</button>
 		</div>
+		<p class="muted small">치트 팀: 아무 기술·특성이나 넣고 능력 포인트 제한(합계 66) 없이 만들 수 있어요. 치트 배틀에서만 쓰이고 전적에 남지 않습니다.</p>
 		<ImportBox onImported={() => setTeams(loadTeams())} />
 		{!teams.length && <p class="empty-msg">아직 팀이 없습니다. 새 팀을 만들거나 추천팀을 받아 보세요.</p>}
 		<div class="card-list">
 			{teams.map(t => <div class="team-row clickable" onClick={() => onEdit(t)}>
-				<div class="team-row-head"><b>{t.name}</b><span class="muted">{t.sets.length}/6</span>
+				<div class="team-row-head"><b>{t.name}</b>{t.cheat && <span class="cheat-tag">치트</span>}<span class="muted">{t.sets.length}/6</span>
 					<button class="btn small" onClick={e => { e.stopPropagation(); upsertTeam({ ...JSON.parse(JSON.stringify(t)), id: newId(), name: t.name + ' 복사본' }); setTeams(loadTeams()); toast('팀을 복제했습니다'); }}>복제</button></div>
 				<div class="preview-row">{t.sets.map(s => <MiniSprite species={s.species} gen={t.gen} size={40} shiny={s.shiny} />)}</div>
 			</div>)}
@@ -155,7 +158,7 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 			onPick={sid => { const t = { ...team, sets: [...team.sets, newSet(sid, g)] }; commit(t); setAdding(false); setEditing(t.sets.length - 1); }} />;
 	}
 	if (editing !== null && team.sets[editing]) {
-		return <SetEditor set={team.sets[editing]} gen={g} onBack={() => setEditing(null)}
+		return <SetEditor set={team.sets[editing]} gen={g} cheat={!!team.cheat} onBack={() => setEditing(null)}
 			onChange={s => { const sets = team.sets.slice(); sets[editing] = s; commit({ ...team, sets }); }}
 			onDelete={() => { commit({ ...team, sets: team.sets.filter((_, i) => i !== editing) }); setEditing(null); }} />;
 	}
@@ -165,8 +168,8 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 		<label class="field-label">팀 이름
 			<input value={team.name} onInput={e => commit({ ...team, name: (e.target as HTMLInputElement).value })} />
 		</label>
-		<p class="muted">내셔널 도감 · 레벨 50 · 같은 포켓몬은 1마리씩 · 메가스톤·Z크리스탈 사용 가능</p>
-		<TeamWarnings sets={team.sets} />
+		{team.cheat ? <p class="cheat-note">🃏 치트 팀 — 기술·특성 제한 없음, 능력 포인트 능력마다 최대 32(합계 제한 없음), 레벨 자유. 치트 배틀 전용이며 전적에 남지 않습니다.</p>
+			: <><p class="muted">내셔널 도감 · 레벨 50 · 같은 포켓몬은 1마리씩 · 메가스톤·Z크리스탈 사용 가능</p><TeamWarnings sets={team.sets} /></>}
 		<div class="card-list">
 			{team.sets.map((s, i) => <SetCard set={s} gen={g} onClick={() => setEditing(i)}>
 				<div class="reorder" onClick={e => e.stopPropagation()}>
@@ -232,13 +235,13 @@ function statValue(base: number, ev: number, iv: number, level: number, nat: num
 	return Math.floor((Math.floor((2 * base + iv + Math.floor(ev / 4)) * level / 100) + 5) * nat);
 }
 
-export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void }) {
-	const [s, setS] = useState<PSet>(() => normalizeSP(JSON.parse(JSON.stringify(set))));
-	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' }>(null);
+export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void; cheat?: boolean }) {
+	const [s, setS] = useState<PSet>(() => (cheat ? cheatSP : normalizeSP)(JSON.parse(JSON.stringify(set))));
+	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' } | { kind: 'ability' }>(null);
 	const up = (patch: Partial<PSet>) => { const n = { ...s, ...patch }; setS(n); onChange(n); };
 	const sd = speciesData(toID(s.species), gen)!;
 	const nat = RAW.natures[s.nature];
-	const sp = spOf(s);
+	const sp = cheat ? Object.fromEntries(STATS.map(k => [k, evToSp(s.evs[k] || 0)])) as { [k in StatID]: number } : spOf(s);
 	const spTotal = STATS.reduce((a, k) => a + sp[k], 0);
 	const setSp = (n: { [k in StatID]: number }) => {
 		const evs = { ...s.evs };
@@ -247,8 +250,11 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 	};
 
 	if (picker?.kind === 'move') {
-		return <MovePicker gen={gen} species={toID(s.species)} current={s.moves} onBack={() => setPicker(null)}
+		return <MovePicker gen={gen} species={toID(s.species)} current={s.moves} all={cheat} onBack={() => setPicker(null)}
 			onPick={mid => { const moves = s.moves.slice(); if (picker.idx < moves.length) moves[picker.idx] = mid; else moves.push(mid); up({ moves: moves.filter(Boolean) }); setPicker(null); }} />;
+	}
+	if (picker?.kind === 'ability') {
+		return <AbilityPicker onBack={() => setPicker(null)} onPick={a => { up({ ability: a }); setPicker(null); }} />;
 	}
 	if (picker?.kind === 'item') {
 		return <ItemPicker gen={gen} onBack={() => setPicker(null)} onPick={id => { up({ item: id }); setPicker(null); }} />;
@@ -272,6 +278,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 		</div>
 		<h3 class="sec">특성</h3>
 		<div class="seg wrap">{sd.ab.map(a => <button class={s.ability === a ? 'on' : ''} onClick={() => up({ ability: a })}>{abilityKo(a)}</button>)}</div>
+		{cheat && <button class="option" onClick={() => setPicker({ kind: 'ability' })}><span class="opt-body"><b>🃏 다른 특성 고르기</b><small>지금: {abilityKo(s.ability)}</small></span></button>}
 		<p class="muted small">{abilityDesc(s.ability)}</p>
 		<h3 class="sec">도구</h3>
 		<button class="option" onClick={() => setPicker({ kind: 'item' })}><ItemIcon item={s.item} /><span class="opt-body"><b>{s.item ? itemKo(s.item) : '없음'}</b><small>{itemDesc(s.item)}</small></span></button>
@@ -291,7 +298,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 			<small>{nat?.p ? `${STAT_KO[nat.p]} ▲ / ${STAT_KO[nat.m]} ▼` : '능력 변화 없음'}</small></span></button>
 		<h3 class="sec">테라스탈 타입</h3>
 		<div class="tera-pick">{ALL_TYPES.map(t => <button class={(s.teraType || sd.t[0]) === t ? 'on' : ''} onClick={() => up({ teraType: t })}><TypeBadge type={t} small /></button>)}</div>
-		<h3 class="sec">능력 포인트 <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{spTotal}/{SP_TOTAL}</small>
+		<h3 class="sec">능력 포인트 <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{cheat ? `${spTotal} (제한 없음)` : `${spTotal}/${SP_TOTAL}`}</small>
 			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: normalizeSP({ ...s, evs: n.evs, ivs: { ...s.ivs } }).evs, nature: n.nature }); }}>자동 배분</button></h3>
 		<p class="muted small">포켓몬 챔피언스 방식: 능력마다 0~32포인트, 합계 66포인트. 개체값은 없고(모두 최대), 레벨 50에서 1포인트 = 능력치 +1.</p>
 		<div class="chips-row">{SP_PRESETS.map(([label, sp]) => <button class="chipbtn" onClick={() => setSp({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...sp })}>{label}</button>)}
@@ -301,7 +308,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 				const natMul = nat?.p === k ? 1.1 : nat?.m === k ? 0.9 : 1;
 				const val = statValue(sd.bs[i], s.evs[k], 31, s.level, natMul, k === 'hp');
 				const change = (v: number) => {
-					v = Math.max(0, Math.min(SP_MAX, v, SP_TOTAL - (spTotal - sp[k])));
+					v = Math.max(0, Math.min(SP_MAX, v, cheat ? SP_MAX : SP_TOTAL - (spTotal - sp[k])));
 					setSp({ ...sp, [k]: v });
 				};
 				return <div class="ev-row">
@@ -315,20 +322,23 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack }: { set: PSet;
 				</div>;
 			})}
 		</div>
-		<p class="muted small">레벨 {s.level} (모드에 따라 50/100으로 맞춰짐)</p>
+		{cheat ? <div class="set-row"><span>레벨 {s.level}</span><input type="range" min={1} max={100} value={s.level} onInput={e => up({ level: parseInt((e.target as HTMLInputElement).value, 10) })} /></div>
+			: <p class="muted small">레벨 {s.level} (모드에 따라 50/100으로 맞춰짐)</p>}
 	</Screen>;
 }
 
 type MoveSort = 'name' | 'power' | 'type' | 'acc' | 'pp';
 const ko = (a: string, b: string) => a.localeCompare(b, 'ko');
-function MovePicker({ gen, species, current, onPick, onBack }: { gen: Gen; species: string; current: string[]; onPick: (id: string) => void; onBack: () => void }) {
+/** 검색어와 가까운 이름을 먼저 (완전히 같음 → 앞부분이 같음 → 포함 → 나머지) */
+const qRank = (q: string, n: string) => { q = q.trim().replace(/\s/g, ''); n = n.replace(/\s/g, ''); return !q ? 0 : n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 3; };
+function MovePicker({ gen, species, current, onPick, onBack, all }: { gen: Gen; species: string; current: string[]; onPick: (id: string) => void; onBack: () => void; all?: boolean }) {
 	const [q, setQ] = useState('');
 	const [sort, setSort] = useState<MoveSort>(() => (load<MoveSort>('moveSort', 'name')));
 	const [cat, setCat] = useState<'' | 'Physical' | 'Special' | 'Status'>('');
 	const [type, setType] = useState('');
-	const moves = useMemo(() => learnset(species, gen).map(id => moveData(id, gen)!).filter(Boolean), [species, gen]);
+	const moves = useMemo(() => (all ? Object.keys(RAW.moves).filter(id => !(RAW.moves as any)[id].z && !(RAW.moves as any)[id].x) : learnset(species, gen)).map(id => moveData(id, gen)!).filter(Boolean), [species, gen, all]);
 	const pow = (m: any) => m.category === 'Status' ? -1 : (m.basePower || 0);
-	const shown = moves.filter(m => matches(q, m.name, m.id) && (!cat || m.category === cat) && (!type || m.type === type)).sort((a, b) =>
+	const shown = moves.filter(m => matches(q, m.name, m.id) && (!cat || m.category === cat) && (!type || m.type === type)).sort((a, b) => qRank(q, a.name) - qRank(q, b.name) ||
 		sort === 'power' ? pow(b) - pow(a) || ko(a.name, b.name) :
 		sort === 'type' ? ALL_TYPES.indexOf(a.type) - ALL_TYPES.indexOf(b.type) || pow(b) - pow(a) :
 		sort === 'acc' ? (b.accuracy || 101) - (a.accuracy || 101) || ko(a.name, b.name) :
@@ -354,6 +364,16 @@ function MovePicker({ gen, species, current, onPick, onBack }: { gen: Gen; speci
 	</Screen>;
 }
 
+function AbilityPicker({ onPick, onBack }: { onPick: (id: string) => void; onBack: () => void }) {
+	const [q, setQ] = useState('');
+	const list = useMemo(() => Object.entries(RAW.abilities).map(([id, a]: [string, any]) => ({ id, n: a.n as string })).sort((a, b) => ko(a.n, b.n)), []);
+	return <Screen title="특성 고르기 (치트)" onBack={onBack}>
+		<input class="search" placeholder="특성 검색" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} />
+		<div class="pick-list">{list.filter(a => matches(q, a.n, a.id)).sort((a, b) => qRank(q, a.n) - qRank(q, b.n)).map(a => <button class="pick-row" onClick={() => onPick(a.id)}>
+			<span class="pick-name">{a.n}<small class="muted block">{abilityDesc(a.id)}</small></span></button>)}</div>
+	</Screen>;
+}
+
 type ItemSort = 'name' | 'popular';
 function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) => void; onBack: () => void }) {
 	const [q, setQ] = useState('');
@@ -364,6 +384,8 @@ function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) =>
 			filter === 'berry' ? i.id.endsWith('berry') : !(i as any).mega && !(i as any).zt && !i.id.endsWith('berry')), [gen, filter]);
 	const popular = ['leftovers', 'lifeorb', 'choicescarf', 'choiceband', 'choicespecs', 'focussash', 'assaultvest', 'sitrusberry', 'lumberry', 'expertbelt', 'heavydutyboots', 'boosterenergy', 'blacksludge', 'eviolite', 'rockyhelmet', 'airballoon', 'lightclay', 'covertcloak', 'clearamulet', 'loadeddice', 'mirrorherb', 'weaknesspolicy', 'safetygoggles', 'quickclaw'];
 	const shown = items.filter(i => matches(q, i.n, i.id)).sort((a, b) => {
+		const r = qRank(q, a.n) - qRank(q, b.n);
+		if (r) return r;
 		if (sort === 'popular') {
 			const pa = popular.indexOf(a.id), pb = popular.indexOf(b.id);
 			const d = (pa < 0 ? 999 : pa) - (pb < 0 ? 999 : pb);

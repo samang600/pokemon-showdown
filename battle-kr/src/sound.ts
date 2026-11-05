@@ -1,6 +1,7 @@
 /**
  * 효과음·배경음악 — WebAudio 로 직접 합성하는 칩튠 (외부 음원 파일 없음, 모두 이 앱용으로 새로 만든 소리)
  */
+import { RAW } from './data';
 import { loadSettings } from './store';
 
 let ctx: AudioContext | null = null;
@@ -57,11 +58,20 @@ const musicOn = () => loadSettings().music !== false;
 // ── 울음소리 (포켓몬 그림과 같은 서버에서 실행 중에 받아 옴, <audio> 요소로 재생·보관) ──
 const cryEls: { [id: string]: HTMLAudioElement } = {};
 const cryBad: { [id: string]: boolean } = {};
-const CRY_URL = (id: string) => `https://play.pokemonshowdown.com/audio/cries/${id}.mp3`;
+declare const __LOCAL_CRIES__: string;
+/** 앱 안에 들어 있는 울음소리 (오프라인에서도 재생) */
+const LOCAL_CRIES = new Set((typeof __LOCAL_CRIES__ === 'string' ? __LOCAL_CRIES__ : '').split(',').filter(Boolean));
+const CRY_URL = (id: string) => LOCAL_CRIES.has(id) ? `cries/${id}.mp3` : `https://play.pokemonshowdown.com/audio/cries/${id}.mp3`;
 function cryIds(speciesId: string) {
 	const id = speciesId.toLowerCase().replace(/[^a-z0-9]/g, '');
-	const base = id.replace(/(mega[xy]?|gmax|primal|totem|alola|galar|hisui|paldea(combat|blaze|aqua)?|origin|therian|crowned|hero|zen|busted|noice|hangry|gorging|gulping|school|complete|10|resolute|pirouette|terastal|stellar|bloodmoon|eternamax|rapidstrike|wellspring|hearthflame|cornerstone|teal|tera|bond|ash)$/, '');
-	return base === id ? [id] : [id, base];
+	const out = [id];
+	const base = RAW.species[id]?.base;
+	if (base) out.push(base);
+	const stripped = id.replace(/(mega[xyz]?|gmax|primal|totem|alola|galar|hisui|paldea(combat|blaze|aqua)?|origin|therian|crowned|hero|zen|busted|noice|hangry|gorging|gulping|school|complete|10|resolute|pirouette|terastal|stellar|bloodmoon|eternamax|rapidstrike|wellspring|hearthflame|cornerstone|teal|tera|bond|ash)$/, '');
+	if (!out.includes(stripped)) out.push(stripped);
+	// 앱 안에 있는 것을 먼저 (없는 폼은 기본 모습 울음소리)
+	const local = out.filter(x => LOCAL_CRIES.has(x));
+	return LOCAL_CRIES.size ? (local.length ? [local[0]] : out) : out;
 }
 function cryEl(id: string): HTMLAudioElement | null {
 	if (cryBad[id]) return null;

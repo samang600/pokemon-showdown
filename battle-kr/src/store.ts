@@ -29,7 +29,7 @@ export function save(key: string, value: any) { set(key, JSON.stringify(value));
 export function remove(key: string) { del(key); }
 
 // ── 팀 ──
-export interface SavedTeam { id: string; name: string; gen: 4 | 5; sets: PSet[]; updated: number }
+export interface SavedTeam { id: string; name: string; gen: 4 | 5; sets: PSet[]; updated: number; /** 치트 팀: 치트 배틀에서만 사용 */ cheat?: boolean }
 export function loadTeams(): SavedTeam[] { return load<SavedTeam[]>('teams', []); }
 export function saveTeams(teams: SavedTeam[]) { save('teams', teams); }
 export function upsertTeam(team: SavedTeam) {

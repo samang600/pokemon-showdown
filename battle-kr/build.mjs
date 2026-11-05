@@ -46,7 +46,9 @@ const result = await esbuild.build({
 	target: ['es2020', 'chrome80', 'safari14'],
 	minify: !dev,
 	sourcemap: false,
-	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"' },
+	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
+		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
+		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',
 	loader: { '.json': 'json' },

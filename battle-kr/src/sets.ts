@@ -372,8 +372,14 @@ export function normalizeSP<T extends PSet>(set: T): T {
 	return set;
 }
 
-export function toSimTeam(team: PSet[]) {
-	team = team.map(s => normalizeSP(cloneSet(s)));
+export function cheatSP<T extends PSet>(set: T): T {
+	for (const k of STAT_KEYS) { set.evs[k] = spToEv(evToSp(set.evs[k] || 0)); set.ivs[k] = 31; }
+	return set;
+}
+
+export function toSimTeam(team: PSet[], cheat = false) {
+	// 치트 배틀: 합계 66 제한 없이 능력마다 최대 32포인트
+	team = team.map(s => cheat ? cheatSP(cloneSet(s)) : normalizeSP(cloneSet(s)));
 	return team.map(s => ({
 		name: s.name || speciesKo(s.species), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
 		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny,

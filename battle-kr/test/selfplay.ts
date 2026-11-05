@@ -5,8 +5,8 @@ import { filterGimmicks, gimmickOfLine } from '../src/engine';
 import { loadSettings } from '../src/store';
 import { randomTeam, toSimTeam } from '../src/sets';
 import { KoreanText, parseLine } from '../src/text';
-(window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number) => {
-	const res = { gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
+(window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, _unused = false, size = 0) => {
+	const res = { switches: 0, faints: 0, gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
 	for (let k = 0; k < n; k++) {
 		const reqs: any = {};
 		const used: any = { p1: '', p2: '' };
@@ -16,8 +16,8 @@ import { KoreanText, parseLine } from '../src/text';
 			if (t === 'sideupdate') { const s = String(d); const side = s.slice(0, 2); const r = s.slice(3); if (r.startsWith('|request|')) reqs[side] = JSON.parse(r.slice(9)); }
 			if (t === 'update') { const ls = Array.isArray(d) ? d : String(d).split('\n'); lines.push(...ls); for (const l of ls) { const g = gimmickOfLine(l); if (g && !used[g[0]]) used[g[0]] = g[1]; } }
 		} } as any);
-		b.setPlayer('p1', { name: 'A', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
-		b.setPlayer('p2', { name: 'B', team: toSimTeam(randomTeam({ gen, size: doubles ? 4 : 3, minBst: 450, doubles })) } as any);
+		b.setPlayer('p1', { name: 'A', team: toSimTeam(randomTeam({ gen, size: size || (doubles ? 4 : 3), minBst: 450, doubles })) } as any);
+		b.setPlayer('p2', { name: 'B', team: toSimTeam(randomTeam({ gen, size: size || (doubles ? 4 : 3), minBst: 450, doubles })) } as any);
 		b.sendUpdates();
 		let guard = 0;
 		const done: any = {};
@@ -46,6 +46,8 @@ import { KoreanText, parseLine } from '../src/text';
 			if (l.startsWith('|split|')) { i++; continue; }
 			const p = parseLine(l);
 			if (!p) continue;
+			if (p.cmd === 'switch') res.switches++;
+			if (p.cmd === 'faint') res.faints++;
 			for (const k of ['-mega', '-zpower', '-terastallize']) if (p.cmd === k) res.gm[k] = (res.gm[k] || 0) + 1;
 			if (p.cmd === '-start' && p.args[2] === 'Dynamax') res.gm.dynamax = (res.gm.dynamax || 0) + 1;
 			if (p.cmd === 'bigerror' || p.cmd === 'error') res.errors.push(l);
