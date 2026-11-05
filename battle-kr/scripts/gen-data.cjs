@@ -140,6 +140,8 @@ const BAD_NONSTD = new Set(['CAP', 'LGPE', 'Custom', 'Gigantamax']);
 // 포켓몬 챔피언스 기술 사양 (src/ps/champions-moves.json) — 시뮬레이터와 같은 값으로 표시
 const CHAMP = require(path.resolve(__dirname, '../src/ps/champions-moves.json'));
 const champ = id => CHAMP[id] || {};
+// 9세대 게임 설명이 '사용할 수 없는 기술'인 것을 앱 사양으로 바꿈
+const DESC_OVERRIDE = { return: '친밀도와 관계없이 항상 최대 위력 102로 공격한다.', frustration: '친밀도와 관계없이 항상 최대 위력 102로 공격한다.' };
 const championsPP = pp => pp >= 20 ? 20 : pp >= 15 ? 16 : pp >= 10 ? 12 : pp >= 5 ? 8 : pp;
 const moveIds = [];
 const moveIndex = {};
@@ -150,7 +152,7 @@ for (const m of dex9.moves.all()) {
 	moveIds.push(m.id);
 	result.moves[m.id] = {
 		n: ko.moves[m.id]?.name || m.name,
-		d: flavor.moves[m.id] || '',
+		d: DESC_OVERRIDE[m.id] || flavor.moves[m.id] || '',
 		g: { [GEN]: [champ(m.id).type || m.type, m.category, champ(m.id).basePower ?? m.basePower, (champ(m.id).accuracy ?? m.accuracy) === true ? 0 : (champ(m.id).accuracy ?? m.accuracy), championsPP(m.pp), m.priority, champ(m.id).target || m.target, m.flags.contact ? 1 : 0] },
 		z: m.isZ ? 1 : undefined, x: m.isMax ? 1 : undefined,
 	};

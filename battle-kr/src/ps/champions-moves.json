@@ -1,5 +1,8 @@
 {
 	"_comment": "포켓몬 챔피언스에서 바뀐 기술 사양 (Serebii 'Updated Attacks' 기준). 시뮬레이터(registry.ts)와 도감 데이터(gen-data.cjs) 양쪽에 적용. PP는 챔피언스 표기 방식이 달라 적용하지 않음.",
+	"_comment2": "은혜갚기·화풀이는 9세대에서 쓸 수 없는 기술이지만 앱에서는 친밀도와 관계없이 항상 최대 위력 102로 쓸 수 있게 함.",
+	"return": { "basePower": 102 },
+	"frustration": { "basePower": 102 },
 	"growth": { "type": "Grass" },
 	"crabhammer": { "accuracy": 95, "critRatio": 2 },
 	"slash": { "basePower": 80, "critRatio": 2 },

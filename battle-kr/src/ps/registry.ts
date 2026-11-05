@@ -42,6 +42,8 @@ export function applyChampionsMoves(Moves: { [id: string]: any }) {
 		m.pp = championsPP(m.pp);
 		m.noPPBoosts = true;
 	}
+	// 은혜갚기·화풀이: 친밀도와 관계없이 항상 102 (시뮬레이터가 요청 문자열에 콜백 값을 붙이므로 콜백은 남겨 둠)
+	for (const id of ['return', 'frustration']) if (Moves[id]) { Moves[id].basePower = 102; Moves[id].basePowerCallback = () => 102; }
 	// 소금절이: 매 턴 1/16 (물·강철 타입은 1/8) — 본가는 1/8·1/4
 	if (Moves.saltcure?.condition) {
 		Moves.saltcure.condition.onResidual = function (this: any, pokemon: any) {
