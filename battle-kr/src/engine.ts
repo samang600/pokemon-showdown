@@ -25,6 +25,8 @@ export class Session {
 	private p2Answered: any = null;
 	/** 각 진영이 이번 배틀에 쓴 기믹 종류 */
 	gimmickUsed: { p1: Set<GimmickKind>; p2: Set<GimmickKind> } = { p1: new Set(), p2: new Set() };
+	/** 포켓몬(시뮬레이터 객체)마다 쓴 기믹 — 한 포켓몬은 기믹을 하나만 (울트라버스트+Z기술은 예외) */
+	private usedBy = new WeakMap<any, Set<GimmickKind>>();
 	/** 규칙상 추가로 허용한 다이맥스 (시뮬레이터 요청에 넣어 줄 것) */
 	private extraDmax: { [side: string]: { [i: number]: any } } = {};
 	ended = false;
@@ -56,7 +58,12 @@ export class Session {
 				}
 				this.pending.push(line);
 				const gm = gimmickOfLine(line);
-				if (gm) this.gimmickUsed[gm[0]].add(gm[1]);
+				if (gm) {
+					this.gimmickUsed[gm[0]].add(gm[1]);
+					const ident = line.split('|')[2] || '';
+					const pk = this.battle[gm[0]]?.active?.['abc'.indexOf(ident.charAt(2))];
+					if (pk) { const set = this.usedBy.get(pk) || new Set<GimmickKind>(); set.add(gm[1]); this.usedBy.set(pk, set); }
+				}
 				if (line.startsWith('|win|')) { this.ended = true; this.winner = line.slice(5); }
 				if (line === '|tie') { this.ended = true; this.winner = ''; }
 			}
@@ -81,7 +88,7 @@ export class Session {
 	/** 기믹 규칙 적용 (설정의 '기믹 규칙')
 	 *  one: 한 배틀에 한 종류(처음 쓴 종류만, 1회) / free: 종류마다 1회 / mega·zmove·dynamax·tera: 그 기믹만 / none: 사용 불가 */
 	private applyGimmickRule(req: any, side: 'p1' | 'p2') {
-		this.extraDmax[side] = filterGimmicks(req, this.rule, this.gimmickUsed[side], this.battle[side]);
+		this.extraDmax[side] = filterGimmicks(req, this.rule, this.gimmickUsed[side], this.battle[side], this.usedBy);
 	}
 	/** 규칙으로 추가 허용한 다이맥스를 시뮬레이터 쪽 요청에도 넣는다 (선택 직전) */
 	private syncSimRequest(side: 'p1' | 'p2') {
@@ -146,7 +153,7 @@ export class Session {
 
 /** 요청(request)을 배틀 규칙에 맞춘다. 규칙상 안 되는 기믹은 지우고, 쇼다운이 막아 둔 것(메가스톤 소지 포켓몬의 테라스탈·다이맥스 등)은 열어 준다.
  *  반환: 추가로 허용한 다이맥스 {슬롯: maxMoves} (시뮬레이터 요청에 넣어 줄 것) */
-export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind>, simSide: any): { [i: number]: any } {
+export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind>, simSide: any, usedBy?: WeakMap<any, Set<GimmickKind>>): { [i: number]: any } {
 	const extra: { [i: number]: any } = {};
 	if (!req?.active) return extra;
 	// 울트라버스트('ultra')는 메가진화 계열로 취급하되, 원작처럼 그 뒤 Z기술은 쓸 수 있게 '한 종류' 계산에서 뺌
@@ -171,6 +178,17 @@ export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind
 		}
 		// 다이맥스
 		if (!allow('dynamax')) { delete a.canDynamax; if (!dmaxNow) delete a.maxMoves; }
+		// 한 포켓몬은 기믹을 하나만: 이미 쓴 포켓몬(또는 다이맥스 중)은 다른 기믹 불가 (울트라버스트 뒤 Z기술만 예외)
+		if (p) {
+			const mine = usedBy?.get(p);
+			const onlyUltra = mine && mine.size === 1 && mine.has('ultra');
+			if ((mine && mine.size) || p.volatiles['dynamax'] || p.terastallized || p.species.isMega || p.species.isPrimal) {
+				delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; delete a.canTerastallize; delete a.canDynamax;
+				if (!onlyUltra) delete a.canZMove;
+				if (!p.volatiles['dynamax']) { delete a.maxMoves; delete extra[i]; }
+				if (p.canTerastallize && !p.terastallized) p.canTerastallize = null;
+			}
+		}
 		else if (p && !a.canDynamax && !p.volatiles['dynamax'] && simSide.canDynamaxNow?.() && !p.species.isMega && !p.species.isPrimal &&
 			p.species.forme !== 'Ultra' && !p.species.cannotDynamax && !p.getItem().zMove) {
 			const mm = p.getDynamaxRequest(true);

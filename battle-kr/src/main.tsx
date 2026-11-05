@@ -41,8 +41,8 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
 function Home({ go }: { go: (v: string) => void }) {
 	const rec = loadRecords();
 	const settings = loadSettings();
-	const towerBest = Math.max(rec.best['tower-singles'] || 0, rec.best['tower-doubles'] || 0);
-	const factoryBest = Math.max(...['singles', 'doubles'].flatMap(f => [50, 100].map(l => rec.best[`factory-${f}-${l}`] || 0)), 0);
+	const towerBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64'].map(f => rec.best[`tower-${f}`] || 0), 0);
+	const factoryBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64'].flatMap(f => [50, 100].map(l => rec.best[`factory-${f}-${l}`] || 0)), 0);
 	const cupWins = Object.values(rec.cups).reduce((a, b) => a + b, 0);
 	const namedWins = Object.keys(rec.named).length;
 	const suspended = ['tower-singles', 'tower-doubles'].some(k => load(k, null)) || ['singles', 'doubles'].some(f => [50, 100].some(l => load(`factory-${f}-${l}`, null)));
@@ -77,9 +77,11 @@ function Home({ go }: { go: (v: string) => void }) {
 function Records({ onBack }: { onBack: () => void }) {
 	const r = loadRecords();
 	const rows: [string, string][] = [
-		['배틀타워 싱글', `${r.best['tower-singles'] || 0}연승`], ['배틀타워 더블', `${r.best['tower-doubles'] || 0}연승`],
+		['배틀타워 싱글 3vs3', `${r.best['tower-singles'] || 0}연승`], ['배틀타워 더블 4vs4', `${r.best['tower-doubles'] || 0}연승`],
+		['배틀타워 싱글 6vs6', `${r.best['tower-singles6'] || 0}연승`], ['배틀타워 더블 6→4', `${r.best['tower-doubles64'] || 0}연승`],
 		['팩토리 싱글 Lv50', `${r.best['factory-singles-50'] || 0}연승`], ['팩토리 싱글 오픈', `${r.best['factory-singles-100'] || 0}연승`],
 		['팩토리 더블 Lv50', `${r.best['factory-doubles-50'] || 0}연승`], ['팩토리 더블 오픈', `${r.best['factory-doubles-100'] || 0}연승`],
+		['팩토리 싱글 6vs6 Lv50', `${r.best['factory-singles6-50'] || 0}연승`], ['팩토리 더블 6→4 Lv50', `${r.best['factory-doubles64-50'] || 0}연승`],
 	];
 	return <Screen title="기록" onBack={onBack}>
 		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패{r.battles ? ` · 승률 ${Math.round(r.wins / r.battles * 100)}%` : ''}</span></div>
@@ -143,7 +145,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<p class="muted small">효과음·배경음악은 이 앱에서 합성한 칩튠, 기술 효과음은 Pokémon Reborn 제작. 울음소리는 인터넷에서 받아 옵니다.</p>
 		<h3 class="sec">배틀 규칙</h3>
 		{[...new Set(RULES.map(r => r.group))].map(g => <div class="set-row rule-row"><span>{g}</span><div class="seg wrap">
-			{RULES.filter(r => r.group === g).map(r => <button class={s.battleRule === r.id ? 'on' : ''} onClick={() => up({ battleRule: r.id })}>{r.name.replace(/^(전국도감|챔피언스 레귤레이션) · ?/, '')}</button>)}</div></div>)}
+			{RULES.filter(r => r.group === g).map(r => <button class={s.battleRule === r.id ? 'on' : ''} onClick={() => up({ battleRule: r.id })}>{r.name.replace(/^(룰|전국도감|챔피언스 레귤레이션) · ?/, '')}</button>)}</div></div>)}
 		<p class="muted small"><b>{ruleById(s.battleRule).name}</b>: {ruleById(s.battleRule).desc} 모든 모드의 나와 상대에게 적용되고, 무작위·렌탈 팀과 상대 팀도 이 규칙에 맞게 만들어집니다.</p>
 		<h3 class="sec">배틀 화면</h3>
 		<div class="seg">

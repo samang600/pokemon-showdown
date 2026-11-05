@@ -279,10 +279,18 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			const side = scene[ident.slice(0, 2) as 'p1' | 'p2'];
 			const slot = slotOf(ident);
 			const prev = side.active[slot];
-			if (prev) { prev.boosts = {}; prev.vol = new Set(); prev.transformed = undefined; }
+			const prevSnap = prev ? { hp: prev.hp, maxhp: prev.maxhp, status: prev.status, boosts: { ...prev.boosts }, vol: new Set(prev.vol), tera: prev.tera, item: prev.item, seen: prev.seen } : null;
+			if (prev && cmd !== 'replace') { prev.boosts = {}; prev.vol = new Set(); prev.transformed = undefined; }
 			const mon = findMon(ident, args[2]);
 			const d = parseDetails(args[2]);
 			mon.species = d.species; mon.level = d.level; mon.gender = d.gender; mon.shiny = d.shiny; mon.pendingSpecies = undefined;
+			if (cmd === 'replace' && !args[3] && prevSnap) {
+				// 일루전 해제: HP 정보가 없는 줄 — 지금 보이던 HP·상태·랭크를 그대로 이어받음 (정체만 드러남)
+				mon.hp = prevSnap.hp; mon.maxhp = prevSnap.maxhp; mon.status = prevSnap.status; mon.boosts = prevSnap.boosts; mon.vol = prevSnap.vol; mon.tera = prevSnap.tera;
+				mon.fainted = false; mon.item = prevSnap.item; mon.seen = [...new Set([...prevSnap.seen, ...mon.seen])];
+				side.active[slot] = mon;
+				return 0;
+			}
 			const hp = parseHP(args[3]);
 			mon.hp = hp.hp; mon.maxhp = hp.maxhp || mon.maxhp; mon.status = hp.status === 'fnt' ? '' : hp.status;
 			mon.fainted = false; mon.boosts = {}; mon.vol = new Set();

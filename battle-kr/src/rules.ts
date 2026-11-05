@@ -28,11 +28,11 @@ const megaIds = (list: string[]) => new Set(list.map(n => {
 }));
 
 export const RULES: BattleRule[] = [
-	{ id: 'natdexflat', name: '전국도감 · 플랫', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'sub',
+	{ id: 'natdexflat', name: '룰 · 플랫', group: '룰', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'sub',
 		desc: '초전설·환상 제외(준전설은 가능). 메가진화·Z기술·다이맥스·테라스탈 중 한 배틀에 한 종류만 (기본).' },
-	{ id: 'natdex', name: '전국도감 · 전부', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'all',
+	{ id: 'natdex', name: '룰 · 전부', group: '룰', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'all',
 		desc: '초전설·환상 포함 모든 포켓몬. 기믹은 한 배틀에 한 종류만.' },
-	{ id: 'natdexfree', name: '전국도감 · 기믹 모두', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: false, legend: 'all',
+	{ id: 'natdexfree', name: '룰 · 기믹 모두', group: '룰', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: false, legend: 'all',
 		desc: '모든 포켓몬. 네 가지 기믹을 종류마다 한 번씩 쓸 수 있습니다.' },
 	{ id: 'gen9', name: '9세대 (테라스탈)', group: '세대별', kinds: ['tera'], oneKind: true, legend: 'all', desc: '스칼렛·바이올렛 규칙. 테라스탈만.' },
 	{ id: 'gen8', name: '8세대 (다이맥스)', group: '세대별', kinds: ['dynamax'], oneKind: true, legend: 'all', maxNum: 905, desc: '소드·실드 규칙. 다이맥스만, 8세대까지의 포켓몬.' },

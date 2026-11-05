@@ -9,7 +9,12 @@ import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
 import { speciesKo, spriteId, megaStonesFor, moveKo, typeKo, speciesData, toID, type Gen } from './data';
 
-type Fmt = 'singles' | 'doubles';
+type Fmt = 'singles' | 'doubles' | 'singles6' | 'doubles64';
+const isDoubles = (f: Fmt) => f === 'doubles' || f === 'doubles64';
+/** 팀(엔트리) 크기 / 배틀에 내보내는 수 */
+const teamSize = (f: Fmt) => f === 'singles' ? 3 : f === 'doubles' ? 4 : 6;
+const battleSize = (f: Fmt) => f === 'singles' ? 3 : f === 'doubles' ? 4 : f === 'singles6' ? 6 : 4;
+const fmtLabel = (f: Fmt) => ({ singles: '싱글 3vs3', doubles: '더블 4vs4', singles6: '싱글 6vs6', doubles64: '더블 6→4' } as any)[f];
 const BACK = Symbol('back');
 
 function battle(setup: BattleSetup): Promise<BattleResult> {
@@ -19,12 +24,16 @@ function playerName() { return loadSettings().playerName || '플레이어'; }
 function playerSprite() { return loadSettings().playerSprite || 'lucas'; }
 function withLevel(team: PSet[], level: number) { return team.map(s => ({ ...cloneSet(s), level })); }
 
-async function chooseFormat(title: string, desc?: string): Promise<Fmt | typeof BACK> {
+async function chooseFormat(title: string, desc?: string, extended = false): Promise<Fmt | typeof BACK> {
 	return ask<Fmt | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
 		intro={desc ? <p class="hint">{desc}</p> : undefined}
 		options={[
-			{ value: 'singles' as Fmt, label: '싱글배틀', desc: '1대1로 싸웁니다', icon: '①' },
-			{ value: 'doubles' as Fmt, label: '더블배틀', desc: '2마리씩 동시에 싸웁니다', icon: '②' },
+			{ value: 'singles' as Fmt, label: extended ? '싱글 3vs3' : '싱글배틀', desc: '1대1로 싸웁니다 · 3마리', icon: '①' },
+			{ value: 'doubles' as Fmt, label: extended ? '더블 4vs4' : '더블배틀', desc: '2마리씩 동시에 싸웁니다 · 4마리', icon: '②' },
+			...(extended ? [
+				{ value: 'singles6' as Fmt, label: '싱글 6vs6', desc: '6마리 전원으로 풀배틀', icon: '⑥' },
+				{ value: 'doubles64' as Fmt, label: '더블 6→4', desc: '6마리를 데리고 배틀마다 4마리를 골라 더블배틀 (챔피언스 방식)', icon: '④' },
+			] : []),
 		]} onPick={r} />);
 }
 
@@ -53,13 +62,13 @@ interface TowerState { fmt: Fmt; team: PSet[]; streak: number }
 
 function towerOpponent(streak: number, fmt: Fmt) {
 	const tier = Math.floor(streak / 7);
-	const n = fmt === 'doubles' ? 4 : 3;
+	const n = teamSize(fmt);
 	const battleNo = streak + 1;
 	// 타이쿤: 21번째, 49번째
 	if (battleNo === 21 || battleNo === 49) {
 		const gold = battleNo === 49;
-		const species = gold ? ['heatran', 'cresselia', 'regigigas', 'metagross'] : ['rhyperior', 'milotic', 'dragonite', 'togekiss'];
-		const team = species.slice(0, n).map(id => randomSetFor(id, 9, 50, fmt === 'doubles'));
+		const species = gold ? ['heatran', 'cresselia', 'regigigas', 'metagross', 'garchomp', 'lucario'] : ['rhyperior', 'milotic', 'dragonite', 'togekiss', 'gliscor', 'tyranitar'];
+		const team = species.slice(0, n).map(id => randomSetFor(id, 9, 50, isDoubles(fmt)));
 		return { name: '타워 타이쿤', title: '', sprite: 'palmer', lines: { ace: '이 한 마리에 모든 걸 건다!', lose: '훌륭하다! 너야말로 진정한 강자다!', win: '정점의 벽은 높다. 다시 오너라!' }, team: dedupeItems(assignGimmicks(team, { mega: 1, z: 1 })), skill: 0.97, boss: gold ? '금' : '은',
 			line: gold ? '여기까지 온 너에게 전력으로 답하겠다!' : '배틀타워의 정점, 타워 타이쿤이다. 승부다!' };
 	}
@@ -76,14 +85,14 @@ function towerOpponent(streak: number, fmt: Fmt) {
 	const [minBst, maxBst] = ranges[Math.min(tier, ranges.length - 1)];
 	const tr = randomTrainer();
 	const ivs = Math.min(31, 17 + tier * 4); // 31이면 능력 포인트 전부, 그 아래면 비율만큼 줄어듦
-	let team = randomTeam({ gen: 9, size: n, minBst, maxBst, allowSubLegend: tier >= 3, ivs, doubles: fmt === 'doubles', types: Math.random() < 0.6 ? tr.types : undefined, gimmicks: false });
-	if (team.length < n) team = randomTeam({ gen: 9, size: n, minBst, maxBst, ivs, doubles: fmt === 'doubles', gimmicks: false });
+	let team = randomTeam({ gen: 9, size: n, minBst, maxBst, allowSubLegend: tier >= 3, ivs, doubles: isDoubles(fmt), types: Math.random() < 0.6 ? tr.types : undefined, gimmicks: false });
+	if (team.length < n) team = randomTeam({ gen: 9, size: n, minBst, maxBst, ivs, doubles: isDoubles(fmt), gimmicks: false });
 	team = dedupeItems(assignGimmicks(team, { mega: Math.min(1, 0.3 + tier * 0.15), z: Math.min(0.8, 0.2 + tier * 0.12) }));
 	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, team, skill: Math.min(0.97, 0.55 + tier * 0.08), boss: '', line: tr.lines.intro };
 }
 
 export async function runTower() {
-	const fmt = await chooseFormat('배틀타워', '레벨 50 · 싱글 3마리 / 더블 4마리 · 7연승마다 1세트 · 메가진화·Z기술·다이맥스·테라스탈 사용 가능');
+	const fmt = await chooseFormat('배틀타워', '레벨 50 · 7연승마다 1세트 · 기믹은 설정의 배틀 규칙을 따름', true);
 	if (fmt === BACK) return;
 	let state = load<TowerState | null>(TOWER_KEY(fmt), null);
 	if (state) {
@@ -98,8 +107,8 @@ export async function runTower() {
 	if (!state) {
 		const team = await chooseTeam(9, '배틀타워 · 팀 선택');
 		if (team === BACK) return;
-		const n = fmt === 'doubles' ? 4 : 3;
-		const picked = team.length > n ? await ask<PSet[] | typeof BACK>(r => <PickScreen title="참가 포켓몬" team={team} gen={9} count={n}
+		const n = teamSize(fmt);
+		const picked = team.length > n || n === 6 ? await ask<PSet[] | typeof BACK>(r => <PickScreen title="참가 포켓몬" team={team} gen={9} count={Math.min(n, team.length)}
 			onBack={() => r(BACK)} onDone={r} />) : team;
 		if (picked === BACK) return;
 		state = { fmt, team: withLevel(dedupeItems(picked.map(cloneSet)), 50), streak: 0 };
@@ -108,7 +117,7 @@ export async function runTower() {
 	const key = `tower-${fmt}`;
 	while (true) {
 		const opp = towerOpponent(state.streak, fmt);
-		const go = await ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title={`배틀타워 · ${fmt === 'doubles' ? '더블' : '싱글'}`}
+		const go = await ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title={`배틀타워 · ${fmtLabel(fmt)}`}
 			banner={`${state!.streak + 1}번째 승부`}
 			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : (opp as any).special ? `★ 특별 트레이너! ${opp.title} ${opp.name}${josa(opp.name)} 나타났다!` : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`]}
@@ -117,11 +126,14 @@ export async function runTower() {
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(TOWER_KEY(fmt), state); return; }
 		if (go === 'quit') { remove(TOWER_KEY(fmt)); return; }
-		// 배틀타워 규칙(Pt/HGSS): 도전 시작 때 고른 포켓몬·순서로 7연전, 상대 엔트리는 볼 수 없음
+		// 배틀타워 규칙(Pt/HGSS): 도전 시작 때 고른 포켓몬·순서로 7연전, 상대 엔트리는 볼 수 없음. 더블 6→4 는 배틀마다 4마리를 고름
+		const myEntry = fmt === 'doubles64' ? await ask<PSet[]>(r => <PickScreen title="참가 포켓몬 4마리" team={state!.team} gen={9} count={4}
+			hint="6마리 중 이번 배틀에 낼 4마리를 순서대로 고르세요. (상대 엔트리는 볼 수 없습니다)" onDone={r} />) : state.team;
+		const oppEntry = fmt === 'doubles64' ? [...rng.shuffle(opp.team.slice(0, -1)).slice(0, 3), opp.team[opp.team.length - 1]] : opp.team;
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
+			gen: 9, doubles: isDoubles(fmt), aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
 			label: `배틀타워 ${state.streak + 1}번째`,
-			p1: { name: playerName(), team: state.team, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: opp.team, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
+			p1: { name: playerName(), team: myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (res.win) {
 			state.streak++;
@@ -156,14 +168,14 @@ function factoryPool(streak: number, level: number, size: number, exclude?: Set<
 }
 
 export async function runFactory() {
-	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈');
+	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈', true);
 	if (fmt === BACK) return;
 	const level = await ask<50 | 100 | typeof BACK>(r => <ChoiceScreen title="배틀팩토리 · 레벨" onBack={() => r(BACK)} options={[
 		{ value: 50 as const, label: '레벨 50', desc: '모든 포켓몬 레벨 50', icon: '50' },
 		{ value: 100 as const, label: '오픈 레벨', desc: '모든 포켓몬 레벨 100', icon: '100' },
 	]} onPick={r} />);
 	if (level === BACK) return;
-	const n = fmt === 'doubles' ? 4 : 3;
+	const n = teamSize(fmt);
 	const key = `factory-${fmt}-${level}`;
 	let state = load<FactoryState | null>(FACTORY_KEY(fmt, level), null);
 	if (state) {
@@ -173,7 +185,7 @@ export async function runFactory() {
 		if (v === 'new') state = null;
 	}
 	const rentalRound = async (streak: number) => {
-		const rentals = factoryPool(streak, level, 6);
+		const rentals = factoryPool(streak, level, n === 6 ? 8 : 6);
 		return ask<PSet[]>(r => <PickScreen title="렌탈 포켓몬 선택" team={rentals} gen={9} count={n}
 			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다.`} onDone={r} />);
 	};
@@ -210,10 +222,13 @@ export async function runFactory() {
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(FACTORY_KEY(fmt, level), state); return; }
 		if (go === 'quit') { remove(FACTORY_KEY(fmt, level)); return; }
-		// 배틀팩토리 규칙: 빌린 순서대로 싸움 (교환으로만 바뀜), 직원 힌트만 제공
+		// 배틀팩토리 규칙: 빌린 순서대로 싸움 (교환으로만 바뀜), 직원 힌트만 제공. 더블 6→4 는 배틀마다 4마리를 고름
+		const myEntry = fmt === 'doubles64' ? await ask<PSet[]>(r => <PickScreen title="참가 포켓몬 4마리" team={state!.team} gen={9} count={4}
+			hint={`${hint} 6마리 중 이번 배틀에 낼 4마리를 순서대로 고르세요.`} onDone={r} />) : state.team;
+		const oppEntry = fmt === 'doubles64' ? rng.shuffle(oppTeam).slice(0, 4) : oppTeam;
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`,
-			p1: { name: playerName(), team: state.team, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppTeam, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
+			gen: 9, doubles: isDoubles(fmt), aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`,
+			p1: { name: playerName(), team: myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (!res.win) {
 			const s = state.streak;
@@ -267,10 +282,10 @@ export async function runPWT() {
 	if (cup === BACK) return;
 	const fmt = await chooseFormat(cup.name);
 	if (fmt === BACK) return;
-	const n = fmt === 'doubles' ? 4 : 3;
+	const n = isDoubles(fmt) ? 4 : 3;
 	let myTeam: PSet[];
 	if (cup.rental) {
-		myTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
+		myTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: isDoubles(fmt) });
 	} else {
 		const t = await chooseTeam(9, `${cup.name} · 팀 선택`);
 		if (t === BACK) return;
@@ -294,7 +309,7 @@ export async function runPWT() {
 		const tr = randomTrainer();
 		if (usedNames.has(tr.name)) continue;
 		usedNames.add(tr.name);
-		entrants.push({ name: tr.name, title: tr.className, team: () => randomTeam({ gen: 9, size: 6, minBst: 480, maxBst: 640, doubles: fmt === 'doubles' }), skill: 0.8, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines });
+		entrants.push({ name: tr.name, title: tr.className, team: () => randomTeam({ gen: 9, size: 6, minBst: 480, maxBst: 640, doubles: isDoubles(fmt) }), skill: 0.8, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines });
 	}
 	// 같은 이름이 둘이면 대진표가 꼬이므로 바꿈
 	for (let i = 0; i < entrants.length; i++) for (let j = 0; j < i; j++) if (entrants[i].name === entrants[j].name) entrants[i] = { ...entrants[i], name: entrants[i].name + ' 2' };
@@ -322,7 +337,7 @@ export async function runPWT() {
 		// 상대도 n마리 선택 (에이스 포함)
 		const oppPick = [...rng.shuffle(oppTeam.slice(0, -1)).slice(0, n - 1), oppTeam[oppTeam.length - 1]];
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: Math.min(0.97, opp.skill + round * 0.04), bg: round === 2 ? 'champion' : 'pwt',
+			gen: 9, doubles: isDoubles(fmt), aiSkill: Math.min(0.97, opp.skill + round * 0.04), bg: round === 2 ? 'champion' : 'pwt',
 			label: `${cup.name} ${['1회전', '준결승', '결승'][round]}`,
 			p1: { name: me, team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});
@@ -431,26 +446,26 @@ export async function runFree(cheat = false) {
 	]} onPick={r} />);
 	if (level === BACK) return;
 	const skill = level === 'h' ? 0.97 : level === 'n' ? 0.85 : 0.5;
-	const n = fmt === 'doubles' ? 4 : 3;
+	const n = isDoubles(fmt) ? 4 : 3;
 	let rematch: { oppTeam: PSet[]; oppName: string; oppTitle: string; oppSprite: string; oppLines: any } | null = null;
 	while (true) {
 		const tr = randomTrainer();
 		let oppTeam: PSet[];
 		let oppName = tr.name, oppTitle = tr.className, oppSprite = tr.sprite, oppLines: any = tr.lines;
 		if (rematch) ({ oppTeam, oppName, oppTitle, oppSprite, oppLines } = rematch);
-		else if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: fmt === 'doubles' });
-		else if (oppPick === 'strong') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: fmt === 'doubles' });
+		else if (oppPick === 'random') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: isDoubles(fmt) });
+		else if (oppPick === 'strong') oppTeam = randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: isDoubles(fmt) });
 		else { oppTeam = oppPick.cheat ? oppPick.sets.map(cloneSet) : withLevel(oppPick.sets.map(cloneSet), 50); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
 		const myTeam = cheat ? my : withLevel(my, 50);
 		const size = await ask<number>(r => <ChoiceScreen title="참가 마릿수" options={[
-			{ value: n, label: `${n}마리 (${fmt === 'doubles' ? '더블' : '싱글'} 표준)`, desc: '상대 팀을 보고 고릅니다', icon: String(n) },
+			{ value: n, label: `${n}마리 (${isDoubles(fmt) ? '더블' : '싱글'} 표준)`, desc: '상대 팀을 보고 고릅니다', icon: String(n) },
 			{ value: 6, label: '풀배틀 6마리', desc: '전원 참가', icon: '6' },
 		]} onPick={r} />);
 		const picked = await ask<PSet[]>(r => <PickScreen title={myTeam.length > size ? '참가 포켓몬' : '선봉·순서 정하기'} team={myTeam} gen={9} count={Math.min(size, myTeam.length)}
 			opponent={{ name: oppName, team: oppTeam }} onDone={r} />);
 		const oppSel = size < oppTeam.length ? rng.shuffle(oppTeam).slice(0, size) : oppTeam;
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: skill, bg: 'field', label: modeName, noRecord: true, cheat,
+			gen: 9, doubles: isDoubles(fmt), aiSkill: skill, bg: 'field', label: modeName, noRecord: true, cheat,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: oppName, title: oppTitle, team: oppSel, sprite: oppSprite, lines: oppLines },
 		});
 		const again = await ask<'same' | 'new' | 'quit'>(r => <InfoScreen title={modeName} heading={res.win ? '승리!' : '패배…'}
