@@ -4,6 +4,7 @@
 import { RAW } from './data';
 import { partBase } from './offline';
 import { loadSettings } from './store';
+import CHIP_RAW from './gen/chip-tracks.json';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -227,7 +228,7 @@ function moveSoundRaw(type: string, category: string) {
 
 // ── 배경음악: 4채널 시퀀서 (이 앱용으로 새로 작곡한 루프) ──
 // 트랙 파일이 있으면 그걸 씀: bgm/<이름>.mp3 (battle, boss, title, victory, tower, pwt) — 직접 음악 파일을 넣어 바꿀 수 있음
-interface Track { bpm: number; lead: (number | null)[]; harm?: (number | null)[]; bass: (number | null)[]; arp?: (number | null)[]; drums: string; loop: boolean; leadType?: OscillatorType; swing?: number }
+interface Track { bpm: number; /** 반복할 때 돌아갈 칸 (인트로 길이) */ intro?: number; lead: (number | null)[]; harm?: (number | null)[]; bass: (number | null)[]; arp?: (number | null)[]; drums: string; loop: boolean; leadType?: OscillatorType; swing?: number }
 const R = null;
 // 간단 표기: 문자열 → 음 배열. "a4 r b4 ..." 식, 각 토큰 = 16분음표, 숫자 접미는 길이(이어짐), '-'는 지속
 const NOTE: { [k: string]: number } = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
@@ -243,6 +244,11 @@ function seq(str: string): (number | null)[] {
 	}
 	return out;
 }
+// 작곡한 곡의 칩튠판 (music/to_chip.py 가 작곡 데이터에서 자동 편곡): 칸마다 ' ' 쉼, '!' 지속, 그 밖 chr(MIDI+14)
+const decodeCh = (s: string) => Array.from(s, ch => ch === ' ' ? null : ch === '!' ? -1 : ch.charCodeAt(0) - 14);
+const CHIP: { [k: string]: Track } = Object.fromEntries(Object.entries(CHIP_RAW as { [k: string]: any }).map(([k, r]) =>
+	[k, { bpm: r.bpm, intro: r.intro, loop: true, leadType: r.leadType, lead: decodeCh(r.lead), harm: decodeCh(r.harm), bass: decodeCh(r.bass), arp: decodeCh(r.arp), drums: r.drums }]));
+const chipStyle = () => loadSettings().bgmStyle === 'chip';
 const TRACKS: { [k: string]: Track } = {
 	// 일반 배틀: d단조, 빠른 베이스 8분 + 긴장감 있는 반음 진행
 	battle: {
@@ -377,11 +383,11 @@ let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
 
 export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['champion', '챔피언 결전'], ['pwt', 'PWT 토너먼트'], ['evil', '악의 조직'],
-	['battle2', '칩튠 배틀 1'], ['battle3', '칩튠 배틀 2']];
+	['battle2', '옛 칩튠 1'], ['battle3', '옛 칩튠 2']];
 /** 배틀 음악 선택: 설정이 '상황에 맞게'면 상황별 곡 (작곡한 곡 우선) */
 export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion') {
 	const pref = loadSettings().battleBgm || 'random';
-	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref])) return pref;
+	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref] || CHIP[pref])) return pref;
 	const has = (n: string) => !!BGM_LOOPS[n];   // 작곡한 곡이 없으면 비슷한 곡으로
 	const pool = situation === 'champion' ? [has('champion') ? 'champion' : 'boss'] : situation === 'boss' ? ['boss'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower']
 		: situation === 'pwt' ? (has('pwt') ? ['pwt'] : ['battle', 'tower']) : ['battle'];
@@ -394,6 +400,8 @@ export function playMusic(name: string) {
 	if (!musicOn()) return;
 	const c = ac(); if (!c) return;
 	current = name;
+	// 0) 음악 스타일이 칩튠이면 작곡한 곡의 칩튠판
+	if (chipStyle() && CHIP[name]) { startSynth(name, c, CHIP[name]); return; }
 	// 1) 작곡한 곡(루프 지점이 있는 mp3): Web Audio 로 디코딩해 인트로 뒤부터 이음새 없이 반복
 	if (BGM_LOOPS[name] && !bgmFileMissing[name]) {
 		const token = ++bgmToken;
@@ -427,8 +435,12 @@ export function playMusic(name: string) {
 	startSynth(name, c);
 }
 
-function startSynth(name: string, c: AudioContext) {
-	const tr = TRACKS[name] || (name === 'evil' || name === 'champion' ? TRACKS.boss : null); if (!tr) return;
+let synthBus: GainNode | null = null;
+function startSynth(name: string, c: AudioContext, track?: Track) {
+	const tr = track || TRACKS[name] || CHIP[name] || (name === 'evil' || name === 'champion' ? TRACKS.boss : null); if (!tr) return;
+	// 작곡한 곡의 칩튠판은 관현악 mp3 와 비슷한 크기로 들리게 키움 (측정 약 18dB 작음 → 12dB 키움, 크게 설정에서도 1을 넘지 않게)
+	synthBus = c.createGain(); synthBus.gain.value = Object.values(CHIP).includes(tr) ? 4 : 1; synthBus.connect(musicBus!);
+	const bus = synthBus;
 	step = 0; nextTime = c.currentTime + 0.05;
 	const stepDur = 60 / tr.bpm / 4;
 	const len = tr.lead.length;
@@ -437,20 +449,21 @@ function startSynth(name: string, c: AudioContext) {
 		if (hidden) return;
 		while (nextTime < c.currentTime + 0.3) {
 			if (!tr.loop && step >= len) { stopMusic(); return; }
-			const i = step % len;
+			const intro = tr.intro && tr.intro < len ? tr.intro : 0;
+			const i = step < len ? step : intro + (step - intro) % (len - intro);
 			const at = nextTime - c.currentTime;
 			const l = tr.lead[i];
-			if (l !== null && l !== -1) tone(N(l), stepDur * noteLen(tr.lead, i) * 0.9, { type: tr.leadType || 'square', vol: 0.13, at, bus: musicBus });
+			if (l !== null && l !== -1) tone(N(l), stepDur * noteLen(tr.lead, i) * 0.9, { type: tr.leadType || 'square', vol: 0.13, at, bus });
 			const h = tr.harm?.[i % (tr.harm.length || 1)];
-			if (h !== null && h !== undefined && h !== -1) tone(N(h), stepDur * noteLen(tr.harm!, i % tr.harm!.length) * 0.95, { type: 'triangle', vol: 0.08, at, bus: musicBus });
+			if (h !== null && h !== undefined && h !== -1) tone(N(h), stepDur * noteLen(tr.harm!, i % tr.harm!.length) * 0.95, { type: 'triangle', vol: 0.08, at, bus });
 			const b = tr.bass[i % tr.bass.length];
-			if (b !== null && b !== -1) tone(N(b), stepDur * 0.9, { type: 'triangle', vol: 0.3, at, bus: musicBus });
+			if (b !== null && b !== -1) tone(N(b), stepDur * 0.9, { type: 'triangle', vol: 0.3, at, bus });
 			const ar = tr.arp?.[i % (tr.arp.length || 1)];
-			if (ar !== null && ar !== undefined && ar !== -1) tone(N(ar), stepDur * 0.5, { type: 'square', vol: 0.045, at, bus: musicBus });
+			if (ar !== null && ar !== undefined && ar !== -1) tone(N(ar), stepDur * 0.5, { type: 'square', vol: 0.045, at, bus });
 			const d = tr.drums[i % tr.drums.length];
-			if (d === 'k') tone(150, 0.1, { type: 'sine', slide: 40, vol: 0.5, at, bus: musicBus });
-			if (d === 's') noise(0.09, { type: 'highpass', freq: 1500, vol: 0.22, at, bus: musicBus });
-			if (d === 'h') noise(0.03, { type: 'highpass', freq: 7000, vol: 0.1, at, bus: musicBus });
+			if (d === 'k') tone(150, 0.1, { type: 'sine', slide: 40, vol: 0.5, at, bus });
+			if (d === 's') noise(0.09, { type: 'highpass', freq: 1500, vol: 0.22, at, bus });
+			if (d === 'h') noise(0.03, { type: 'highpass', freq: 7000, vol: 0.1, at, bus });
 			nextTime += stepDur; step++;
 		}
 	}, 60);
@@ -462,9 +475,13 @@ export function setMusicVolume(v: 1 | 2 | 3) {
 	if (bgmEl) bgmEl.volume = [0.25, 0.5, 0.8][v - 1];
 	if (bgmGain) bgmGain.gain.value = BGM_VOL[v - 1];
 }
+/** 음악 스타일을 바꿨을 때 지금 곡을 새 스타일로 다시 */
+export function restartMusic() { const n = current; if (!n) return; stopMusic(); playMusic(n); }
+
 export function stopMusic() {
 	if (timer) clearInterval(timer);
 	timer = null; current = ''; bgmToken++;
+	if (synthBus) { const sb = synthBus; synthBus = null; setTimeout(() => sb.disconnect(), 400); }
 	if (bgmEl) { bgmEl.pause(); bgmEl.src = ''; bgmEl = null; }
 	if (bgmSrc) { try { bgmSrc.stop(); } catch { /* 이미 멈춤 */ } bgmSrc.disconnect(); bgmSrc = null; }
 	if (bgmGain) { bgmGain.disconnect(); bgmGain = null; }
