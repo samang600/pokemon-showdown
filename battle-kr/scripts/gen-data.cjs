@@ -143,6 +143,21 @@ const champ = id => CHAMP[id] || {};
 // 9세대 게임 설명이 '사용할 수 없는 기술'인 것을 앱 사양으로 바꿈
 const DESC_OVERRIDE = { return: '친밀도와 관계없이 항상 최대 위력 102로 공격한다.', frustration: '친밀도와 관계없이 항상 최대 위력 102로 공격한다.' };
 const championsPP = pp => pp >= 20 ? 20 : pp >= 15 ? 16 : pp >= 10 ? 12 : pp >= 5 ? 8 : pp;
+// 한국어 보충: 쇼다운 문구가 비었거나 '사용할 수 없는 기술' 안내문뿐이면 나무위키(namu.moe) → PokeAPI 순으로
+// (scripts/fetch-namu-ko.py → src/ps/ko-text-namu.json, scripts/fetch-pokeapi-ko.py → src/ps/ko-text-fallback.json)
+const readJson = f => { try { return require(path.resolve(__dirname, f)); } catch { return { moves: {}, items: {}, abilities: {} }; } };
+const KO_NAMU = readJson('../src/ps/ko-text-namu.json');
+const KO_API = readJson('../src/ps/ko-text-fallback.json');
+const HANGUL = /[가-힣]/;
+const usableDesc = t => !!t && HANGUL.test(t) && !t.includes('사용할 수 없');
+function koDesc(cat, id, own) {
+	for (const t of [own, KO_NAMU[cat]?.[id]?.d, KO_API[cat]?.[id]?.d]) if (usableDesc(t)) return t;
+	return own || '';
+}
+function koName(cat, id, own) {
+	for (const t of [own, KO_NAMU[cat]?.[id]?.n, KO_API[cat]?.[id]?.n]) if (t && HANGUL.test(t)) return t;
+	return own;
+}
 const moveIds = [];
 const moveIndex = {};
 for (const m of dex9.moves.all()) {
@@ -151,8 +166,8 @@ for (const m of dex9.moves.all()) {
 	moveIndex[m.id] = moveIds.length;
 	moveIds.push(m.id);
 	result.moves[m.id] = {
-		n: ko.moves[m.id]?.name || m.name,
-		d: DESC_OVERRIDE[m.id] || flavor.moves[m.id] || '',
+		n: koName('moves', m.id, ko.moves[m.id]?.name) || m.name,
+		d: DESC_OVERRIDE[m.id] || koDesc('moves', m.id, flavor.moves[m.id]),
 		g: { [GEN]: [champ(m.id).type || m.type, m.category, champ(m.id).basePower ?? m.basePower, (champ(m.id).accuracy ?? m.accuracy) === true ? 0 : (champ(m.id).accuracy ?? m.accuracy), championsPP(m.pp), m.priority, champ(m.id).target || m.target, m.flags.contact ? 1 : 0] },
 		z: m.isZ ? 1 : undefined, x: m.isMax ? 1 : undefined,
 	};
@@ -161,7 +176,7 @@ for (const m of dex9.moves.all()) {
 // ── 특성 ──
 for (const a of dex9.abilities.all()) {
 	if (a.num <= 0 || (a.isNonstandard && !['Past', 'Unobtainable', 'Future'].includes(a.isNonstandard))) continue;
-	result.abilities[a.id] = { n: ko.abilities[a.id]?.name || a.name, d: flavor.abilities[a.id] || '', gen: a.gen };
+	result.abilities[a.id] = { n: koName('abilities', a.id, ko.abilities[a.id]?.name) || a.name, d: koDesc('abilities', a.id, flavor.abilities[a.id]), gen: a.gen };
 }
 
 // ── 도구 (메가스톤·Z크리스탈 포함) ──
@@ -179,7 +194,7 @@ for (const it of dex9.items.all()) {
 		itemName = fromKo + '나이트' + suffix;
 	}
 	result.items[it.id] = {
-		n: itemName || it.name, d: flavor.items[it.id] || '', gens: [GEN],
+		n: koName('items', it.id, itemName) || it.name, d: koDesc('items', it.id, flavor.items[it.id]), gens: [GEN],
 		mega: it.megaStone ? (typeof it.megaStone === 'string' ? it.megaStone : Object.values(it.megaStone)[0]) : undefined,
 		megaFrom: it.megaStone ? (typeof it.megaStone === 'object' ? Object.keys(it.megaStone) : (it.itemUser || [])) : undefined,
 		zt: it.zMoveType || undefined, zf: it.zMoveFrom ? (Array.isArray(it.zMoveFrom) ? it.zMoveFrom : [it.zMoveFrom]) : undefined,

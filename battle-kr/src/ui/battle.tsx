@@ -32,6 +32,8 @@ export interface BattleSetup {
 	/** 리플레이 재생: 저장된 시드·규칙·양쪽 선택으로 같은 배틀을 자동 진행 */
 	replay?: { seed: [number, number, number, number]; ruleId: string; p1: string[]; p2: string[] };
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
+	/** 배경음악 상황 (없으면 배경으로 정함): 악의 조직 간부·보스는 'evil', 관장·사천왕·챔피언은 'boss' */
+	music?: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil';
 }
 export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
 
@@ -748,7 +750,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		let wake: any = null;
 		(navigator as any).wakeLock?.request?.('screen').then((w: any) => { wake = w; }).catch(() => {});
 		wakeRelease.current = () => { try { wake?.release(); } catch {} };
-		playMusic(pickBattleMusic(setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle'));
+		playMusic(pickBattleMusic(setup.music ?? (setup.bg === 'champion' ? 'boss' : setup.bg === 'tower' || setup.bg === 'factory' ? 'tower' : setup.bg === 'pwt' ? 'pwt' : 'battle')));
 		preloadCries([...setup.p1.team, ...setup.p2.team].map(x => toID(x.species)));
 		for (const x of setup.p1.team) { preloadSprite(x.species, true, x.shiny); for (const st of megaFormsOf(x)) preloadSprite(st, true, x.shiny); }
 		for (const x of setup.p2.team) { preloadSprite(x.species, false, x.shiny); for (const st of megaFormsOf(x)) preloadSprite(st, false, x.shiny); }

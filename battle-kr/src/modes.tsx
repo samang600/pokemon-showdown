@@ -118,7 +118,7 @@ function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = []) {
 		const roles = tier <= 1 ? ['leader', 'admin'] : tier <= 3 ? ['elite', 'rival'] : ['champion', 'boss', 'hero'];
 		const t = rng.pick(NAMED.filter(x => roles.includes(x.role)));
 		const team = namedTeam(t, n);
-		return { name: t.name, title: namedTitle(t), team, skill: 0.9 + tier * 0.02, boss: '', line: t.line, sprite: namedSprite(t), lines: namedLines(t), special: true };
+		return { name: t.name, title: namedTitle(t), team, skill: 0.9 + tier * 0.02, boss: '', line: t.line, sprite: namedSprite(t), lines: namedLines(t), special: true, music: namedMusic(t) };
 	}
 	// 올라갈수록 강해짐: 종족값 범위 ↑, 능력 포인트 투자 ↑(세트 1: 55% → 세트 5+: 100%), AI 실력 ↑, 세트 4부터 준전설, 세트 2부터 기믹 소지율 ↑
 	const ranges = [[400, 500], [450, 530], [480, 560], [500, 600], [520, 640], [540, 700], [560, 720]];
@@ -184,7 +184,7 @@ export async function runTower() {
 		const oppEntry = fmt === 'doubles64' ? aiPickEntry(opp.team, state.team, 4, true, opp.skill, true) : opp.team;
 		const res = await battle({
 			gen: 9, doubles: isDoubles(fmt), aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
-			label: `배틀타워 ${state.streak + 1}번째`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
+			label: `배틀타워 ${state.streak + 1}번째`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: opp.boss ? 'boss' : (opp as any).music,
 			p1: { name: playerName(), team: myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (res.win) {
@@ -395,7 +395,7 @@ export async function runPWT() {
 		const oppPick = aiPickEntry(oppTeam, myTeam, n, isDoubles(fmt), Math.min(0.97, opp.skill + round * 0.04), !!opp.named);
 		const res = await battle({
 			gen: 9, doubles: isDoubles(fmt), aiSkill: Math.min(0.97, opp.skill + round * 0.04), bg: round === 2 ? 'champion' : 'pwt',
-			label: `${cup.name} ${['1회전', '준결승', '결승'][round]}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
+			label: `${cup.name} ${['1회전', '준결승', '결승'][round]}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: opp.named ? namedMusic(opp.named) : round === 2 ? 'boss' : undefined,
 			p1: { name: me, team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});
 		// 대진표 갱신 (다른 경기는 무작위)
@@ -426,6 +426,9 @@ export async function runPWT() {
 		sprites={myTeam.map(s => s.species)} sets={myTeam} gen={9} actions={[{ label: '메뉴로', onClick: () => r() }]} />);
 	void pool; pool = [];
 }
+
+/** 네임드 트레이너와의 배경음악: 악의 조직 간부·보스 → 악의 조직 테마, 관장·사천왕·챔피언·주인공 → 중요 배틀 테마 */
+export const namedMusic = (t: NamedTrainer) => ['admin', 'boss'].includes(t.role) ? 'evil' as const : ['leader', 'elite', 'champion', 'hero'].includes(t.role) ? 'boss' as const : 'battle' as const;
 
 // ───────────── 네임드 트레이너 ─────────────
 const ROLE_ORDER = ['leader', 'elite', 'champion', 'hero', 'rival', 'admin', 'boss'];
@@ -470,7 +473,7 @@ export async function runNamed() {
 			const oppPick = size < 6 ? aiPickEntry(oppTeam, myTeam, size, doubles, ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, true) : oppTeam;
 			const res = await battle({
 				gen: 9, doubles, aiSkill: ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, bg: ['champion', 'boss', 'hero'].includes(t.role) ? 'champion' : 'pwt',
-				label: `${t.title}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: t.name, title: namedTitle(t), team: oppPick, line: t.line, sprite: namedSprite(t), lines: namedLines(t) },
+				label: `${t.title}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: namedMusic(t), p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: t.name, title: namedTitle(t), team: oppPick, line: t.line, sprite: namedSprite(t), lines: namedLines(t) },
 			});
 			if (res.win && !noRec(opts)) updateRecords(r => { r.named[t.id] = (r.named[t.id] || 0) + 1; });
 			await ask<void>(r => <InfoScreen title={t.name} trainer={namedSprite(t)} heading={res.win ? `${t.name}에게 승리했다!` : `${t.name}에게 졌다…`}
@@ -498,7 +501,7 @@ function rankOpponent(rp: number, fmt: RankFmt, level: number) {
 	if (rp >= 1000 && Math.random() < 0.35) {
 		const pool = NAMED.filter(t => ['champion', 'hero', 'boss'].includes(t.role));
 		const t = rng.pick(pool);
-		return { name: t.name, title: namedTitle(t), sprite: namedSprite(t), lines: namedLines(t), line: t.line, skill: 0.97, team: withLevel(namedTeam(t, 6), level), named: true, ranker: '' };
+		return { name: t.name, title: namedTitle(t), sprite: namedSprite(t), lines: namedLines(t), line: t.line, skill: 0.97, team: withLevel(namedTeam(t, 6), level), named: true, ranker: '', music: namedMusic(t) };
 	}
 	// 하이퍼볼급부터 실제 랭크배틀 상위 트레이너의 팀(PokéDB)과 자주 붙음
 	if (rp >= 600 && Math.random() < (rp >= 1000 ? 0.5 : 0.3)) {
@@ -551,7 +554,7 @@ export async function runRank() {
 			opponent={{ name: `${opp.title ? opp.title + ' ' : ''}${opp.name}`, team: opp.team }} onDone={r} />);
 		const oppPick = aiPickEntry(opp.team, team, n, fmt === 'doubles', opp.skill, opp.named);
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: oppRp >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}${upper ? ' · 상위 매칭' : ''}`,
+			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: oppRp >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}${upper ? ' · 상위 매칭' : ''}`, music: (opp as any).music ?? (oppRp >= 1000 ? 'boss' : 'tower'),
 			noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});

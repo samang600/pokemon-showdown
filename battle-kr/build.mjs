@@ -60,7 +60,7 @@ const result = await esbuild.build({
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
-		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES),
+		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES), '__BGM_LOOPS__': fs.existsSync(path.join(HERE, 'public/bgm/loops.json')) ? fs.readFileSync(path.join(HERE, 'public/bgm/loops.json'), 'utf8') : '{}',
 		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',

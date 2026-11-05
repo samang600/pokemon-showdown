@@ -43,6 +43,7 @@ function setHidden(h: boolean) {
 	hidden = h;
 	const c = ctx;
 	if (!c) return;
+	// Web Audio 로 재생하는 배경음악도 컨텍스트를 멈추면 같이 멈춤
 	if (h) { c.suspend(); bgmEl?.pause(); } else { c.resume(); if (bgmEl && current) bgmEl.play().catch(() => {}); }
 }
 if (typeof document !== 'undefined') {
@@ -346,17 +347,42 @@ const TRACKS: { [k: string]: Track } = {
 
 let timer: any = null;
 let current = '';
+/** 작곡한 배경음악(public/bgm/*.mp3)의 루프 지점(초): 인트로 뒤 ~ 곡 끝. 빌드가 public/bgm/loops.json 에서 넣음 */
+declare const __BGM_LOOPS__: { [name: string]: { start: number; end: number } };
+const BGM_LOOPS: { [name: string]: { start: number; end: number } } = typeof __BGM_LOOPS__ === 'object' ? __BGM_LOOPS__ : {};
+const BGM_VOL = [0.25, 0.5, 0.8];
+let bgmSrc: AudioBufferSourceNode | null = null;
+let bgmGain: GainNode | null = null;
+let bgmToken = 0;
+const bgmBufs: { [name: string]: Promise<AudioBuffer | null> } = {};
+/** mp3 를 받아 디코딩 (file:// 에서도 되도록 XHR) — 실패하면 null */
+function loadBgm(name: string, c: AudioContext): Promise<AudioBuffer | null> {
+	return bgmBufs[name] ||= new Promise(resolve => {
+		try {
+			const x = new XMLHttpRequest();
+			x.open('GET', `bgm/${name}.mp3`); x.responseType = 'arraybuffer';
+			x.onload = () => {
+				const ok = (x.status === 200 || x.status === 0) && x.response && (x.response as ArrayBuffer).byteLength > 1000;
+				if (!ok) { resolve(null); return; }
+				c.decodeAudioData(x.response as ArrayBuffer, b => resolve(b), () => resolve(null));
+			};
+			x.onerror = () => resolve(null);
+			x.send();
+		} catch { resolve(null); }
+	});
+}
 let step = 0;
 let nextTime = 0;
 let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
 
-export const BGM_CHOICES: [string, string][] = [['random', '무작위'], ['battle', '배틀 1'], ['battle2', '배틀 2'], ['battle3', '배틀 3'], ['tower', '시설'], ['pwt', '토너먼트'], ['boss', '보스']];
-/** 배틀 음악 선택: 설정이 무작위면 상황별 후보 중 하나 */
-export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss') {
+export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['evil', '악의 조직'],
+	['battle2', '칩튠 배틀 1'], ['battle3', '칩튠 배틀 2'], ['pwt', '칩튠 토너먼트']];
+/** 배틀 음악 선택: 설정이 '상황에 맞게'면 상황별 곡 (작곡한 곡 우선) */
+export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil') {
 	const pref = loadSettings().battleBgm || 'random';
-	if (pref !== 'random' && TRACKS[pref]) return pref;
-	const pool = situation === 'boss' ? ['boss', 'battle3'] : situation === 'tower' ? ['tower', 'battle2', 'battle'] : situation === 'pwt' ? ['pwt', 'battle', 'battle3'] : ['battle', 'battle2', 'battle3', 'tower'];
+	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref])) return pref;
+	const pool = situation === 'boss' ? ['boss'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower'] : situation === 'pwt' ? ['battle', 'tower'] : ['battle'];
 	return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -366,7 +392,26 @@ export function playMusic(name: string) {
 	if (!musicOn()) return;
 	const c = ac(); if (!c) return;
 	current = name;
-	// 1) 음악 파일이 있으면 그것을 (bgm/<name>.mp3)
+	// 1) 작곡한 곡(루프 지점이 있는 mp3): Web Audio 로 디코딩해 인트로 뒤부터 이음새 없이 반복
+	if (BGM_LOOPS[name] && !bgmFileMissing[name]) {
+		const token = ++bgmToken;
+		loadBgm(name, c).then(buf => {
+			if (token !== bgmToken || current !== name) return;
+			if (!buf) { bgmFileMissing[name] = true; current = ''; playMusic(name); return; }
+			const L = BGM_LOOPS[name];
+			const src = c.createBufferSource();
+			src.buffer = buf;
+			src.loop = name !== 'victory';
+			src.loopStart = Math.min(L.start, buf.duration);
+			src.loopEnd = Math.min(L.end, buf.duration);
+			bgmGain = c.createGain(); bgmGain.gain.value = BGM_VOL[(loadSettings().musicVolume || 2) - 1];
+			src.connect(bgmGain); bgmGain.connect(c.destination);
+			src.start();
+			bgmSrc = src;
+		});
+		return;
+	}
+	// 2) 그 밖의 음악 파일이 있으면 그것을 (bgm/<name>.mp3)
 	if (!bgmFileMissing[name]) {
 		const el = new Audio(`bgm/${name}.mp3`);
 		el.loop = name !== 'victory';
@@ -381,7 +426,7 @@ export function playMusic(name: string) {
 }
 
 function startSynth(name: string, c: AudioContext) {
-	const tr = TRACKS[name]; if (!tr) return;
+	const tr = TRACKS[name] || (name === 'evil' ? TRACKS.boss : null); if (!tr) return;
 	step = 0; nextTime = c.currentTime + 0.05;
 	const stepDur = 60 / tr.bpm / 4;
 	const len = tr.lead.length;
@@ -413,11 +458,14 @@ export function setSfxVolume(v: 1 | 2 | 3) { if (sfxBus) sfxBus.gain.value = [0.
 export function setMusicVolume(v: 1 | 2 | 3) {
 	if (musicBus) musicBus.gain.value = [0.1, 0.22, 0.38][v - 1];
 	if (bgmEl) bgmEl.volume = [0.25, 0.5, 0.8][v - 1];
+	if (bgmGain) bgmGain.gain.value = BGM_VOL[v - 1];
 }
 export function stopMusic() {
 	if (timer) clearInterval(timer);
-	timer = null; current = '';
+	timer = null; current = ''; bgmToken++;
 	if (bgmEl) { bgmEl.pause(); bgmEl.src = ''; bgmEl = null; }
+	if (bgmSrc) { try { bgmSrc.stop(); } catch { /* 이미 멈춤 */ } bgmSrc.disconnect(); bgmSrc = null; }
+	if (bgmGain) { bgmGain.disconnect(); bgmGain = null; }
 }
 
 /** 기술 애니메이션 효과음 음량 (효과음 설정 반영) */
