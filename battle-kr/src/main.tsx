@@ -1,12 +1,13 @@
 import './ps/registry';
 import { h, render, type VNode } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { bindView, Screen, Sprite, toast, QuitToMenu, resetAbort } from './ui/core';
+import { bindView, Screen, Sprite, toast, confirmBox, QuitToMenu, resetAbort } from './ui/core';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree, runCheat } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
 import { RULES, ruleById } from './rules';
+import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
 import { CUPS, NAMED } from './trainers';
 import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume, BGM_CHOICES } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
@@ -91,6 +92,27 @@ function Records({ onBack }: { onBack: () => void }) {
 	</Screen>;
 }
 
+/** 설정 → 오프라인 데이터: 그림·울음소리·애니메이션 묶음을 한 번에 받아 둠 (앱에서만) */
+function OfflinePack() {
+	const [st, setSt] = useState(packStatus());
+	const [prog, setProg] = useState<PackProgress | null>(null);
+	useEffect(() => onPackProgress(p => { setProg(p); if (p.state === 'done' && p.name === 'all') { setSt(refreshPack()); toast('오프라인 데이터를 모두 받았습니다'); } if (p.state.startsWith('error')) toast('받기 실패: ' + p.state.slice(6)); }), []);
+	if (BUNDLED) return <p class="muted small">이 버전은 그림·울음소리·애니메이션이 앱 안에 들어 있습니다.</p>;
+	if (!hasNative()) return <p class="muted small">브라우저에서는 그림·울음소리·애니메이션을 인터넷에서 그때그때 받습니다. 안드로이드 앱에서는 한 번에 받아 둘 수 있어요.</p>;
+	const parts = st.parts ? st.parts.split(',') : [];
+	const label = (n: string) => ({ sprites: '그림', cries: '울음소리', anims: '기술 애니메이션' } as any)[n] || n;
+	const busy = st.downloading || (prog && prog.state === 'downloading');
+	return <div class="pack-box">
+		<p class="small">{st.installed ? `받아 둠: ${parts.map(label).join(' · ')} (${fmtBytes(st.bytes)})` : '아직 받지 않음 — 그림·울음소리·애니메이션을 인터넷에서 그때그때 받습니다.'}</p>
+		{busy && prog && <div class="pack-prog"><div class="pack-bar" style={{ width: `${Math.round(prog.done / Math.max(1, prog.total) * 100)}%` }} /><span>{label(prog.name)} {prog.total > 1 ? `${fmtBytes(prog.done)} / ${fmtBytes(prog.total)}` : '…'}</span></div>}
+		<div class="row wrap">
+			{parts.length < 3 && <button class="btn primary" disabled={!!busy} onClick={() => { if (startPackDownload()) { setProg({ name: 'sprites', done: 0, total: 1, state: 'downloading' }); setSt(refreshPack()); } }}>{busy ? '받는 중…' : '한 번에 받기 (약 24MB)'}</button>}
+			{st.installed && <button class="btn ghost" disabled={!!busy} onClick={async () => { if (await confirmBox('삭제', '받아 둔 오프라인 데이터를 지울까요?', '삭제')) { deletePack(); setSt(refreshPack()); } }}>삭제</button>}
+		</div>
+		<p class="muted small">받아 두면 인터넷 없이도 포켓몬·트레이너 그림, 울음소리, 기술 애니메이션이 나옵니다. (그림 6MB · 울음소리 7MB · 애니메이션 11MB, 풀면 약 60MB)</p>
+	</div>;
+}
+
 function SettingsScreen({ onBack }: { onBack: () => void }) {
 	const [s, setS] = useState<Settings>(loadSettings());
 	const up = (p: Partial<Settings>) => { const n = { ...s, ...p }; setS(n); saveSettings(n); };
@@ -133,6 +155,8 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 
 		</div>
 		<p class="muted small">데미지 예상: 기술 버튼에 상대에게 줄 데미지의 대략적인 비율을 표시합니다 (연습용).</p>
+		<h3 class="sec">오프라인 데이터</h3>
+		<OfflinePack />
 		<h3 class="sec">포켓몬 그림</h3>
 		<div class="seg">
 			<button class={s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: true })}>움직이는 그림</button>

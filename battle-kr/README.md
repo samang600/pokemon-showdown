@@ -3,10 +3,10 @@
 스마트폰에서 바로 하는 한국어 포켓몬 배틀 앱. 배틀 계산은 이 저장소의 **Pokémon Showdown 시뮬레이터(`sim/`)를 그대로** 브라우저에서 돌립니다.
 
 ## 받기
-- **안드로이드**: [`release/BattleSimKR-v2.2.2.apk`](release/BattleSimKR-v2.2.2.apk) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
-- **저용량판**: [`release/BattleSimKR-lite-v2.2.2.apk`](release/BattleSimKR-lite-v2.2.2.apk) — 그림·울음소리·기술 애니메이션을 앱에 넣지 않고 전부 인터넷에서 받습니다(약 1.5MB, 인터넷 필요). 정식판과 같이 설치할 수 있습니다.
+- **안드로이드**: [`release/BattleSimKR-v2.3.0.apk`](release/BattleSimKR-v2.3.0.apk) (약 1.5MB) 를 받아 설치 (출처를 알 수 없는 앱 허용 필요, 안드로이드 7.0 이상)
+- 그림·울음소리·기술 애니메이션은 기본적으로 인터넷에서 그때그때 받습니다. **설정 → 오프라인 데이터 → 한 번에 받기**(약 24MB 내려받기, 풀면 약 60MB)를 누르면 앱 저장소에 받아 두어 인터넷 없이도 모두 나옵니다.
 - **아이폰·PC**: `dist/index.html` 한 파일을 브라우저로 열거나 웹에 올리면 됩니다 (홈 화면에 추가 → 앱처럼 실행)
-- 포켓몬 그림은 기본이 앱에 들어 있는 정지 도트 그림(오프라인 가능)이고, 설정에서 '움직이는 그림'을 고르면 인터넷에서 3D 움직이는 그림을 받아 씁니다. 거다이맥스하면 거다이맥스 전용 그림.
+- 포켓몬 그림은 기본이 정지 도트 그림(오프라인 데이터를 받아 두면 인터넷 없이도)이고, 설정에서 '움직이는 그림'을 고르면 인터넷에서 3D 움직이는 그림을 받아 씁니다. 거다이맥스하면 거다이맥스 전용 그림.
 
 ## 규칙
 - **기술 사양은 포켓몬 챔피언스 기준**(`src/ps/champions-moves.json`, Serebii ‘Updated Attacks’): 골드러시 명중 95·특공 2랭크 하락, 빙산바람 위력 120, 베어가르기 80, 임팩트 100, 메테오어설트 170,
@@ -124,7 +124,8 @@
 GPL-3.0 그래픽과 CC BY-NC-SA 4.0 애니메이션이 포함되므로 이 앱 묶음(`battle-kr`)은 비영리·GPL-3.0 조건으로 배포합니다.
 
 ## 빌드
-- 저용량판: `node battle-kr/build.mjs --lite --android` → 그림·울음소리·애니메이션을 빼고 `android/app/src/lite/assets` 로, 애니메이션은 jsDelivr(저장소의 public/anims, 마지막 변경 커밋 고정)에서 받음. `./gradlew assembleLiteRelease` / 정식판은 `assembleFullRelease`.
+- 기본 빌드는 저용량판(그림·울음소리·애니메이션 미포함). 애니메이션은 jsDelivr(저장소의 public/anims, 마지막 변경 커밋 고정)에서, 오프라인 묶음은 `offline/*.zip`(`scripts/make-offline-zips.py`, 현재 브랜치의 raw.githubusercontent.com 주소)에서 받음.
+- `node battle-kr/build.mjs --full --android` 로 만들면 그림 등이 앱에 포함된 묶음판(약 30MB)이 됩니다.
 - **오프라인 그림**: `bash battle-kr/scripts/fetch-sprites.sh` 로 포켓몬(정지 그림 앞/뒤·색이 다른 모습, 약 1,300종 × 4), 트레이너, 대타 인형, 도구 아이콘을
   `public/sprites/` 에 받아 두면 빌드할 때 앱에 들어갑니다(약 22MB, 저장소에는 올리지 않음). 인터넷이 되면 움직이는 그림을, 안 되면 앱 안의 그림을 씁니다.
 ```

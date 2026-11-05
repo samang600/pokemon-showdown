@@ -1,6 +1,6 @@
 /** 게임 모드 진행 (배틀타워 · 배틀팩토리 · PWT · 네임드 트레이너 · 프리 배틀) */
 import { h } from 'preact';
-import { ask, abortMode, LITE } from './ui/core';
+import { ask, abortMode, gen5Icon } from './ui/core';
 import { BattleView, type BattleSetup, type BattleResult } from './ui/battle';
 import { PickScreen, InfoScreen, SwapScreen, ChoiceScreen, BracketView } from './ui/screens';
 import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, FACTORY_TIERS, type PSet } from './sets';
@@ -35,7 +35,7 @@ async function chooseTeam(gen: Gen, title: string, allowRental = true, cheat = f
 	const teams = loadTeams().filter(t => !!t.cheat === cheat && t.sets.length >= (cheat ? 1 : 3)).sort((a, b) => (b.id === lastId ? 1 : 0) - (a.id === lastId ? 1 : 0));
 	const opts: { value: SavedTeam | 'rental'; label: string; desc?: string; icon?: any; badge?: string }[] = teams.map(t => ({
 		value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '), badge: t.id === lastId ? '최근 사용' : undefined,
-		icon: <span class="mini"><img class="sprite" src={LITE ? `https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png` : `sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span>,
+		icon: <span class="mini"><img class="sprite" src={gen5Icon(spriteId(t.sets[0].species))} /></span>,
 	}));
 	if (allowRental) opts.push({ value: 'rental', label: '추천 렌탈 팀', desc: '무작위로 6마리를 빌립니다', icon: '🎲' });
 	const v = await ask<SavedTeam | 'rental' | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
@@ -421,7 +421,7 @@ export async function runFree(cheat = false) {
 			{ value: 'random' as const, label: '무작위 팀', desc: '일반 트레이너의 무작위 6마리', icon: '🎲' },
 			{ value: 'strong' as const, label: '강한 무작위 팀', desc: '준전설 포함 · 메가·Z 소지', icon: '🔥' },
 			...teams.map(t => ({ value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '),
-				icon: <span class="mini"><img class="sprite" src={LITE ? `https://play.pokemonshowdown.com/sprites/gen5/${spriteId(t.sets[0].species)}.png` : `sprites/gen5/${spriteId(t.sets[0].species)}.png`} /></span> })),
+				icon: <span class="mini"><img class="sprite" src={gen5Icon(spriteId(t.sets[0].species))} /></span> })),
 		]} onPick={r} />);
 	if (oppPick === BACK) return;
 	const level = await ask<'s' | 'n' | 'h' | typeof BACK>(r => <ChoiceScreen title="상대 AI 실력" onBack={() => r(BACK)} options={[

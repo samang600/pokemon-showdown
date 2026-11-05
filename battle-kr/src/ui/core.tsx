@@ -3,6 +3,7 @@ import { h, render, type ComponentChildren, type VNode } from 'preact';
 import { useState } from 'preact/hooks';
 import { spriteId, typeKo, speciesData, toID, RAW, type Gen } from '../data';
 import { loadSettings } from '../store';
+import { partBase } from '../offline';
 import SPRITE_PAD from '../gen/sprite-pad.json';
 /** 정지 도트 그림의 아래 투명 여백(px) [앞, 뒤] — 발판에 딱 서도록 그만큼 내림 (scripts/sprite-pad.py) */
 const PAD = SPRITE_PAD as { [id: string]: [number, number] };
@@ -40,9 +41,12 @@ export function TypeBadge({ type, small }: { type: string; small?: boolean }) {
 const SPRITE_HOST = 'https://play.pokemonshowdown.com/sprites';
 /** 앱 안에 들어 있는 그림 (scripts/fetch-sprites.sh 로 받음) — 오프라인에서도 표시 */
 export const LOCAL_SPRITES = 'sprites';
-declare const __LITE__: boolean;
-/** 저용량판: 앱 안에 그림이 없어 전부 인터넷에서 */
-export const LITE = typeof __LITE__ === 'boolean' ? __LITE__ : false;
+/** 그림이 있는 곳: 내장(--full 빌드) 또는 내려받은 오프라인 묶음. 없으면 '' (인터넷) */
+export const spriteBase = () => partBase('sprites');
+/** 목록 아이콘용 정지 그림 주소 */
+export const gen5Icon = (id: string) => (spriteBase() ? `${spriteBase()}gen5/${id}.png` : `${SPRITE_HOST}/gen5/${id}.png`);
+/** 앱 안에 그림이 없고 묶음도 안 받은 상태 */
+export const LITE = false;
 const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 /** 도구 아이콘 (쇼다운 아이템 아이콘 시트, 24×24) */
@@ -50,7 +54,7 @@ export function ItemIcon({ item, size = 24 }: { item: string; size?: number }) {
 	const n = RAW.items[toID(item)]?.sp;
 	if (!item || n === undefined) return <span class="item-icon none" style={{ width: size, height: size }} />;
 	const k = size / 24;
-	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: LITE ? `url(${SPRITE_HOST}/itemicons-sheet.png)` : `url(${LOCAL_SPRITES}/itemicons-sheet.png), url(${SPRITE_HOST}/itemicons-sheet.png)`,
+	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: spriteBase() ? `url(${spriteBase()}itemicons-sheet.png), url(${SPRITE_HOST}/itemicons-sheet.png)` : `url(${SPRITE_HOST}/itemicons-sheet.png)`,
 		backgroundPosition: `${-(n % 16) * 24 * k}px ${-Math.floor(n / 16) * 24 * k}px`, backgroundSize: `${384 * k}px ${1152 * k}px` }} />;
 }
 
@@ -105,16 +109,17 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 /** 그림 후보 순서: 온라인이면 움직이는 그림 → 앱 안의 정지 그림 → 서버 정지 그림, 오프라인이면 앱 안의 그림부터 */
 function spriteCandidates(species: string, id: string, back: boolean, shiny: boolean, useAnim: boolean, gen: Gen): string[] {
 	const b = back ? '-back' : '', sh = shiny ? '-shiny' : '';
-	if (id === 'substitute') return LITE ? [`${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`] : [`${LOCAL_SPRITES}/substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
-	const local = [`${LOCAL_SPRITES}/gen5${b}${sh}/${id}.png`];
+	const sb = spriteBase();
+	if (id === 'substitute') return sb ? [`${sb}substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`] : [`${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
+	const local = [`${sb}gen5${b}${sh}/${id}.png`];
 	// 앱에 없는 모습(일부 Z-A 메가 등)은 기본 모습으로
 	const base = speciesData(toID(species), 9 as Gen)?.base;
-	if (base) local.push(`${LOCAL_SPRITES}/gen5${b}${sh}/${spriteId(base)}.png`);
+	if (base) local.push(`${sb}gen5${b}${sh}/${spriteId(base)}.png`);
 	const remote: string[] = [];
 	if (useAnim) remote.push(`${SPRITE_HOST}/ani${b}${sh}/${id}.gif`, `${SPRITE_HOST}/gen5ani${b}${sh}/${id}.gif`);
 	if (gen === 4) remote.push(`${SPRITE_HOST}/gen4${b}${sh}/${id}.png`);
 	const remoteStatic = `${SPRITE_HOST}/gen5${b}${sh}/${id}.png`;
-	if (LITE) { const rb = base ? [`${SPRITE_HOST}/gen5${b}${sh}/${spriteId(base)}.png`] : []; return useAnim ? [...remote, remoteStatic, ...rb] : [remoteStatic, ...rb]; }
+	if (!sb) { const rb = base ? [`${SPRITE_HOST}/gen5${b}${sh}/${spriteId(base)}.png`] : []; return useAnim ? [...remote, remoteStatic, ...rb] : [remoteStatic, ...rb]; }
 	if (!online()) return [...local, remoteStatic];
 	return useAnim ? [...remote, local[0], remoteStatic, ...local.slice(1)] : [local[0], remoteStatic, ...local.slice(1)];
 }

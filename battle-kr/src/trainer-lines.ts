@@ -155,8 +155,8 @@ export function genericLines() {
 }
 
 /** 트레이너 그림: 앱 안에 들어 있음 (scripts/fetch-sprites.sh) */
-declare const __LITE__: boolean;
-export const SPRITE_URL = (id: string) => (typeof __LITE__ === 'boolean' && __LITE__) ? `https://play.pokemonshowdown.com/sprites/trainers/${id}.png` : `sprites/trainers/${id}.png`;
+import { partBase } from './offline';
+export const SPRITE_URL = (id: string) => partBase('sprites') ? `${partBase('sprites')}trainers/${id}.png` : `https://play.pokemonshowdown.com/sprites/trainers/${id}.png`;
 /** 앱 안에 그림이 없으면 서버에서, 그래도 없으면 숨김 */
 export function trainerImgError(e: Event) {
 	const img = e.target as HTMLImageElement;

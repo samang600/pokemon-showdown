@@ -6,6 +6,7 @@
  *  focus(1 대상 / 2 사용자 / 3 사용자↔대상 선형변환 / 4 화면), blend(0 보통/1 가산/2 감산), mirror, angle, visible
  * 그림은 96×96 셀을 가로로 나열한 시트. 이벤트: se(효과음), bg(배경 그림 추가), bgu(배경 갱신)
  */
+import { partBase } from './offline';
 export interface AnimData { g: string; f: number[][][]; e: { [frame: string]: any[] } }
 export interface Pt { x: number; y: number }
 export interface PlayCtx {
@@ -22,7 +23,8 @@ export interface PlayCtx {
 }
 
 declare const __ANIM_BASE__: string;
-const ANIM_BASE = typeof __ANIM_BASE__ === 'string' ? __ANIM_BASE__ : 'anims/';
+/** 내장/오프라인 묶음이 있으면 거기서, 없으면 인터넷(jsDelivr 의 저장소 파일) */
+const animBase = () => partBase('anims') || (typeof __ANIM_BASE__ === 'string' ? __ANIM_BASE__ : 'anims/');
 const loaded: { [id: string]: AnimData[] | null } = {};
 const images: { [name: string]: HTMLImageElement | null } = {};
 const FRAME_MS = 50;
@@ -39,7 +41,7 @@ export function loadAnim(id: string): Promise<AnimData[] | null> {
 		const w = window as any;
 		w.__anims ||= {};
 		const s = document.createElement('script');
-		s.src = `${ANIM_BASE}${id}.js`;
+		s.src = `${animBase()}${id}.js`;
 		const done = () => { loaded[id] = w.__anims[id] || null; s.remove(); resolve(loaded[id]); };
 		s.onload = done;
 		s.onerror = () => { loaded[id] = null; s.remove(); resolve(null); };
@@ -53,7 +55,7 @@ function loadImage(name: string): Promise<HTMLImageElement | null> {
 		const im = new Image();
 		im.onload = () => { images[name] = im; resolve(im); };
 		im.onerror = () => { images[name] = null; resolve(null); };
-		im.src = `${ANIM_BASE}img/${encodeURIComponent(name)}.png`;
+		im.src = `${animBase()}img/${encodeURIComponent(name)}.png`;
 	});
 }
 
@@ -75,7 +77,7 @@ function playSe(name: string, vol: number, pitch: number, master: number) {
 	if (!name || master <= 0) return;
 	const base = name.replace(/\.(wav|ogg|mp3|m4a)$/i, '');
 	let el = seCache[base];
-	if (!el) { el = new Audio(`${ANIM_BASE}se/${encodeURIComponent(base)}.m4a`); el.preload = 'auto'; seCache[base] = el; }
+	if (!el) { el = new Audio(`${animBase()}se/${encodeURIComponent(base)}.m4a`); el.preload = 'auto'; seCache[base] = el; }
 	const inst = el.cloneNode() as HTMLAudioElement;
 	inst.volume = Math.min(1, (vol / 100) * master);
 	(inst as any).preservesPitch = false;
