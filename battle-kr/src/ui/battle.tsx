@@ -98,10 +98,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const [showLog, setShowLog] = useState(false);
 	const [detail, setDetail] = useState<{ mon: Mon; own: boolean } | null>(null);
 	const skipRef = useRef<(() => void) | null>(null);
-	const fastRef = useRef(!!settings.fastForward);
 	const wakeRelease = useRef<(() => void) | null>(null);
 	const logRef = useRef<string[]>([]);
-	const [fast, setFast] = useState(!!settings.fastForward);
 
 	// 입력 상태
 	const [slotIdx, setSlotIdx] = useState(0);
@@ -128,7 +126,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	const gen = setup.gen;
 	/** 배틀 중 배속 버튼: ×1 → ×2 → ×4 → ×0.5 → … (설정의 메시지 속도와 같음) */
-	const syncFxSpeed = () => FX.setFxSpeed(fastRef.current ? 3 : ANIM_SPEED[settings.speed] || 1);
+	const syncFxSpeed = () => FX.setFxSpeed(ANIM_SPEED[settings.speed] || 1);
 	const cycleSpeed = () => {
 		const next = (settings.speed % 4 + 1) as 1 | 2 | 3 | 4;
 		settings.speed = next;
@@ -141,7 +139,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	/** 메시지 길이에 맞춘 읽기 시간 (짧은 문장은 빨리 넘어감) */
 	const readMs = (m: string) => SPEED_MS[settings.speed] * (0.65 + Math.min(0.75, m.length / 45));
 	const wait = (ms: number) => new Promise<void>(resolve => {
-		const t = setTimeout(() => { skipRef.current = null; resolve(); }, fastRef.current ? Math.min(ms, 120) : ms);
+		const t = setTimeout(() => { skipRef.current = null; resolve(); }, ms);
 		skipRef.current = () => { clearTimeout(t); skipRef.current = null; resolve(); };
 	});
 
@@ -894,8 +892,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		if (phase !== 'input' || !req) {
 			return <div class="controls waiting">
-				<button class={'btn small' + (fast ? ' on' : '')} onClick={() => { fastRef.current = !fastRef.current; setFast(fastRef.current); syncFxSpeed(); rerender(); skipRef.current?.(); const st = loadSettings2(); st.fastForward = fastRef.current; saveSettings(st); }}>
-					{fast ? '▶▶ 빨리감기 켜짐' : '▶▶ 빨리감기'}</button>
+				<button class="btn small" onClick={() => cycleSpeed()}>배속 {SPEED_LABEL[settings.speed]}</button>
+				<p class="muted small">화면을 누르면 메시지를 넘깁니다</p>
 			</div>;
 		}
 		const back = (parts.length || menu !== 'main') && !(req.forceSwitch && !parts.length) ?

@@ -3,6 +3,9 @@ import { h, render, type ComponentChildren, type VNode } from 'preact';
 import { useState } from 'preact/hooks';
 import { spriteId, typeKo, speciesData, toID, RAW, type Gen } from '../data';
 import { loadSettings } from '../store';
+import SPRITE_PAD from '../gen/sprite-pad.json';
+/** 정지 도트 그림의 아래 투명 여백(px) [앞, 뒤] — 발판에 딱 서도록 그만큼 내림 (scripts/sprite-pad.py) */
+const PAD = SPRITE_PAD as { [id: string]: [number, number] };
 
 // ── 화면 전환: 모드 진행 코드를 async 함수로 쓰기 위한 도우미 ──
 let setViewFn: ((v: VNode | null) => void) | null = null;
@@ -91,8 +94,11 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 			<span style={{ color }}>{(s?.n || species).slice(0, 4)}</span>
 		</div>;
 	}
-	return <img class={'sprite ' + (cls || '')} src={candidates[idx]} alt={species} loading="lazy"
-		style={{ maxWidth: size, maxHeight: size, objectFit: 'contain' }}
+	const cur = candidates[idx] || '';
+	// 배틀 그림: 정지 도트 그림이면 측정해 둔 바닥 여백을, 움직이는 그림이면 대략값을 CSS 변수로
+	const pad = (cls === 'front' || cls === 'back') ? (/\/gen5(-back)?(-shiny)?\/[^/]+\.png$/.test(cur) ? (PAD[id]?.[back ? 1 : 0] ?? 8) : 4) : undefined;
+	return <img class={'sprite ' + (cls || '')} src={cur} alt={species} loading="lazy"
+		style={{ maxWidth: size, maxHeight: size, objectFit: 'contain', ...(pad !== undefined ? { '--pad': pad + 'px' } : {}) } as any}
 		onError={() => setIdx(idx + 1)} draggable={false} />;
 }
 

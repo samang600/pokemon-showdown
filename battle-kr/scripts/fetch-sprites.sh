@@ -40,4 +40,5 @@ export -f fetch_one
 export OUT HOST
 xargs -P 24 -I{} bash -c 'fetch_one "$@"' _ {} < "$jobs_file"
 rm -f "$LIST" "$jobs_file"
+python3 "$HERE/scripts/sprite-pad.py" 2>/dev/null || echo "(PIL 없음: sprite-pad.json 생략)"
 echo "완료: 그림 $(find "$OUT" -name '*.png' | wc -l)개 $(du -sh "$OUT" | cut -f1), 울음소리 $(find "$HERE/public/cries" -name '*.mp3' | wc -l)개 $(du -sh "$HERE/public/cries" | cut -f1)"

@@ -837,3 +837,21 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .avatar-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .avatar-pick button { padding: 4px 2px; font-size: 11px; }
 .avatar-pick img { height: 56px; }
+
+/* ── 포켓몬 위치: 그림의 아래 투명 여백(--pad)만큼 내려 발판에 서게, 크기는 --k ── */
+.slot .sprite { --k: 1; transform: translateX(-50%) translateY(calc(var(--pad, 6px) * var(--s) * var(--k))) scale(calc(var(--s) * var(--k))) !important; }
+.slot.foe .sprite { --k: .66; } .slot.own .sprite { --k: .86; }
+.doubles .slot.foe .sprite { --k: .56; } .doubles .slot.own .sprite { --k: .72; }
+.slot.own.dmax .sprite { --k: 1.1; } .slot.foe.dmax .sprite { --k: .95; }
+.doubles .slot.own.dmax .sprite { --k: .95; } .doubles .slot.foe.dmax .sprite { --k: .8; }
+.slot.foe.s0 { left: 76.5%; top: 70.5%; } .slot.own.s0 { left: 24%; top: 97%; }
+.doubles .slot.foe.s0 { left: 64%; top: 68.5%; } .doubles .slot.foe.s1 { left: 85%; top: 70%; }
+.doubles .slot.own.s0 { left: 17%; top: 96%; } .doubles .slot.own.s1 { left: 36%; top: 98.5%; }
+
+/* 드롭다운 */
+.sel-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; }
+.sel-row > span { color: var(--grey); flex: none; width: 34px; }
+.sel-row select { flex: 1; min-width: 0; font: inherit; font-size: 13px; color: #fff; background: #0e1828; border: 2px solid #8aa0c8; border-radius: 8px; padding: 5px 8px; -webkit-appearance: none; appearance: none;
+	background-image: linear-gradient(45deg, transparent 50%, #cfd8ea 50%), linear-gradient(135deg, #cfd8ea 50%, transparent 50%); background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%; background-size: 6px 6px; background-repeat: no-repeat; }
+.sel-row.big { margin: 2px 6px; } .sel-row.big select { font-size: 14px; padding: 7px 10px; }
+.sel-row .item-icon { flex: none; }

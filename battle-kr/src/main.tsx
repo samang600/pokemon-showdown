@@ -130,7 +130,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		</div>
 		<div class="seg">
 			<button class={s.vibrate ? 'on' : ''} onClick={() => up({ vibrate: !s.vibrate })}>진동 {s.vibrate ? '켜짐' : '꺼짐'}</button>
-			<button class={s.fastForward ? 'on' : ''} onClick={() => up({ fastForward: !s.fastForward })}>항상 빨리감기 {s.fastForward ? '켜짐' : '꺼짐'}</button>
+
 		</div>
 		<p class="muted small">데미지 예상: 기술 버튼에 상대에게 줄 데미지의 대략적인 비율을 표시합니다 (연습용).</p>
 		<h3 class="sec">포켓몬 그림</h3>

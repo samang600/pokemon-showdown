@@ -253,7 +253,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 	// 같은 포켓몬의 다른 모습 (메가·원시·거다이맥스처럼 배틀 중 바뀌는 모습과 배틀 전용 모습 제외)
 	const baseId = RAW.species[toID(s.species)]?.base || toID(s.species);
 	const formes = useMemo(() => Object.keys(RAW.species).filter(id => (id === baseId || RAW.species[id].base === baseId)).map(id => speciesData(id, gen)!)
-		.filter(f => f && !f.bo && !f.req), [baseId, gen]);
+		.filter(f => f && (cheat ? true : (!f.bo && !f.req))), [baseId, gen, cheat]);
 	const nat = RAW.natures[s.nature];
 	const sp = cheat ? Object.fromEntries(STATS.map(k => [k, evToSp(s.evs[k] || 0)])) as { [k in StatID]: number } : spOf(s);
 	const spTotal = STATS.reduce((a, k) => a + sp[k], 0);
@@ -294,16 +294,18 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			<div>
 				<div class="types">{sd.t.map(t => <TypeBadge type={t} />)}</div>
 				<label class="check"><input type="checkbox" checked={!!s.shiny} onChange={e => up({ shiny: (e.target as HTMLInputElement).checked })} /> 색이 다른 포켓몬</label>
-				{formes.length > 1 && <div class="row wrap forme-row"><span class="muted small">모습</span>
-					{formes.map(f => <button class={'chipbtn' + (f.id === toID(s.species) ? ' on' : '')} onClick={() => {
-						if (f.id === toID(s.species)) return;
-						const nsd = speciesData(f.id, gen)!;
-						up({ species: nsd.en, ability: nsd.ab.includes(s.ability) ? s.ability : nsd.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? nsd.t[0] : s.teraType) });
-					}}>{formeLabel(f, sd)}</button>)}</div>}
-				<div class="row wrap gender-row"><span class="muted small">성별</span>
-					{(sd.gr ? [sd.gr] : ['M', 'F']).map(g => <button class={'chipbtn' + ((s.gender || '') === g || (sd.gr && sd.gr === g) ? ' on' : '')} onClick={() => !sd.gr && up({ gender: g })}>{g === 'M' ? '♂ 수컷' : g === 'F' ? '♀ 암컷' : '성별 없음'}</button>)}
-					{!sd.gr && <button class={'chipbtn' + (!s.gender ? ' on' : '')} onClick={() => up({ gender: '' })}>무작위</button>}</div>
-				<div class="row wrap"><span class="muted small">볼</span><button class="chipbtn ball-btn" onClick={() => setPicker({ kind: 'ball' })}><ItemIcon item={s.pokeball || 'pokeball'} size={20} /> {itemKo(s.pokeball || 'pokeball')}</button></div>
+				{formes.length > 1 && <label class="sel-row"><span>모습</span>
+					<select value={toID(s.species)} onChange={e => {
+						const f = speciesData((e.target as HTMLSelectElement).value, gen)!;
+						up({ species: f.en, ability: f.ab.includes(s.ability) ? s.ability : f.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? f.t[0] : s.teraType) });
+					}}>{formes.map(f => <option value={f.id}>{f.n}{cheat && (f.req || f.bo) ? ' (배틀 중 모습)' : ''}</option>)}</select></label>}
+				<label class="sel-row"><span>성별</span>
+					{sd.gr ? <b class="muted">{sd.gr === 'M' ? '♂ 수컷' : sd.gr === 'F' ? '♀ 암컷' : '성별 없음'}</b> :
+					<select value={s.gender || ''} onChange={e => up({ gender: (e.target as HTMLSelectElement).value })}>
+						<option value="">무작위</option><option value="M">♂ 수컷</option><option value="F">♀ 암컷</option></select>}</label>
+				<label class="sel-row"><span>볼</span><ItemIcon item={s.pokeball || 'pokeball'} size={20} />
+					<select value={s.pokeball || 'pokeball'} onChange={e => up({ pokeball: (e.target as HTMLSelectElement).value })}>
+						{allBalls().map(b => <option value={b.id}>{b.n}</option>)}</select></label>
 				{sd.gx && <label class="check"><input type="checkbox" checked={!!s.gigantamax} onChange={e => up({ gigantamax: (e.target as HTMLInputElement).checked })} /> 거다이맥스 <small class="muted">(다이맥스할 때 거다이맥스 모습·기술)</small></label>}
 				<button class="btn ghost small" onClick={() => { const n = randomSetFor(toID(s.species), gen, 50); n.shiny = s.shiny; setS(n); onChange(n); toast('추천 세트로 바꿨습니다'); }}>🎲 추천 세트</button>
 			</div>
@@ -332,10 +334,12 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			})}
 		</div>
 		<h3 class="sec">성격</h3>
-		<button class="option" onClick={() => setPicker({ kind: 'nature' })}><span class="opt-body"><b>{natureKo(s.nature)}</b>
-			<small>{nat?.p ? `${STAT_KO[nat.p]} ▲ / ${STAT_KO[nat.m]} ▼` : '능력 변화 없음'}</small></span></button>
+		<label class="sel-row big"><select value={s.nature} onChange={e => up({ nature: (e.target as HTMLSelectElement).value })}>
+			{allNatures().map(n => <option value={n.id}>{n.n}{n.p ? ` (${STAT_SHORT[n.p]}▲ ${STAT_SHORT[n.m]}▼)` : ' (변화 없음)'}</option>)}</select>
+			<b class="muted small">{nat?.p ? `${STAT_KO[nat.p]} ▲ / ${STAT_KO[nat.m]} ▼` : '능력 변화 없음'}</b></label>
 		<h3 class="sec">테라스탈 타입</h3>
-		<div class="tera-pick">{ALL_TYPES.map(t => <button class={(s.teraType || sd.t[0]) === t ? 'on' : ''} onClick={() => up({ teraType: t })}><TypeBadge type={t} small /></button>)}</div>
+		<label class="sel-row big"><TypeBadge type={s.teraType || sd.t[0]} /><select value={s.teraType || sd.t[0]} onChange={e => up({ teraType: (e.target as HTMLSelectElement).value })}>
+			{ALL_TYPES.map(t => <option value={t}>{typeKo(t)}</option>)}</select></label>
 		<h3 class="sec">능력 포인트 <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{cheat ? `${spTotal} (제한 없음)` : `${spTotal}/${SP_TOTAL}`}</small>
 			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: fillSP({ ...s, evs: n.evs, ivs: { ...s.ivs } }).evs, nature: n.nature }); }}>자동 배분</button></h3>
 		<p class="muted small">포켓몬 챔피언스 방식: 능력마다 0~32포인트, 합계 66포인트. 개체값은 없고(모두 최대), 레벨 50에서 1포인트 = 능력치 +1.</p>
