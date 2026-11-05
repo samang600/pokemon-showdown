@@ -858,3 +858,6 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 
 .controls.end { align-items: stretch; }
 .controls.end .btn { font-size: 17px; padding: 10px 12px; display: flex; align-items: center; justify-content: center; }
+
+.controls.end { flex: 0 0 auto; align-items: stretch; }
+.controls.end .btn { min-height: 54px; }
