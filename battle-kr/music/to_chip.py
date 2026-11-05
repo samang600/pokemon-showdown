@@ -7,14 +7,14 @@
 사용: python3 to_chip.py [출력 경로]"""
 import os, sys, json
 from songkit import S16
-import songs, songs2
+import songs, songs2, songs3
 
 LEAD = ['tpt_sus', 'flute_sus', 'flute_stac', 'cl_stac', 'vln_solo', 'vln_sus', 'vc_sus', 'vln_spic', 'tbn_sus', 'tpt_stac']
 HARM = ['vln_sus', 'tbn_sus', 'vln_trem', 'vc_sus', 'glock', 'ob_stac', 'tpt_sus', 'vln_solo', 'gtr', 'flute_sus']
 BASS = ['sbass', 'db_pizz', 'tuba_stac', 'vc_spic']
 HARM2 = ['tbn_stac', 'tpt_stac', 'gtr', 'tbn_sus', 'vc_sus', 'harp']   # 화음 대체: 화음 가운데 음
 ARP = ['harp', 'piano', 'vla_spic', 'vln_spic', 'gtr', 'tpt_stac', 'tbn_stac', 'vc_spic']
-LEAD_TYPE = {'title': 'square', 'victory': 'square', 'evil': 'sawtooth', 'boss': 'sawtooth', 'champion': 'sawtooth'}
+LEAD_TYPE = {'title': 'square', 'victory': 'square', 'evil': 'sawtooth', 'boss': 'sawtooth', 'champion': 'sawtooth', 'battle': 'sawtooth'}
 
 def grid(notes, n, pick):
     """notes → 칸마다 (onset 음 또는 지속) 단선율. pick: 같은 칸 화음 중 고를 음 (max/min)"""
@@ -61,6 +61,8 @@ def convert(song):
             if hk: ch['harm'][sl] = mid[hk][sl]
         ak = next((k for k in ARP if k in top and k not in (lk, hk, bk) and bar_has(top[k], b)), None)
         if ak: ch['arp'][sl] = top[ak][sl]
+    # 휴대폰 스피커에서 들리게: C2(36) 아래 베이스는 한 옥타브 올림
+    ch['bass'] = [x + 12 if x not in (None, -1) and x < 36 else x for x in ch['bass']]
     # 첫 칸이 '지속'이면 쉼으로
     for c in ch.values():
         for i in range(n):
@@ -77,7 +79,7 @@ def convert(song):
 if __name__ == '__main__':
     out_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'out', 'chip-tracks.json')
     res = {}
-    for name, fn in {**songs.SONGS, **songs2.SONGS}.items():
+    for name, fn in {**songs.SONGS, **songs2.SONGS, **songs3.SONGS}.items():
         res[name] = convert(fn())
         r = res[name]; print(name, len(r['lead']), '칸', {c: sum(ch not in ' !' for ch in r[c]) for c in ('lead', 'harm', 'bass', 'arp')})
     json.dump(res, open(out_path, 'w', encoding='utf-8'), ensure_ascii=True, separators=(',', ':'))

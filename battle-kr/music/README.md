@@ -2,6 +2,7 @@
 
 - `songs.py`: 다섯 곡의 작곡 데이터 (멜로디·코드 진행·반주 패턴·드럼). `python3 songs.py [title battle tower boss evil]`
 - `songs2.py`: 추가 3곡 — 승리·PWT 토너먼트·챔피언 결전. `python3 songs2.py [victory pwt champion]`
+- `songs3.py`: 배틀 곡 5곡 다시 쓰기 (단조·16분 페달 베이스·현 분산화음·3-3-2 금관/킥 엇박·감7·나폴리 화음) — songs.py·songs2.py 의 같은 이름 곡을 대체
 - `to_chip.py`: 작곡 데이터를 앱 칩튠 시퀀서용 5채널로 자동 편곡 → `src/gen/chip-tracks.json` (`python3 to_chip.py ../src/gen/chip-tracks.json`)
 - `chip_preview.py`: 칩튠판을 앱과 같은 방식으로 렌더해 미리듣기 mp3
 - `compose.py`: 마을(타이틀) 테마 원본 (songs.py 가 불러 씀)
