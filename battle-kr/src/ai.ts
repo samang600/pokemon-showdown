@@ -30,10 +30,18 @@ function st(p: Pokemon, stat: string): number {
 	try { return p.getStat(stat, false, true); } catch { return p.storedStats?.[stat] || 100; }
 }
 
-function typeEff(battle: Battle, moveType: string, target: Pokemon) {
-	if (!battle.dex.getImmunity(moveType, target)) return 0;
-	return Math.pow(2, battle.dex.getEffectiveness(moveType, target));
+/** 거꾸로 배틀(Inverse Mod) 중인지 */
+export function isInverse(battle: Battle): boolean {
+	try { return battle.ruleTable.has('inversemod'); } catch { return false; }
 }
+/** 타입 상성 배율 (거꾸로 배틀이면 뒤집음: 무효·반감 → 2배, 약점 → 반감) */
+export function typeEffOf(battle: Battle, moveType: string, target: Pokemon | string[]): number {
+	const inv = isInverse(battle);
+	if (!battle.dex.getImmunity(moveType, target as any)) return inv ? 2 : 0;
+	const e = battle.dex.getEffectiveness(moveType, target as any);
+	return Math.pow(2, inv ? -e : e);
+}
+function typeEff(battle: Battle, moveType: string, target: Pokemon) { return typeEffOf(battle, moveType, target); }
 
 function abilityImmune(move: any, moveType: string, target: Pokemon, gen: number): boolean {
 	const ab = target.getAbility().id;
@@ -658,13 +666,12 @@ function gimmickFor(battle: Battle, user: Pokemon, reqActive: any, best: Option,
 		// 방어: 상대 예상 기술의 상성이 좋아지는가
 		if (pred.move) {
 			const before = typeEff(battle, pred.move.type, user);
-			const after = Math.pow(2, battle.dex.getEffectiveness(pred.move.type, tera));
-			const afterImmune = !battle.dex.getImmunity(pred.move.type, tera) ? 0 : after;
+			const afterImmune = typeEffOf(battle, pred.move.type, tera);
 			if (foeKOsMeAny && pred.damage * (afterImmune / Math.max(0.25, before)) < 0.9) sc += 3; // 쓰러질 걸 버팀
 			else if (before > 1 && afterImmune < 1) sc += 1;
 			// 테라 후 약점이 생기면 감점 (상대가 그 타입 기술을 가짐)
 			const foeTypes = new Set<string>(target.moveSlots.map((ms: any) => battle.dex.moves.get(ms.id)).filter((mv: any) => mv.category !== 'Status').map((mv: any) => mv.type));
-			for (const t of foeTypes) if (battle.dex.getEffectiveness(t, tera) > 0 && typeEff(battle, t, user) <= 1) sc -= 1;
+			for (const t of foeTypes) if (typeEffOf(battle, t, tera) > 1 && typeEff(battle, t, user) <= 1) sc -= 1;
 		}
 		if (isAce && alive.length <= 2 && sc >= 0 && move.category !== 'Status' && move.type === tera) sc += 1;
 		if (careless) sc += 1;

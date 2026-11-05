@@ -9,7 +9,7 @@ import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords } from '../store';
 import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
-import { estimateDamage } from '../ai';
+import { estimateDamage, typeEffOf } from '../ai';
 import * as FX from '../fx';
 import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries, pickBattleMusic, animSfxVolume, vibrate } from '../sound';
 import { saveSettings, loadSettings as loadSettings2 } from '../store';
@@ -25,8 +25,10 @@ export interface BattleSetup {
 	label?: string; // 예: '배틀타워 12번째'
 	/** 전적에 넣지 않음 (프리·치트 배틀) */
 	noRecord?: boolean;
-	/** 치트 배틀: 능력 포인트 합계 제한 없음 */
+	/** 치트 팀 허용: 능력 포인트 합계 제한 없음 */
 	cheat?: boolean;
+	/** 거꾸로 배틀 */
+	inverse?: boolean;
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
 }
 export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
@@ -666,7 +668,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	useEffect(() => {
 		const s = new Session({
-			gen: setup.gen, doubles: setup.doubles, aiSkill: setup.aiSkill,
+			gen: setup.gen, doubles: setup.doubles, aiSkill: setup.aiSkill, inverse: !!setup.inverse,
 			p1: { name: setup.p1.name, team: toSimTeam(setup.p1.team, !!setup.cheat) as any },
 			p2: { name: setup.p2.name, team: toSimTeam(setup.p2.team, !!setup.cheat) as any },
 		});
@@ -760,8 +762,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			const s = sessionRef.current!.battle;
 			const target = s.p2.active.find((p: any) => p && !p.fainted);
 			if (target) {
-				const imm = !s.dex.getImmunity(type, target);
-				const e = imm ? 0 : Math.pow(2, s.dex.getEffectiveness(type, target));
+				const e = typeEffOf(s, type, target);
 				eff = e === 0 ? '효과 없음' : e >= 4 ? '효과 매우 굉장' : e >= 2 ? '효과 굉장' : e <= 0.25 ? '매우 별로' : e < 1 ? '효과 별로' : '보통';
 			}
 		}
@@ -892,7 +893,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const tg = b?.p2.active[i];
 				const md = mv ? b?.dex.moves.get(mv.id) : null;
 				if (md && tg && md.category !== 'Status') {
-					const e = !b.dex.getImmunity(md.type, tg) ? 0 : Math.pow(2, b.dex.getEffectiveness(md.type, tg));
+					const e = typeEffOf(b, md.type, tg);
 					eff = e === 0 ? '효과 없음' : e >= 2 ? '효과 굉장' : e < 1 ? '효과 별로' : '';
 				}
 				const dp = mv ? dmgPreview(mv, 'p2', i) : '';
@@ -1239,7 +1240,7 @@ function MonDetail({ mon, own, gen, session, onClose }: { mon: Mon; own: boolean
 				{sd && (() => {
 					const b = session.battle;
 					const types = mon.tera ? [mon.tera] : sd.t;
-					const eff = (t: string) => { const fake = { getTypes: () => types, hasType: (x: string) => types.includes(x), types } as any; try { return !b.dex.getImmunity(t, types) ? 0 : Math.pow(2, b.dex.getEffectiveness(t, types)); } catch { void fake; return 1; } };
+					const eff = (t: string) => { try { return typeEffOf(b, t, types); } catch { return 1; } };
 					const all = ['Normal', 'Fire', 'Water', 'Electric', 'Grass', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Dark', 'Steel', 'Fairy'];
 					const weak = all.filter(t => eff(t) >= 2), resist = all.filter(t => eff(t) < 1);
 					return <>

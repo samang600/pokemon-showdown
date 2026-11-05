@@ -15,6 +15,8 @@ export interface SessionConfig {
 	seed?: [number, number, number, number];
 	/** 배틀 규칙 id (없으면 설정값) */
 	ruleId?: string;
+	/** 거꾸로 배틀 */
+	inverse?: boolean;
 }
 
 export class Session {
@@ -37,7 +39,7 @@ export class Session {
 
 	constructor(public cfg: SessionConfig) {
 		this.rule = ruleById(cfg.ruleId || loadSettings().battleRule);
-		const formatid = `gen${cfg.gen}kr${cfg.doubles ? 'doubles' : 'singles'}`;
+		const formatid = `gen${cfg.gen}kr${cfg.doubles ? 'doubles' : 'singles'}${cfg.inverse ? 'inverse' : ''}`;
 		this.battle = new Battle({
 			formatid: formatid as any,
 			...(cfg.seed ? { seed: 'gen5,' + cfg.seed.map(n => n.toString(16).padStart(4, '0')).join('') } : {}),

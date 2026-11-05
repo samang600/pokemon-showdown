@@ -4,7 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { bindView, Screen, Sprite, toast, confirmBox, QuitToMenu, resetAbort } from './ui/core';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
-import { runTower, runFactory, runPWT, runNamed, runFree, runCheat } from './modes';
+import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, type Settings } from './store';
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
@@ -18,7 +18,6 @@ const MODES = [
 	{ id: 'pwt', name: 'PWT', sub: '월드 토너먼트', run: runPWT, color: '#d23a6a', icon: '🏆', mon: 'hydreigon' },
 	{ id: 'named', name: '네임드 트레이너', sub: '관장 · 챔피언 · 라이벌 · 악당', run: runNamed, color: '#7a4ad8', icon: '⭐', mon: 'dragonite' },
 	{ id: 'free', name: '프리 배틀', sub: '싱글 · 더블 바로 대전', run: () => runFree(), color: '#2a9d6a', icon: '⚔', mon: 'lucario' },
-	{ id: 'cheat', name: '치트 배틀', sub: '마음대로 · 전적 없음', run: runCheat, color: '#b0308a', icon: '🃏', mon: 'mew' },
 ];
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
@@ -60,7 +59,7 @@ function Home({ go }: { go: (v: string) => void }) {
 		</div>
 		{suspended && <div class="notice">쉬는 중인 도전이 있어요. 해당 시설에 들어가면 이어서 할 수 있습니다.</div>}
 		<div class="mode-grid">
-			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
+			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 || i === MODES.length - 1 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
 				<span class="mode-icon">{m.icon}</span>
 				<span class="mode-text"><b>{m.name}</b><small>{m.sub}</small>{badge[m.id] && <em>{badge[m.id]}</em>}</span>
 				<span class="mode-mon"><Sprite species={m.mon} gen={9} size={64} anim={false} /></span>

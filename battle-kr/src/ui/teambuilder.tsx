@@ -51,7 +51,7 @@ export function TeamList({ onBack, onEdit }: { onBack: () => void; onEdit: (t: S
 			<button class="btn ghost" onClick={() => create(9, true)}>🎲 추천 팀 받기</button>
 			<button class="btn ghost" onClick={() => create(9, false, true)}>🃏 치트 팀</button>
 		</div>
-		<p class="muted small">치트 팀: 아무 기술·특성이나 넣고 능력 포인트 제한(합계 66) 없이 만들 수 있어요. 치트 배틀에서만 쓰이고 전적에 남지 않습니다.</p>
+		<p class="muted small">치트 팀: 아무 기술·특성이나 넣고 능력 포인트 제한(합계 66) 없이 만들 수 있어요. 각 배틀 모드의 형식 선택 화면에서 ‘치트 팀 허용’을 켜면 쓸 수 있고, 전적에 남지 않습니다.</p>
 		<ImportBox onImported={() => setTeams(loadTeams())} />
 		{!teams.length && <p class="empty-msg">아직 팀이 없습니다. 새 팀을 만들거나 추천팀을 받아 보세요.</p>}
 		<div class="card-list">
@@ -178,7 +178,7 @@ export function TeamEditor({ team: initial, onBack }: { team: SavedTeam; onBack:
 		<label class="field-label">팀 이름
 			<input value={team.name} onInput={e => commit({ ...team, name: (e.target as HTMLInputElement).value })} />
 		</label>
-		{team.cheat ? <p class="cheat-note">🃏 치트 팀 — 기술·특성 제한 없음, 능력 포인트 능력마다 최대 32(합계 제한 없음), 레벨 자유. 치트 배틀 전용이며 전적에 남지 않습니다.</p>
+		{team.cheat ? <p class="cheat-note">🃏 치트 팀 — 기술·특성 제한 없음, 능력 포인트 능력마다 최대 32(합계 제한 없음), 레벨 자유. 배틀 모드에서 ‘치트 팀 허용’을 켜야 쓸 수 있고 전적에 남지 않습니다.</p>
 			: <><p class="muted">내셔널 도감 · 레벨 50 · 같은 포켓몬은 1마리씩 · 메가스톤·Z크리스탈 사용 가능</p><TeamWarnings sets={team.sets} /></>}
 		<div class="card-list">
 			{team.sets.map((s, i) => <SetCard set={s} gen={g} onClick={() => setEditing(i)}>

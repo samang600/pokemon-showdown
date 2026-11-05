@@ -16,6 +16,9 @@ const common = {
 export const Formats = [
 	{ name: "[Gen 9] KR Singles", mod: 'gen9', gameType: 'singles', ...common },
 	{ name: "[Gen 9] KR Doubles", mod: 'gen9', gameType: 'doubles', ...common },
+	// 거꾸로 배틀: 약점은 반감, 반감·무효는 약점
+	{ name: "[Gen 9] KR Singles Inverse", mod: 'gen9', gameType: 'singles', ...common, ruleset: [...common.ruleset, 'Inverse Mod'] },
+	{ name: "[Gen 9] KR Doubles Inverse", mod: 'gen9', gameType: 'doubles', ...common, ruleset: [...common.ruleset, 'Inverse Mod'] },
 	{ name: "[Gen 9] Random Battle", mod: 'gen9', team: 'random', ...common },
 	{ name: "[Gen 9] Random Doubles Battle", mod: 'gen9', gameType: 'doubles', team: 'random', ...common },
 ];
