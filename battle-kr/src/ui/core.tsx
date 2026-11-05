@@ -6,7 +6,7 @@ import { loadSettings } from '../store';
 import { partBase } from '../offline';
 import SPRITE_PAD from '../gen/sprite-pad.json';
 /** 정지 도트 그림의 아래 투명 여백(px) [앞, 뒤] — 발판에 딱 서도록 그만큼 내림 (scripts/sprite-pad.py) */
-const PAD = SPRITE_PAD as { [id: string]: [number, number] };
+const PAD = SPRITE_PAD as { [id: string]: number[] };
 
 // ── 화면 전환: 모드 진행 코드를 async 함수로 쓰기 위한 도우미 ──
 let setViewFn: ((v: VNode | null) => void) | null = null;
@@ -107,8 +107,13 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 }
 
 /** 그림 후보 순서: 온라인이면 움직이는 그림 → 앱 안의 정지 그림 → 서버 정지 그림, 오프라인이면 앱 안의 그림부터 */
+declare const __CUSTOM_SPRITES__: Record<string, string>;
+/** 직접 만든 그림 (build.mjs 가 src/sprites-custom 에서 넣음): 앞모습만 있으면 뒷모습은 평소 그림 */
+const CUSTOM_SPRITES: Record<string, string> = typeof __CUSTOM_SPRITES__ === 'object' ? __CUSTOM_SPRITES__ : {};
 function spriteCandidates(species: string, id: string, back: boolean, shiny: boolean, useAnim: boolean, gen: Gen): string[] {
 	const b = back ? '-back' : '', sh = shiny ? '-shiny' : '';
+	const custom = CUSTOM_SPRITES[`${id}${b}${sh}`];
+	if (custom) return [custom];
 	const sb = spriteBase();
 	if (id === 'substitute') return sb ? [`${sb}substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`] : [`${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
 	const local = [`${sb}gen5${b}${sh}/${id}.png`];
@@ -124,11 +129,20 @@ function spriteCandidates(species: string, id: string, back: boolean, shiny: boo
 	return useAnim ? [...remote, local[0], remoteStatic, ...local.slice(1)] : [local[0], remoteStatic, ...local.slice(1)];
 }
 
+/** 목록·카드용 썸네일: 96px 도트 그림에서 그림이 있는 영역만 잘라 가능하면 1:1(축소 없이)로 보여 뭉개지지 않게 */
+export function CropSprite({ species, gen = 5, size = 64, shiny, cls }: { species: string; gen?: Gen; size?: number; shiny?: boolean; cls?: string }) {
+	const id = spriteId(species);
+	const e = PAD[id] || PAD[spriteId(speciesData(toID(species), 9 as Gen)?.base || '')];
+	const [x, y, w, h] = e && e.length >= 6 ? e.slice(2) : [0, 0, 96, 96];
+	const k = Math.min(1, (size - 2) / Math.max(w, h));
+	const tx = Math.round((size - w * k) / 2 - x * k), ty = Math.round((size - h * k) / 2 - y * k);
+	return <span class={'crop ' + (cls || '')} style={{ width: size, height: size, '--t': `translate(${tx}px, ${ty}px) scale(${k})` } as any}>
+		<Sprite species={species} gen={gen} size={96} anim={false} shiny={shiny} />
+	</span>;
+}
 /** 목록용 작은 아이콘 */
 export function MiniSprite({ species, gen = 5, size = 40, shiny }: { species: string; gen?: Gen; size?: number; shiny?: boolean }) {
-	return <span class="mini" style={{ width: size, height: size }}>
-		<Sprite species={species} gen={gen} size={size} anim={false} shiny={shiny} />
-	</span>;
+	return <CropSprite species={species} gen={gen} size={size} shiny={shiny} cls="mini" />;
 }
 
 export function Header({ title, onBack, right }: { title: string; onBack?: () => void; right?: ComponentChildren }) {

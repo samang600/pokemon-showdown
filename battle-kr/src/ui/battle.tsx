@@ -147,7 +147,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		const scene = sceneRef.current;
 		const side = scene[ident.slice(0, 2) as 'p1' | 'p2'];
 		const nick = ident.slice(ident.indexOf(': ') + 2);
-		let mon = side.team.find(m => m.nick === nick && (!details || toID(parseDetails(details).species).startsWith(toID(m.species).slice(0, 4)) || true));
+		// 같은 별명이 여럿이면(같은 종 2마리 등) 성별·색이 다른 포켓몬 여부가 맞고 아직 나와 있지 않은 쪽
+		const cands = side.team.filter(m => m.nick === nick);
+		const d0 = cands.length > 1 && details ? parseDetails(details) : null;
+		let mon = d0 ? (cands.find(m => m.shiny === d0.shiny && m.gender === d0.gender && !side.active.includes(m)) || cands.find(m => !side.active.includes(m)) || cands[0]) : cands[0];
+		// 유일한 후보가 이미 다른 자리에 나와 있으면(상대 쪽 같은 별명 2마리) 새 포켓몬
+		if (mon && details && cands.length === 1 && side.active.includes(mon) && side.active[slotOf(ident)] !== mon) mon = undefined;
 		if (!mon) {
 			const d = details ? parseDetails(details) : { species: nick, level: 50, gender: '', shiny: false };
 			mon = {
@@ -925,7 +930,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 					<span class="sw-info">
 						<b>{nick}</b>
 						<HPBar hp={hp.hp} maxhp={hp.maxhp || 1} />
-						<small>{fainted ? '기절' : `${hp.hp}/${hp.maxhp}`} {hp.status && hp.status !== 'fnt' && <StatusBadge status={hp.status} />}{isActive && ' · 배틀 중'}</small>
+						<small>{fainted ? '기절' : `${hp.hp}/${hp.maxhp}`} {hp.status && hp.status !== 'fnt' && <StatusBadge status={hp.status} />}{isActive && !fainted && ' · 배틀 중'}</small>
 					</span>
 				</button>;
 			})}
@@ -1056,7 +1061,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	if (reqMon && scene.p1.team.length < reqMon.length) {
 		for (const p of reqMon) {
 			const nick = p.ident.slice(4);
-			if (!scene.p1.team.find(m => m.nick === nick)) {
+			// 같은 별명이 여럿이면(같은 종 2마리 등) 그 수만큼 채움
+			if (scene.p1.team.filter(m => m.nick === nick).length < reqMon.filter(q => q.ident.slice(4) === nick).length) {
 				const d = parseDetails(p.details);
 				const hp = parseHP(p.condition);
 				scene.p1.team.push({ ident: 'p1: ' + nick, nick, species: d.species, level: d.level, gender: d.gender, shiny: d.shiny,

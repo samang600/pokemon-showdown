@@ -4,7 +4,7 @@ import { useState } from 'preact/hooks';
 import { speciesData, toID, moveKo, itemKo, abilityKo, natureKo, typeKo, STAT_SHORT, STAT_KO, STATS, moveData, natureData, abilityDesc, itemDesc, calcStat, type Gen } from '../data';
 import { evToSp, spToEv, type PSet } from '../sets';
 import { SPRITE_URL, trainerImgError } from '../trainer-lines';
-import { Screen, Sprite, MiniSprite, TypeBadge, Modal, HPBar, StatusBadge, TYPE_COLOR } from './core';
+import { Screen, Sprite, MiniSprite, CropSprite, TypeBadge, Modal, HPBar, StatusBadge, TYPE_COLOR } from './core';
 
 /** 세트 요약 카드 */
 export function SetCard({ set, gen, selected, order, onClick, compact, children }: {
@@ -13,7 +13,7 @@ export function SetCard({ set, gen, selected, order, onClick, compact, children 
 	const sd = speciesData(toID(set.species), gen);
 	return <div class={'set-card' + (selected ? ' selected' : '') + (onClick ? ' clickable' : '')} onClick={onClick}>
 		{order !== undefined && <span class="order">{order}</span>}
-		<div class="set-sprite"><Sprite species={set.species} gen={gen} size={64} anim={false} shiny={set.shiny} /></div>
+		<div class="set-sprite"><CropSprite species={set.species} gen={gen} size={64} shiny={set.shiny} /></div>
 		<div class="set-body">
 			<div class="set-title"><b>{set.name || sd?.n}</b>{sd?.t.map(t => <TypeBadge type={t} small />)}</div>
 			<div class="set-meta">{abilityKo(set.ability)} · {set.item ? itemKo(set.item) : '도구 없음'}{!compact && ` · ${natureKo(set.nature)}`}{set.gigantamax && <span class="tag"> · 거다이맥스</span>}</div>

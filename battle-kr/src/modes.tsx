@@ -9,12 +9,12 @@ import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
 import { speciesKo, spriteId, megaStonesFor, moveKo, typeKo, speciesData, toID, type Gen } from './data';
 
-type Fmt = 'singles' | 'doubles' | 'singles6' | 'doubles64';
-const isDoubles = (f: Fmt) => f === 'doubles' || f === 'doubles64';
+type Fmt = 'singles' | 'doubles' | 'singles6' | 'doubles64' | 'doubles6';
+const isDoubles = (f: Fmt) => f === 'doubles' || f === 'doubles64' || f === 'doubles6';
 /** 팀(엔트리) 크기 / 배틀에 내보내는 수 */
 const teamSize = (f: Fmt) => f === 'singles' ? 3 : f === 'doubles' ? 4 : 6;
-const battleSize = (f: Fmt) => f === 'singles' ? 3 : f === 'doubles' ? 4 : f === 'singles6' ? 6 : 4;
-const fmtLabel = (f: Fmt) => ({ singles: '싱글 3vs3', doubles: '더블 4vs4', singles6: '싱글 6vs6', doubles64: '더블 6→4' } as any)[f];
+const battleSize = (f: Fmt) => f === 'singles' ? 3 : f === 'doubles' ? 4 : f === 'doubles64' ? 4 : 6;
+const fmtLabel = (f: Fmt) => ({ singles: '싱글 3vs3', doubles: '더블 4vs4', singles6: '싱글 6vs6', doubles64: '더블 6→4', doubles6: '더블 6vs6' } as any)[f];
 const BACK = Symbol('back');
 
 function battle(setup: BattleSetup): Promise<BattleResult> {
@@ -33,6 +33,7 @@ async function chooseFormat(title: string, desc?: string, extended = false): Pro
 			...(extended ? [
 				{ value: 'singles6' as Fmt, label: '싱글 6vs6', desc: '6마리 전원으로 풀배틀', icon: '⑥' },
 				{ value: 'doubles64' as Fmt, label: '더블 6→4', desc: '6마리를 데리고 배틀마다 4마리를 골라 더블배틀 (챔피언스 방식)', icon: '④' },
+				{ value: 'doubles6' as Fmt, label: '더블 6vs6', desc: '6마리 전원으로 더블 풀배틀', icon: '⑥' },
 			] : []),
 		]} onPick={r} />);
 }

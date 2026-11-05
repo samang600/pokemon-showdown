@@ -45,6 +45,9 @@ const ANIM_BASE = `https://cdn.jsdelivr.net/gh/samang600/pokemon-showdown@${anim
 // 오프라인 묶음 zip (battle-kr/offline/*.zip, 저장소의 현재 브랜치에서 받음)
 const branch = process.env.PACK_BRANCH || execSync('git rev-parse --abbrev-ref HEAD', { cwd: path.join(HERE, '..') }).toString().trim();
 const PACK_URLS = ['sprites', 'cries', 'anims'].map(n => `${n}=https://raw.githubusercontent.com/samang600/pokemon-showdown/${branch}/battle-kr/offline/${n}.zip`).join(';');
+// 직접 만든 그림 (src/sprites-custom/<id>[-shiny].png) — 서버 그림 대신 항상 이것을 씀
+const customDir = path.join(HERE, 'src/sprites-custom');
+const CUSTOM_SPRITES = Object.fromEntries(fs.existsSync(customDir) ? fs.readdirSync(customDir).filter(f => f.endsWith('.png')).map(f => [f.slice(0, -4), 'data:image/png;base64,' + fs.readFileSync(path.join(customDir, f)).toString('base64')]) : []);
 const result = await esbuild.build({
 	entryPoints: [path.join(HERE, args.has('--test') ? 'test/selfplay.ts' : 'src/main.tsx')],
 	bundle: true,
@@ -57,7 +60,7 @@ const result = await esbuild.build({
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
-		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS),
+		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES),
 		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',
