@@ -6,11 +6,15 @@ import { loadSettings } from '../src/store';
 import { ruleById } from '../src/rules';
 import { randomTeam, toSimTeam } from '../src/sets';
 import { setSmogon, aiPickEntry } from '../src/smogon';
+import { rankerTeam } from '../src/pokedb';
 import { KoreanText, parseLine } from '../src/text';
 /** o.aSmogon/bSmogon: 각 팀을 Smogon 통계로 만들지 / o.quality: 통계 세트의 쏠림 / o.pick: 6마리 중 n마리 (A 는 aiPickEntry, B 는 무작위) */
 (window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, _unused = false, size = 0,
-	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number } = {}) => {
-	const res = { switches: 0, faints: 0, gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[] };
+	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number; depthA?: number; depthB?: number; budget?: number; aRanker?: boolean; minBstB?: number } = {}) => {
+	(globalThis as any).__searchDepth = o.depthA || o.depthB ? { p1: o.depthA || 1, p2: o.depthB || 1 } : null;
+	(globalThis as any).__laBudget = o.budget;
+	const think: any = { p1: [] as number[], p2: [] as number[] };
+	const res = { switches: 0, faints: 0, gm: {} as any, aWins: 0, bWins: 0, ties: 0, errors: [] as string[], turns: 0, emptyText: {} as any, sample: [] as string[], think: {} as any };
 	for (let k = 0; k < n; k++) {
 		const reqs: any = {};
 		const used: any = { p1: new Set(), p2: new Set() };
@@ -22,7 +26,8 @@ import { KoreanText, parseLine } from '../src/text';
 		} } as any);
 		const sz = o.pick ? 6 : size || (doubles ? 4 : 3);
 		setSmogon(o.aSmogon ?? true); let ta = randomTeam({ gen, size: sz, minBst: 450, doubles, quality: o.quality });
-		setSmogon(o.bSmogon ?? true); let tb = randomTeam({ gen, size: sz, minBst: 450, doubles, quality: o.quality });
+		setSmogon(o.bSmogon ?? true); let tb = randomTeam({ gen, size: sz, minBst: o.minBstB ?? 450, allowSubLegend: !!o.minBstB, doubles, quality: o.quality });
+		if (o.aRanker) { setSmogon(true); const rk = rankerTeam(doubles, 50, 0.9); if (rk) ta = rk.team.slice(0, sz); }
 		if (o.pick) {
 			setSmogon(true); const pa = aiPickEntry(ta, tb, o.pick, doubles, 1);
 			setSmogon(false); const pb = aiPickEntry(tb, ta, o.pick, doubles, 1);
@@ -43,7 +48,9 @@ import { KoreanText, parseLine } from '../src/text';
 				const extra = filterGimmicks(r, rule, used[side], (b as any)[side]);
 				const ar = (b as any)[side].activeRequest; if (ar?.active) for (const i in extra) if (ar.active[i]) { ar.active[i].canDynamax = true; ar.active[i].maxMoves = extra[i]; }
 				let c = 'default';
+				const t0 = performance.now();
 				try { c = chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
+				think[side].push(performance.now() - t0);
 				try {
 					if (!b.choose(side, c)) { res.errors.push(`bad choice ${side}: ${c} :: ${(b as any)[side].choice.error}`); b.choose(side, 'default'); }
 				} catch (e: any) { res.errors.push('SIM ' + e.message + '\n' + b.log.slice(-25).join('\n')); guard = 9999; break; }
@@ -73,6 +80,7 @@ import { KoreanText, parseLine } from '../src/text';
 			} catch (e: any) { res.errors.push('TEXT ' + e.message + ' ' + l); }
 		}
 	}
+	for (const sd of ['p1', 'p2']) { const a = think[sd].sort((x: number, y: number) => x - y); res.think[sd] = { avg: Math.round(a.reduce((x: number, y: number) => x + y, 0) / (a.length || 1)), p95: Math.round(a[Math.floor(a.length * 0.95)] || 0), max: Math.round(a[a.length - 1] || 0) }; }
 	res.emptyText = Object.keys(res.emptyText).slice(0, 60);
 	res.sample = res.sample.slice(0, 40);
 	return res;

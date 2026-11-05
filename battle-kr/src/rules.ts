@@ -10,6 +10,8 @@ export interface BattleRule {
 	id: string; name: string; group: string; desc: string;
 	kinds: GimmickKind[]; oneKind: boolean;
 	maxNum?: number; noFuture?: boolean; megaOnly?: Set<string>; legend: 'all' | 'sub' | 'none';
+	/** 한 포켓몬이 기믹을 겹쳐 쓸 수 있음 / 상대 무작위 팀에도 전설·환상이 섞임 */
+	stack?: boolean; legendTeams?: boolean;
 }
 
 const MEGA_MA = ['kangaskhan', 'charizardy', 'charizardx', 'gengar', 'gardevoir', 'lucario', 'venusaur', 'blastoise', 'tyranitar', 'garchomp', 'scizor', 'lopunny',
@@ -34,6 +36,8 @@ export const RULES: BattleRule[] = [
 		desc: '초전설·환상 포함 모든 포켓몬. 기믹은 한 배틀에 한 종류만.' },
 	{ id: 'natdexfree', name: '룰 · 기믹 모두', group: '룰', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: false, legend: 'all',
 		desc: '모든 포켓몬. 네 가지 기믹을 종류마다 한 번씩 쓸 수 있습니다.' },
+	{ id: 'unlimited', name: '룰 · 무제한', group: '룰', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: false, legend: 'all', stack: true, legendTeams: true,
+		desc: '전설·환상 포함 모든 포켓몬(상대도 전설·환상을 데려옴). 네 가지 기믹을 종류마다 한 번씩, 한 포켓몬이 겹쳐 쓸 수도 있습니다. (메가진화·원시회귀한 포켓몬의 테라스탈만 불가)' },
 	{ id: 'gen9', name: '9세대 (테라스탈)', group: '세대별', kinds: ['tera'], oneKind: true, legend: 'all', desc: '스칼렛·바이올렛 규칙. 테라스탈만.' },
 	{ id: 'gen8', name: '8세대 (다이맥스)', group: '세대별', kinds: ['dynamax'], oneKind: true, legend: 'all', maxNum: 905, desc: '소드·실드 규칙. 다이맥스만, 8세대까지의 포켓몬.' },
 	{ id: 'gen7', name: '7세대 (메가진화·Z기술)', group: '세대별', kinds: ['mega', 'zmove'], oneKind: false, legend: 'all', maxNum: 809, noFuture: true,

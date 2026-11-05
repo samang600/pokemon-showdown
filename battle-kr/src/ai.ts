@@ -809,20 +809,26 @@ let lookaheadEnabled = true;
 let inLookahead = false;
 export function setLookahead(on: boolean) { lookaheadEnabled = on; }
 
-/** 복제본에서 한 턴 돌려 보고 평가 */
-function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: string, foeChoice: string): number | null {
+/** 탐색 중 형제 가지를 같은 난수로 비교하기 위한 시드 (공통 난수: 운에 따른 차이를 줄임) */
+let searchSeed: any = null;
+/** 복제본에서 한 턴 돌려 보고 평가. keep 이면 끝난 복제본도 돌려줌 (다음 턴을 더 내다볼 때) */
+function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: string, foeChoice: string): number | null;
+function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: string, foeChoice: string, keep: true): { v: number; c: any } | null;
+function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: string, foeChoice: string, keep = false): any {
 	const foeSide = me === 'p1' ? 'p2' : 'p1';
 	try {
 		const c: any = State.deserializeBattle(ser);
 		c.send = () => {};
-		c.prng = new PRNG();
+		c.prng = searchSeed ? new PRNG(searchSeed) : new PRNG();
 		// 복제본의 로그는 원본과 같은 배열을 가리키므로 떼어 낸다 (원본 로그 오염·'Infinite loop' 방지)
 		c.log = []; c.sentLogPos = 0; c.inputLog = [];
+		const startTurn = c.turn;
 		if (!c.choose(me, myChoice)) return null;
 		if (!c.choose(foeSide, foeChoice)) c.choose(foeSide, 'default');
 		let guard = 0;
-		while (!c.ended && c.turn === battle.turn && guard++ < 3) { c.choose(me, 'default'); c.choose(foeSide, 'default'); }
-		return evalState(c, me);
+		while (!c.ended && c.turn === startTurn && guard++ < 3) { c.choose(me, 'default'); c.choose(foeSide, 'default'); }
+		const v = evalState(c, me);
+		return keep ? { v, c } : v;
 	} catch (e: any) {
 		const dbg = ((globalThis as any).__la ||= { calls: 0, serFail: 0, simFail: 0, err: '' });
 		dbg.simFail++; dbg.err = String(e?.stack || e).slice(0, 400);
@@ -936,25 +942,85 @@ function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], req
 		for (const o of fo.slice(2)) foeMoves.push({ choice: o.choice, w: 0 });
 	} catch {}
 	if (!foeMoves.length) foeMoves.push({ choice: 'default', w: 1 });
+	const depth = searchDepth(me, skill);
+	// (깊은 탐색) 상대가 교체할 가능성도 본다: 대면이 불리할수록 교체 가중을 높임 (사람은 불리하면 잘 바꿈)
+	if (depth >= 2) {
+		try {
+			const fs = battle[foeSide];
+			const fsw = bestSwitchIn(battle, fs, [user], new Set());
+			if (fsw && !foe.volatiles['partiallytrapped'] && !(foe as any).trapped) {
+				const threat = bestDamage(battle, user, foe), back = bestDamage(battle, foe, user);
+				const w = threat >= 0.9 && back < 0.6 ? 0.35 : threat >= 0.6 ? 0.2 : 0.08;
+				for (const f of foeMoves) f.w *= (1 - w);
+				foeMoves.push({ choice: `switch ${fsw.i + 1}`, w });
+			}
+		} catch {}
+	}
 	const dbg = ((globalThis as any).__la ||= { calls: 0, serFail: 0, simFail: 0, err: '' });
 	dbg.calls++;
 	let ser: any;
 	try { ser = State.serializeBattle(battle); } catch (e: any) { dbg.serFail++; dbg.err = String(e?.stack || e).slice(0, 400); return null; }
 	const results: { choice: string; v: number }[] = [];
-	for (const mo of myOpts) {
-		const vals: number[] = [];
-		let expected = 0;
-		for (const fo of foeMoves) {
-			const v = simulateTurn(ser, battle, me, mo.choice, fo.choice);
-			if (v === null) { vals.length = 0; break; }
-			vals.push(v); expected += v * fo.w;
+	const t0 = now();
+	const budget = (globalThis as any).__laBudget ?? 700; // ms: 폰에서도 AI 차례가 너무 길어지지 않게
+	searchSeed = PRNG.generateSeed();
+	try {
+		// 1단계: 모든 (내 선택 × 상대 선택) 을 한 턴씩 — 지금까지와 같은 탐색
+		const grid = myOpts.map(mo => ({ mo, cells: foeMoves.map(fo => ({ fo, r: simulateTurn(ser, battle, me, mo.choice, fo.choice, true) })) }));
+		const score1 = (cells: { fo: { w: number }; v: number }[]) => {
+			const tw = cells.reduce((a, c) => a + c.fo.w, 0) || 1;
+			const exp = cells.reduce((a, c) => a + c.v * c.fo.w, 0) / tw;
+			return exp * 0.75 + Math.min(...cells.map(c => c.v)) * 0.25;
+		};
+		const rows = grid.filter(g => g.cells.every(c => c.r)).map(g => ({ mo: g.mo, cells: g.cells.map(c => ({ fo: c.fo, v: c.r!.v, c: c.r!.c })) }));
+		// 2단계(강한 AI): 1단계 점수가 좋은 선택부터, 각 결과에서 한 턴 더 내다봄 (시간 제한 안에서)
+		if (depth >= 2) {
+			const order = rows.slice().sort((a, b) => score1(b.cells) - score1(a.cells));
+			for (const row of order) {
+				if (now() - t0 > budget) break;
+				for (const cell of row.cells) {
+					if (cell.fo.w <= 0 || now() - t0 > budget) continue;
+					const v2 = secondTurn(cell.c, battle, me, skill);
+					if (v2 !== null) cell.v = cell.v * 0.35 + v2 * 0.65;
+				}
+			}
 		}
-		if (!vals.length) continue;
-		const min = Math.min(...vals);
-		// 상대의 예상 선택에 대한 기대값(75%) + 최악의 경우(25%); 휴리스틱 점수는 작은 보정
-		results.push({ choice: mo.choice, v: expected * 0.75 + min * 0.25 + (mo.base - 100) * 0.01 });
-	}
+		for (const row of rows) results.push({ choice: row.mo.choice, v: score1(row.cells) + (row.mo.base - 100) * 0.01 });
+	} finally { searchSeed = null; }
 	if (!results.length) return null;
 	results.sort((a, b) => b.v - a.v);
 	return results[0].choice;
+}
+
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+/** 탐색 깊이: 실력 0.9 이상이면 2턴 (테스트에서는 __searchDepth 로 진영별 지정) */
+function searchDepth(me: 'p1' | 'p2', skill: number): number {
+	const o = (globalThis as any).__searchDepth;
+	if (o && o[me]) return o[me];
+	return skill >= 0.9 ? 2 : 1;
+}
+/** 한 턴 뒤 상태(c)에서 양쪽이 한 턴 더 두었을 때의 평가: 내 상위 후보 3개 중 최선 (상대는 상위 2개 가중 + 최악 25%) */
+function secondTurn(c: any, battle: Battle, me: 'p1' | 'p2', skill: number): number | null {
+	if (c.ended) return evalState(c, me);
+	const foeId = me === 'p1' ? 'p2' : 'p1';
+	const u = c[me].active[0], f = c[foeId].active[0];
+	if (!u || !f || u.fainted || f.fainted) return null;
+	const cands = (p: any, n: number) => {
+		const req = p.getMoveRequestData();
+		return moveOptions(c, p, req, flagsFor(Math.max(0.9, skill))).filter(o => /^move \d+$/.test(o.choice)).sort((a, b) => b.score - a.score).slice(0, n).map(o => o.choice);
+	};
+	let mine: string[], theirs: string[];
+	try { mine = cands(u, 3); theirs = cands(f, 2); } catch { return null; }
+	if (!mine.length || !theirs.length) return null;
+	let ser1: any;
+	try { ser1 = State.serializeBattle(c); } catch { return null; }
+	let best = -Infinity;
+	for (const a of mine) {
+		const vs: number[] = [];
+		for (const t of theirs) { const v = simulateTurn(ser1, battle, me, a, t); if (v !== null) vs.push(v); }
+		if (!vs.length) continue;
+		const exp = vs.length === 2 ? vs[0] * 0.65 + vs[1] * 0.35 : vs[0];
+		best = Math.max(best, exp * 0.75 + Math.min(...vs) * 0.25);
+	}
+	return best === -Infinity ? null : best;
 }

@@ -194,17 +194,21 @@ export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind
 		// 다이맥스
 		if (!allow('dynamax')) { delete a.canDynamax; if (!dmaxNow) delete a.maxMoves; }
 		// 한 포켓몬은 기믹을 하나만: 이미 쓴 포켓몬(또는 다이맥스 중)은 다른 기믹 불가 (울트라버스트 뒤 Z기술만 예외)
-		if (p) {
+		// '무제한' 규칙(stack)은 겹쳐 쓰기 허용 — 단 메가진화·원시회귀·울트라버스트한 포켓몬의 테라스탈은 위에서 이미 막음
+		let blocked = false;
+		if (p && !rule.stack) {
 			const mine = usedBy?.get(p);
 			const onlyUltra = mine && mine.size === 1 && mine.has('ultra');
 			if ((mine && mine.size) || p.volatiles['dynamax'] || p.terastallized || p.species.isMega || p.species.isPrimal) {
+				blocked = true;
 				delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; delete a.canUltraBurst; delete a.canTerastallize; delete a.canDynamax;
 				if (!onlyUltra) delete a.canZMove;
 				if (!p.volatiles['dynamax']) { delete a.maxMoves; delete extra[i]; }
 				if (p.canTerastallize && !p.terastallized) p.canTerastallize = null;
 			}
 		}
-		else if (p && !a.canDynamax && !p.volatiles['dynamax'] && simSide.canDynamaxNow?.() && !p.species.isMega && !p.species.isPrimal &&
+		// 쇼다운이 막아 둔 다이맥스(메가스톤·Z크리스탈 외 도구 소지 등)를 규칙상 되면 열어 줌
+		if (!blocked && allow('dynamax') && p && !a.canDynamax && !p.volatiles['dynamax'] && simSide.canDynamaxNow?.() && !p.species.isMega && !p.species.isPrimal &&
 			p.species.forme !== 'Ultra' && !p.species.cannotDynamax && !p.getItem().zMove) {
 			const mm = p.getDynamaxRequest(true);
 			if (mm) { a.canDynamax = true; a.maxMoves = mm; extra[i] = mm; }

@@ -245,7 +245,7 @@ export function speciesPool(o: PoolOptions): string[] {
 		if (!s || !RAW.species[id].g[o.gen]) continue;
 		if (!s.fe || s.bo || BANNED_POOL.has(id) || o.exclude?.has(id)) continue;
 		const legend = !!s.tags?.some(t => t === 'Restricted Legendary' || t === 'Mythical');
-		if (o.legendOnly ? !legend : (legend && !o.allowLegend)) continue;
+		if (o.legendOnly ? !legend : (legend && !o.allowLegend && !rule.legendTeams)) continue;
 		if (!speciesAllowed(rule, id)) continue;
 		if (!o.allowSubLegend && s.tags?.includes('Sub-Legendary')) continue;
 		if (s.base && s.req && !/^(rotom|ogerpon)/.test(id)) continue; // 아르세우스·실버디 타입폼 등은 제외

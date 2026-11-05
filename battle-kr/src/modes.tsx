@@ -11,6 +11,7 @@ import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords
 import { ruleById } from './rules';
 import { rosterForRule } from './legends';
 import { aiPickEntry } from './smogon';
+import { rankerTeam, rankerCount } from './pokedb';
 import { speciesKo, spriteId, megaStonesFor, moveKo, typeKo, speciesData, toID, type Gen } from './data';
 
 type Fmt = 'singles' | 'doubles' | 'singles6' | 'doubles64' | 'doubles6';
@@ -100,7 +101,7 @@ async function chooseTeam(gen: Gen, title: string, allowRental = true, cheat = f
 const TOWER_KEY = (fmt: Fmt, o: BattleOpts) => `tower-${fmt}${optsTag(o)}`;
 interface TowerState { fmt: Fmt; team: PSet[]; streak: number; opts?: BattleOpts }
 
-function towerOpponent(streak: number, fmt: Fmt) {
+function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = []) {
 	const tier = Math.floor(streak / 7);
 	const n = teamSize(fmt);
 	const battleNo = streak + 1;
@@ -129,7 +130,16 @@ function towerOpponent(streak: number, fmt: Fmt) {
 	let team = randomTeam({ gen: 9, size: n, minBst, maxBst, allowSubLegend: tier >= 3, ivs, doubles: isDoubles(fmt), types: Math.random() < 0.6 ? tr.types : undefined, gimmicks: false, quality });
 	if (team.length < n) team = randomTeam({ gen: 9, size: n, minBst, maxBst, ivs, doubles: isDoubles(fmt), gimmicks: false, quality });
 	team = dedupeItems(assignGimmicks(team, { mega: Math.min(1, 0.3 + tier * 0.15), z: Math.min(0.8, 0.2 + tier * 0.12) }));
-	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, team, skill: Math.min(0.97, 0.55 + tier * 0.08), boss: '', line: tr.lines.intro };
+	const skill = Math.min(0.97, 0.55 + tier * 0.08);
+	// 5세트(28연승)부터 가끔 실제 랭크배틀 상위 트레이너의 팀(PokéDB)이 나옴
+	if (tier >= 4 && Math.random() < (tier >= 6 ? 0.5 : 0.3)) {
+		const rk = rankerTeam(isDoubles(fmt), 50, Math.min(1, 0.6 + tier * 0.05));
+		if (rk) {
+			const t2 = n < 6 ? aiPickEntry(rk.team, playerTeam, n, isDoubles(fmt), skill) : rk.team;
+			return { name: tr.name, title: '랭커', sprite: tr.sprite, lines: tr.lines, team: t2, skill, boss: '', line: tr.lines.intro, ranker: `시즌 ${rk.season} 상위 구축 · 레이트 ${rk.rating}` };
+		}
+	}
+	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, team, skill, boss: '', line: tr.lines.intro };
 }
 
 export async function runTower() {
@@ -158,12 +168,12 @@ export async function runTower() {
 	}
 	const key = `tower-${fmt}`;
 	while (true) {
-		const opp = towerOpponent(state.streak, fmt);
+		const opp: ReturnType<typeof towerOpponent> & { ranker?: string } = towerOpponent(state.streak, fmt, state.team);
 		opp.team = withLevel(opp.team, lvl(opts));
 		const go = await confirmQuit(() => ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title={`배틀타워 · ${fmtLabel(fmt)}`}
 			banner={`${state!.streak + 1}번째 승부`}
 			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : (opp as any).special ? `★ 특별 트레이너! ${opp.title} ${opp.name}${josa(opp.name)} 나타났다!` : `${opp.title} ${opp.name}${josa(opp.name)} 승부를 걸어왔다!`} trainer={opp.sprite}
-			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`, ...optsLines(opts)]}
+			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`, ...(opp.ranker ? [`★ 상위 랭커 (${opp.ranker})`] : []), ...optsLines(opts)]}
 			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />), 'quit', `지금까지의 ${state!.streak}연승 도전이 끝나고 처음부터 다시 시작해야 합니다.\n정말 그만둘까요? (‘쉬기’를 고르면 저장하고 나중에 이어서 할 수 있어요)`);
@@ -487,7 +497,12 @@ function rankOpponent(rp: number, fmt: RankFmt, level: number) {
 	if (rp >= 1000 && Math.random() < 0.35) {
 		const pool = NAMED.filter(t => ['champion', 'hero', 'boss'].includes(t.role));
 		const t = rng.pick(pool);
-		return { name: t.name, title: namedTitle(t), sprite: namedSprite(t), lines: namedLines(t), line: t.line, skill: 0.97, team: withLevel(namedTeam(t, 6), level), named: true };
+		return { name: t.name, title: namedTitle(t), sprite: namedSprite(t), lines: namedLines(t), line: t.line, skill: 0.97, team: withLevel(namedTeam(t, 6), level), named: true, ranker: '' };
+	}
+	// 하이퍼볼급부터 실제 랭크배틀 상위 트레이너의 팀(PokéDB)과 자주 붙음
+	if (rp >= 600 && Math.random() < (rp >= 1000 ? 0.5 : 0.3)) {
+		const rk = rankerTeam(doubles, level, 0.6 + 0.4 * s);
+		if (rk) { const tr = randomTrainer(); return { name: tr.name, title: '랭커', sprite: tr.sprite, lines: tr.lines, line: tr.lines.intro, skill, team: withLevel(rk.team, level), named: false, ranker: `시즌 ${rk.season} 상위 구축 · 레이트 ${rk.rating}` }; }
 	}
 	const nLeg = rule.legend === 'all' ? (rp >= 1000 ? 2 : rp >= 600 ? 1 : 0) : 0;
 	const ivs = rp < 100 ? 18 : rp < 300 ? 26 : 31;
@@ -496,7 +511,7 @@ function rankOpponent(rp: number, fmt: RankFmt, level: number) {
 	const legends = nLeg ? randomTeam({ gen: 9, size: nLeg, legendOnly: true, doubles, ivs, gimmicks: false, quality, exclude: new Set(base.map(x => toID(x.species))) }) : [];
 	const team = dedupeItems(assignGimmicks([...base, ...legends]));
 	const tr = randomTrainer();
-	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, line: tr.lines.intro, skill, team: withLevel(team, level), named: false };
+	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, line: tr.lines.intro, skill, team: withLevel(team, level), named: false, ranker: '' };
 }
 export async function runRank() {
 	const opts = defaultOpts();
@@ -521,7 +536,7 @@ export async function runRank() {
 		const gain = 20 + 5 * Math.min(streak, 4) + (tier.min >= 1000 ? 5 : 0), loss = rp < 100 ? 0 : 12;
 		const go = await ask<'go' | 'quit'>(r => <InfoScreen title={`랭크 매치 · ${fmt === 'doubles' ? '더블 6→4' : '싱글 6→3'}`} banner={`${tier.name} · ${rp} RP`}
 			heading={`${opp.title ? opp.title + ' ' : ''}${opp.name}${josa(opp.name)} 매칭되었다!`} trainer={opp.sprite}
-			lines={[`${streak ? `🔥 ${streak}연승 중 · ` : ''}승리 +${gain} RP · 패배 -${loss} RP`, ...(streak < 4 ? [`연승할수록 획득 RP 증가 (최대 +${40 + (tier.min >= 1000 ? 5 : 0)})`] : []), ...(opp.named ? ['★ 강적 등장!'] : []), ...optsLines(opts)]}
+			lines={[`${streak ? `🔥 ${streak}연승 중 · ` : ''}승리 +${gain} RP · 패배 -${loss} RP`, ...(streak < 4 ? [`연승할수록 획득 RP 증가 (최대 +${40 + (tier.min >= 1000 ? 5 : 0)})`] : []), ...(opp.named ? ['★ 강적 등장!'] : []), ...(opp.ranker ? [`★ 상위 랭커 (${opp.ranker})`] : []), ...optsLines(opts)]}
 			sprites={team.map(s => s.species)} sets={team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '그만두기', kind: 'ghost', onClick: () => r('quit') }]} />);
 		if (go === 'quit') return;
@@ -562,10 +577,11 @@ export async function runFree() {
 	if (my === BACK) return;
 	// 상대 팀: 저장된 팀 / 무작위 (치트 팀은 '치트 팀 허용'일 때만)
 	const teams = loadTeams().filter(t => t.sets.length >= 1 && (cheat || !t.cheat));
-	const oppPick = await ask<SavedTeam | 'random' | 'strong' | typeof BACK>(r => <ChoiceScreen title="상대 팀" onBack={() => r(BACK)}
+	const oppPick = await ask<SavedTeam | 'random' | 'strong' | 'ranker' | typeof BACK>(r => <ChoiceScreen title="상대 팀" onBack={() => r(BACK)}
 		options={[
 			{ value: 'random' as const, label: '무작위 팀', desc: '일반 트레이너의 무작위 6마리', icon: '🎲' },
 			{ value: 'strong' as const, label: '강한 무작위 팀', desc: '준전설 포함 · 메가·Z 소지', icon: '🔥' },
+			{ value: 'ranker' as const, label: '상위 랭커 팀', desc: `실제 랭크배틀 상위 구축(PokéDB) · 지금 룰에서 ${rankerCount(isDoubles(fmt))}팀`, icon: '🏆', disabled: !rankerCount(isDoubles(fmt)) },
 			...teams.map(t => ({ value: t, label: t.name, desc: t.sets.map(s => speciesKo(s.species)).join(' · '),
 				icon: <span class="mini"><img class="sprite" src={gen5Icon(spriteId(t.sets[0].species))} /></span> })),
 		]} onPick={r} />);
@@ -586,6 +602,7 @@ export async function runFree() {
 		if (rematch) ({ oppTeam, oppName, oppTitle, oppSprite, oppLines } = rematch);
 		else if (oppPick === 'random') oppTeam = withLevel(randomTeam({ gen: 9, size: 6, minBst: 470, maxBst: 600, doubles: isDoubles(fmt), quality: 0.5 }), lvl(opts));
 		else if (oppPick === 'strong') oppTeam = withLevel(randomTeam({ gen: 9, size: 6, minBst: 520, allowSubLegend: true, doubles: isDoubles(fmt), quality: 0.9 }), lvl(opts));
+		else if (oppPick === 'ranker') { const rk = rankerTeam(isDoubles(fmt), lvl(opts), 0.9)!; oppTeam = withLevel(rk.team, lvl(opts)); oppTitle = `랭커`; oppName = `${tr.name} (시즌 ${rk.season} · ${rk.rating})`; }
 		else { oppTeam = oppPick.cheat ? oppPick.sets.map(cloneSet) : withLevel(oppPick.sets.map(cloneSet), lvl(opts)); oppName = oppPick.name; oppTitle = '팀'; oppSprite = rng.pick(['acetrainer-gen4', 'acetrainerf-gen4', 'veteran-gen4']); }
 		const myTeam = my;
 		const size = await ask<number>(r => <ChoiceScreen title="참가 마릿수" options={[
