@@ -698,14 +698,34 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		let mi = 0, ai2 = 0;
 		needed.forEach((slot, k) => {
 			if (aiSlot(req, slot)) out.push((req.forceSwitch ? ai[ai2++] : ai[k]) || (req.forceSwitch ? 'pass' : 'move 1'));
-			else out.push(mine[mi++] || 'move 1');
+			else out.push(mine[mi++] || (req.forceSwitch ? 'pass' : 'move 1'));
 		});
 		return out;
 	}
 
+	/** 강제 교체 때 아직 내보낼 수 있는 (내) 포켓몬 수 */
+	function switchesLeft(req: any, chosen: string[]) {
+		const reviving = req.side?.pokemon?.some((x: any) => x.reviving);
+		const sim = sessionRef.current!.battle.p1.pokemon as any[];
+		const avail = (req.side?.pokemon || []).filter((p: any, i: number) => {
+			const fnt = p.condition.endsWith(' fnt') || p.condition === '0 fnt';
+			if (setup.partner && partnerOf(sim[i])) return false;
+			return reviving ? fnt : (!p.active && !fnt);
+		}).length;
+		return avail - chosen.filter(c => c.startsWith('switch')).length;
+	}
+	/** 강제 교체에서 내가 고르지 못한(대기 포켓몬이 없는) 칸은 'pass' 로 채움 */
+	function padPasses(req: any, mine: string[]): string[] {
+		if (!req.forceSwitch || setup.partner) return mine;
+		const need = req.forceSwitch.filter(Boolean).length;
+		return mine.length >= need ? mine : [...mine, ...Array(need - mine.length).fill('pass')];
+	}
+
 	/** 이번에 선택해야 하는 슬롯 */
-	function firstSlot(req: any, from: number): number {
+	function firstSlot(req: any, from: number, chosen: string[] = []): number {
 		const n = req.forceSwitch ? req.forceSwitch.length : req.active?.length || 1;
+		// 강제 교체: 내보낼 수 있는 포켓몬을 다 골랐으면 남은 칸은 넘김 (더블에서 두 마리가 한꺼번에 쓰러졌는데 대기가 한 마리뿐일 때)
+		if (req.forceSwitch && from > 0 && switchesLeft(req, chosen) <= 0) return -1;
 		for (let i = from; i < n; i++) {
 			if (aiSlot(req, i)) continue;
 			if (req.forceSwitch) { if (req.forceSwitch[i]) return i; continue; }
@@ -718,7 +738,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	function pushChoice(choice: string) {
 		const req = sessionRef.current!.p1Request;
 		const next = [...parts, choice];
-		const nextSlot = firstSlot(req, slotIdx + 1);
+		const nextSlot = firstSlot(req, slotIdx + 1, next);
 		if (nextSlot < 0) {
 			submit(next);
 		} else {
@@ -738,7 +758,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			setMessage(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}${josaSubject(setup.p2.name)} 생각하고 있다…`);
 			await new Promise(r => setTimeout(r, 50));
 		}
-		const lines = s.choose(mergePartner(s.p1Request, choiceParts).join(', '));
+		const lines = s.choose(mergePartner(s.p1Request, padPasses(s.p1Request, choiceParts)).join(', '));
 		if (!lines) {
 			toast('선택할 수 없습니다: ' + (s.lastError.replace(/^\[.*?\]\s*/, '') || '다시 골라 주세요'));
 			beginInput();
@@ -992,13 +1012,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (gimmick === 'zmove') target = activeReq.canZMove?.[num - 1]?.target || target;
 		const gm = gimmick ? ' ' + gimmick : '';
 		setGimmick('');
-		if (setup.doubles && ['normal', 'any', 'adjacentFoe'].includes(target)) {
-			// 상대가 한 마리뿐이면 대상 고르기 생략
-			const foes = scene.p2.active.map((x, i) => x && !x.fainted ? i : -1).filter(i => i >= 0);
-			const allyAlive = scene.p1.active.some((x, i) => x && !x.fainted && i !== slotIdx);
-			if (foes.length === 1 && (target === 'adjacentFoe' || !allyAlive)) { pushChoice(`move ${num} ${foes[0] + 1}${gm}`); return; }
-		}
-		if (setup.doubles && ['normal', 'any', 'adjacentFoe', 'adjacentAlly', 'adjacentAllyOrSelf'].includes(target)) {
+		// 더블·멀티: 모든 기술에서 대상(범위) 확인 화면 — 하나를 고르는 기술은 대상을, 광역기는 맞는 포켓몬을 표시하고 눌러서 확정
+		if (setup.doubles) {
 			setPendingMove({ num, target, gm });
 			setMenu('target');
 			return;
@@ -1006,34 +1021,57 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		pushChoice(`move ${num}${gm}`);
 	}
 
+	/** 기술 범위: 'pick' 하나를 고름, 'all' 표시된 포켓몬 모두에게 (확인만) */
+	function targetPlan(t: string): { mode: 'pick' | 'all'; foes: boolean; ally: boolean; self: boolean } {
+		switch (t) {
+		case 'normal': case 'any': return { mode: 'pick', foes: true, ally: true, self: false };
+		case 'adjacentFoe': return { mode: 'pick', foes: true, ally: false, self: false };
+		case 'adjacentAlly': return { mode: 'pick', foes: false, ally: true, self: false };
+		case 'adjacentAllyOrSelf': return { mode: 'pick', foes: false, ally: true, self: true };
+		case 'allAdjacentFoes': case 'foeSide': case 'randomNormal': case 'scripted': return { mode: 'all', foes: true, ally: false, self: false };
+		case 'allAdjacent': return { mode: 'all', foes: true, ally: true, self: false };
+		case 'all': return { mode: 'all', foes: true, ally: true, self: true };
+		case 'allySide': case 'allyTeam': case 'allies': return { mode: 'all', foes: false, ally: true, self: true };
+		default: return { mode: 'all', foes: false, ally: false, self: true }; // self 등
+		}
+	}
+
+	/** 대상 확인 화면 (포켓몬 챔피언스처럼 위: 상대, 아래: 내 편 · 상성 표시) */
 	const renderTargets = () => {
 		if (!pendingMove) return null;
-		const t = pendingMove.target;
-		const btns: h.JSX.Element[] = [];
-		if (t !== 'adjacentAlly' && t !== 'adjacentAllyOrSelf') {
-			scene.p2.active.forEach((m, i) => {
-				if (!m || m.fainted) return;
-				const mv = activeReq?.moves[pendingMove.num - 1];
-				let eff = '';
-				const b = sessionRef.current?.battle;
-				const tg = b?.p2.active[i];
-				const md = mv ? b?.dex.moves.get(mv.id) : null;
-				if (md && tg && md.category !== 'Status') {
-					const e = typeEffOf(b, md.type, tg);
-					eff = e === 0 ? '효과 없음' : e >= 2 ? '효과 굉장' : e < 1 ? '효과 별로' : '';
-				}
-				const dp = mv ? dmgPreview(mv, 'p2', i) : '';
-				btns.push(<button class="btn target foe" onClick={() => pushChoice(`move ${pendingMove.num} ${i + 1}${pendingMove.gm || ''}`)}>상대 {m.nick}{eff && <small class="block">{eff}</small>}{dp && <small class="block">{dp}</small>}</button>);
-			});
-		}
-		scene.p1.active.forEach((m, i) => {
-			if (!m || m.fainted) return;
-			const self = i === slotIdx;
-			if (self && t !== 'adjacentAllyOrSelf') return;
-			if (!self && t === 'adjacentFoe') return;
-			btns.push(<button class="btn target ally" onClick={() => pushChoice(`move ${pendingMove.num} -${i + 1}${pendingMove.gm || ''}`)}>{self ? '자신' : '같은 편'} {m.nick}</button>);
-		});
-		return <div class="target-grid">{btns}</div>;
+		const plan = targetPlan(pendingMove.target);
+		const mv = activeReq?.moves[pendingMove.num - 1];
+		const b = sessionRef.current?.battle;
+		const md = mv ? b?.dex.moves.get(mv.id) : null;
+		const effOf = (side: 'p1' | 'p2', i: number) => {
+			const tg = b?.[side].active[i];
+			if (!md || !tg || md.category === 'Status') return '';
+			const e = typeEffOf(b, md.type, tg);
+			return e === 0 ? '효과가 없음' : e >= 2 ? '효과가 굉장함' : e < 1 ? '효과가 별로' : '';
+		};
+		const go = (suffix: string) => pushChoice(`move ${pendingMove.num}${suffix}${pendingMove.gm || ''}`);
+		const card = (side: 'p1' | 'p2', i: number, m: Mon | null) => {
+			if (!m || m.fainted) return <div class="tcard empty" />;
+			const self = side === 'p1' && i === slotIdx;
+			const on = side === 'p2' ? plan.foes : self ? plan.self : plan.ally;
+			const eff = on ? effOf(side, i) : '';
+			const dp = on && side === 'p2' && mv && plan.mode === 'pick' ? dmgPreview(mv, 'p2', i) : '';
+			const pct = m.maxhp ? Math.round(m.hp / m.maxhp * 100) : 0;
+			const click = !on ? undefined : plan.mode === 'all' ? () => go('') : () => go(side === 'p2' ? ` ${i + 1}` : ` -${i + 1}`);
+			return <button class={'tcard ' + (side === 'p2' ? 'foe' : 'ally') + (on ? ' on' : ' off')} disabled={!on} onClick={click}>
+				{eff && <span class={'teff ' + (eff.includes('굉장') ? 'up' : 'down')}>{eff}</span>}
+				<span class="tname">{self ? '자신 · ' : ''}{m.nick}</span>
+				<HPBar hp={pct} maxhp={100} />
+				<small>{side === 'p2' ? `${pct}%` : `${m.hp}/${m.maxhp}`}{dp && ` · ${dp}`}</small>
+			</button>;
+		};
+		return <div class="target-pane">
+			<div class="thint">{plan.mode === 'pick' ? '기술을 쓸 대상을 고르세요' : `${md ? moveKo(md.id) : '기술'}: 표시된 포켓몬 모두에게 — 눌러서 확정`}</div>
+			<div class="target-grid2">
+				{[0, 1].map(i => card('p2', i, scene.p2.active[i]))}
+				{[0, 1].map(i => card('p1', i, scene.p1.active[i]))}
+			</div>
+		</div>;
 	};
 
 	const renderSwitch = () => {

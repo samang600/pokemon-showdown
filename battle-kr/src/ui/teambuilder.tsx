@@ -87,12 +87,13 @@ export function importText(text: string, gen: Gen): PSet[] {
 		const gm = /^(.*?)\s*\(([MF])\)$/.exec(first);
 		if (gm) { first = gm[1].trim(); gender = gm[2]; }
 		const paren = /^(.*)\(([^)]+)\)$/.exec(first);
-		if (paren) species = paren[2];
+		let nick = '';
+		if (paren) { species = paren[2]; nick = paren[1].trim(); }
 		const sid = koLookup(species);
 		const sd = speciesData(sid, gen);
 		if (!sd) continue;
 		const set: PSet = {
-			name: nickKo(sid), species: sd.en, item: item ? koLookup(item) : '', ability: sd.ab[0], moves: [], nature: 'serious',
+			name: nick && toID(nick) !== sid && nick !== nickKo(sid) ? nick.slice(0, 12) : nickKo(sid), species: sd.en, item: item ? koLookup(item) : '', ability: sd.ab[0], moves: [], nature: 'serious',
 			evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, level: 50,
 		};
 		if (gender) set.gender = gender;
@@ -123,7 +124,8 @@ export function importText(text: string, gen: Gen): PSet[] {
 }
 export function exportText(sets: PSet[]) {
 	return sets.map(s => {
-		const lines = [`${speciesKo(s.species)}${s.gender ? ` (${s.gender})` : ''}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
+		const nick = s.name && s.name !== nickKo(toID(s.species)) ? `${s.name} (${speciesKo(s.species)})` : speciesKo(s.species);
+		const lines = [`${nick}${s.gender ? ` (${s.gender})` : ''}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
 			`능력 포인트: ${(() => { const p = spOf(s); return STATS.filter(k => p[k]).map(k => `${p[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`,
 			`${natureKo(s.nature)} 성격`, `테라타입: ${typeKo(s.teraType || speciesData(toID(s.species), 9)?.t[0] || 'Normal')}`,
 			...(s.gigantamax ? ['거다이맥스: 예'] : []), ...(s.pokeball && s.pokeball !== 'pokeball' ? [`볼: ${itemKo(s.pokeball)}`] : []), ...(s.shiny ? ['색이 다른: 예'] : []), ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
@@ -293,11 +295,14 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			<Sprite species={s.species} gen={gen} size={96} shiny={s.shiny} />
 			<div>
 				<div class="types">{sd.t.map(t => <TypeBadge type={t} />)}</div>
+				<label class="sel-row nick-row"><span>닉네임</span>
+					<input maxLength={12} placeholder={nickKo(toID(s.species))} value={s.name && s.name !== nickKo(toID(s.species)) ? s.name : ''}
+						onInput={e => { const v = (e.target as HTMLInputElement).value.replace(/[,|[\]]/g, ''); up({ name: v.trim() ? v : nickKo(toID(s.species)) }); }} /></label>
 				<label class="check"><input type="checkbox" checked={!!s.shiny} onChange={e => up({ shiny: (e.target as HTMLInputElement).checked })} /> 색이 다른 포켓몬</label>
 				{formes.length > 1 && <label class="sel-row"><span>모습</span>
 					<select value={toID(s.species)} onChange={e => {
 						const f = speciesData((e.target as HTMLSelectElement).value, gen)!;
-						up({ species: f.en, ability: f.ab.includes(s.ability) ? s.ability : f.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? f.t[0] : s.teraType) });
+						up({ species: f.en, name: !s.name || s.name === nickKo(toID(s.species)) ? nickKo(toID(f.en)) : s.name, ability: f.ab.includes(s.ability) ? s.ability : f.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? f.t[0] : s.teraType) });
 					}}>{formes.map(f => <option value={f.id}>{f.n}{cheat && (f.req || f.bo) ? ' (배틀 중 모습)' : ''}</option>)}</select></label>}
 				<label class="sel-row"><span>성별</span>
 					{sd.gr ? <b class="muted">{sd.gr === 'M' ? '♂ 수컷' : sd.gr === 'F' ? '♀ 암컷' : '성별 없음'}</b> :

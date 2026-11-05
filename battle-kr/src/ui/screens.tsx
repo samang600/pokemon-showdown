@@ -71,7 +71,7 @@ export function InfoScreen({ title, heading, lines, sprites, gen, actions, banne
 			{banner && <div class="banner">{banner}</div>}
 			{trainer && <img class="trainer-big" src={SPRITE_URL(trainer)} alt="" onError={trainerImgError} />}
 			{heading && <h2>{heading}</h2>}
-			{sprites && <div class="preview-row big">{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} shiny={sets?.[i]?.shiny} /></span>)}</div>}
+			{sprites && <div class="preview-row big grid" style={{ gridTemplateColumns: `repeat(${sprites.length === 4 ? 2 : Math.min(3, sprites.length)}, auto)` }}>{sprites.map((s, i) => <span class={sets ? 'clickable' : ''} onClick={() => sets && setView(i)}><Sprite species={s} gen={gen || 5} size={64} shiny={sets?.[i]?.shiny} /></span>)}</div>}
 			{sets && <p class="muted small">포켓몬을 누르면 능력치를 볼 수 있어요.</p>}
 			{sets && view !== null && <MonSheet set={sets[view]} gen={gen || 9} onClose={() => setView(null)} actions={[{ label: '닫기', kind: 'ghost', onClick: () => setView(null) }]} />}
 			{lines?.map(l => <p class="pre">{l}</p>)}

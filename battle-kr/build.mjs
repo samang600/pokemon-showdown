@@ -42,10 +42,6 @@ const lite = !args.has('--full'); // 기본은 저용량판(그림·울음소리
 // 저용량판: 그림·울음소리·애니메이션을 앱에 넣지 않고 인터넷에서 받음 (애니메이션은 jsDelivr 의 저장소 파일)
 const animCommit = execSync('git log -1 --format=%H -- battle-kr/public/anims', { cwd: path.join(HERE, '..') }).toString().trim();
 const ANIM_BASE = `https://cdn.jsdelivr.net/gh/samang600/pokemon-showdown@${animCommit}/battle-kr/public/anims/`;
-// 공개 음원(public/bgm-oss): 저용량판은 앱에 넣지 않고 jsDelivr(그 폴더의 마지막 변경 커밋 고정)에서 받음
-const ossCommit = execSync('git log -1 --format=%H -- battle-kr/public/bgm-oss', { cwd: path.join(HERE, '..') }).toString().trim();
-const OSS_BASE = lite && ossCommit ? `https://cdn.jsdelivr.net/gh/samang600/pokemon-showdown@${ossCommit}/battle-kr/public/bgm-oss/` : 'bgm-oss/';
-const OSS_LOOPS = fs.existsSync(path.join(HERE, 'public/bgm-oss/loops.json')) ? fs.readFileSync(path.join(HERE, 'public/bgm-oss/loops.json'), 'utf8') : '{}';
 // 오프라인 묶음 zip (battle-kr/offline/*.zip, 저장소의 현재 브랜치에서 받음)
 const branch = process.env.PACK_BRANCH || execSync('git rev-parse --abbrev-ref HEAD', { cwd: path.join(HERE, '..') }).toString().trim();
 const PACK_URLS = ['sprites', 'cries', 'anims'].map(n => `${n}=https://raw.githubusercontent.com/samang600/pokemon-showdown/${branch}/battle-kr/offline/${n}.zip`).join(';');
@@ -64,7 +60,7 @@ const result = await esbuild.build({
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
-		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES), '__OSS_BASE__': JSON.stringify(OSS_BASE), '__OSS_LOOPS__': OSS_LOOPS, '__BGM_LOOPS__': fs.existsSync(path.join(HERE, 'public/bgm/loops.json')) ? fs.readFileSync(path.join(HERE, 'public/bgm/loops.json'), 'utf8') : '{}',
+		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES), '__BGM_LOOPS__': fs.existsSync(path.join(HERE, 'public/bgm/loops.json')) ? fs.readFileSync(path.join(HERE, 'public/bgm/loops.json'), 'utf8') : '{}',
 		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',
@@ -86,7 +82,7 @@ const html = template
 if (args.has('--test')) { fs.writeFileSync(path.join(HERE, 'test/selfplay.html'), html); console.log('test/selfplay.html'); process.exit(0); }
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 if (!fs.existsSync(path.join(HERE, 'public/sprites/gen5'))) console.warn('⚠ public/sprites 가 없습니다 — 오프라인 그림을 넣으려면 먼저 `bash battle-kr/scripts/fetch-sprites.sh`');
-fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true, filter: src => !lite || !/[\\/]public[\\/](sprites|cries|anims|bgm-oss)(?:[\\/]|$)/.test(src) });
+fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true, filter: src => !lite || !/[\\/]public[\\/](sprites|cries|anims)(?:[\\/]|$)/.test(src) });
 console.log(`battle-kr/dist/index.html ${(html.length / 1024 / 1024).toFixed(2)} MB`);
 
 if (args.has('--android')) {

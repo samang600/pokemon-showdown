@@ -910,3 +910,23 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .ab-pop .item-icon { flex-shrink: 0; }
 @keyframes abIn { from { transform: translateX(-105%); } to { transform: none; } }
 @keyframes abInR { from { transform: translateX(105%); } to { transform: none; } }
+/* 배틀 준비 화면: 포켓몬을 3마리씩 2줄로 (4마리면 2×2) */
+.preview-row.big.grid { display: grid; justify-content: center; justify-items: center; column-gap: 14px; row-gap: 4px; }
+/* 더블 대상 확인 (포켓몬 챔피언스 방식): 위 상대 · 아래 내 편, 범위에 드는 포켓몬만 밝게 */
+.target-pane { padding: 0 4px; }
+.thint { font-size: 12px; color: #ffe8a0; text-align: center; margin: 2px 0 6px; }
+.target-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tcard { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-height: 68px; padding: 16px 10px 6px; border-radius: 12px;
+	border: 2px solid rgba(255,255,255,.55); color: #fff; font: inherit; text-align: left; cursor: pointer; }
+.tcard.foe { background: linear-gradient(180deg, #b84a8a, #7a2458); }
+.tcard.ally { background: linear-gradient(180deg, #5a6ad8, #2e3a98); }
+.tcard.on { box-shadow: 0 0 0 3px #e8ff60; background-image: linear-gradient(180deg, #d8f070, #9ac028); color: #1a2a08; border-color: #fff; }
+.tcard.ally.on { background-image: linear-gradient(180deg, #a8e8ff, #5aa8e8); color: #08203a; }
+.tcard.off { opacity: .45; cursor: default; }
+.tcard.empty { min-height: 68px; }
+.tcard .tname { font-size: 15px; font-weight: bold; }
+.tcard small { font-size: 11px; opacity: .85; }
+.teff { position: absolute; top: -9px; left: 8px; font-size: 11px; padding: 1px 8px; border-radius: 4px; background: #1e2a4a; color: #fff; }
+.teff.up { background: #c42c1c; } .teff.down { background: #4a5a7a; }
+.nick-row input { flex: 1; min-width: 0; max-width: 150px; font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid #8aa0d0; background: #10182e; color: #fff; }
+.nick-row > span { white-space: nowrap; }

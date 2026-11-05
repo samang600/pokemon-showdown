@@ -1,6 +1,6 @@
 /** 네임드 트레이너 · 일반 트레이너 · PWT 대회 데이터 */
 import { rng } from './sets';
-import { CLASS_SPRITES, NAMED_SPRITE, NAMED_LINES, genericLines } from './trainer-lines';
+import { NAMED_SPRITE, NAMED_LINES, genericLines } from './trainer-lines';
 import { NAMED_LORE, EXTRA_NAMED } from './trainer-lore';
 
 export interface NamedTrainer {
@@ -166,31 +166,23 @@ export const regionLabel = (r: string) => r === '미르시티' ? '미르시티 (
 export const ROLE_KO: { [role: string]: string } = { leader: '체육관 관장', elite: '사천왕', champion: '챔피언', hero: '주인공', rival: '라이벌', admin: '간부', boss: '보스' };
 
 // ── 일반 트레이너 ──
-export interface TrainerClass { name: string; types?: string[] }
-export const CLASSES: TrainerClass[] = [
-	{ name: '엘리트트레이너' }, { name: '베테랑트레이너' }, { name: '아가씨', types: ['Normal', 'Fairy', 'Grass'] },
-	{ name: '신사' }, { name: '도련님' }, { name: '격투가', types: ['Fighting'] }, { name: '사이킥커', types: ['Psychic'] },
-	{ name: '드래곤조련사', types: ['Dragon'] }, { name: '포켓몬레인저' }, { name: '배틀걸', types: ['Fighting'] },
-	{ name: '과학자', types: ['Electric', 'Steel', 'Poison'] }, { name: '등산가', types: ['Rock', 'Ground'] },
-	{ name: '수영선수', types: ['Water'] }, { name: '스킨헤드', types: ['Dark', 'Poison', 'Fire'] }, { name: '무녀', types: ['Ghost', 'Psychic'] },
-	{ name: '학자' }, { name: '원예가', types: ['Grass', 'Bug'] }, { name: '낚시꾼', types: ['Water'] },
-	{ name: '조련사', types: ['Normal', 'Fire'] }, { name: '곤충채집소년', types: ['Bug'] }, { name: '새조련사', types: ['Flying'] },
-	{ name: '스키어', types: ['Ice'] }, { name: '오컬트마니아', types: ['Ghost'] }, { name: '카우걸', types: ['Normal', 'Ground'] },
-	{ name: '포켓몬브리더' }, { name: '가라테왕', types: ['Fighting'] }, { name: '레인저', types: ['Grass', 'Water'] },
-];
-const NAMES_M = ['민준', '지호', '도윤', '예준', '시우', '주원', '건우', '현우', '유준', '은우', '정우', '승현', '태윤', '준서', '재원',
-	'도현', '시윤', '우진', '지훈', '성민', '민혁', '한결', '태오', '서진', '지우', '하준', '선우', '연우', '이준', '수호'];
-const NAMES_F = ['서연', '하윤', '수아', '하은', '지민', '채원', '다은', '소율', '예린', '지안', '나연', '윤서', '민서', '수빈', '하린',
-	'유나', '서윤', '예은', '가은', '보람', '세아', '지유', '서현', '채은', '소희', '유진', '다인', '아린', '시아', '지원'];
-const FEMALE_SPRITES = new Set(['acetrainerf-gen4', 'lass-gen4', 'psychicf-gen4', 'pokemonrangerf-gen4', 'battlegirl-gen4', 'swimmerf-gen4',
-	'channeler-gin1', 'channeler-gen1', 'aromalady', 'beauty', 'skierf', 'hexmaniac-gen3', 'cowgirl', 'pokemonbreederf-gen4']);
+// 트레이너 종류 117가지: 나무위키(namu.moe) 의 한국어판 공식 명칭, Showdown 트레이너 그림, 종류마다 다른 대사 (src/gen/trainer-classes.json)
+import TC from './gen/trainer-classes.json';
+export interface TrainerClass { name: string; types: string[]; gender: 'm' | 'f' | 'both'; sprites_m: string[]; sprites_f: string[]; pair?: boolean;
+	lines: { intro: string[]; ace: string[]; lose: string[]; win: string[] } }
+export const CLASSES: TrainerClass[] = (TC as any).classes;
+const NAMES_M: string[] = (TC as any).names_m;
+const NAMES_F: string[] = (TC as any).names_f;
 
 export function randomTrainer() {
 	const c = rng.pick(CLASSES);
-	const sprites = CLASS_SPRITES[c.name] || ['acetrainer-gen4'];
-	const sprite = rng.pick(sprites);
-	const female = FEMALE_SPRITES.has(sprite);
-	return { className: c.name, name: rng.pick(female ? NAMES_F : NAMES_M), female, types: c.types, sprite, lines: genericLines() };
+	const female = c.gender === 'f' || (c.gender === 'both' && Math.random() < 0.5);
+	const sprites = (female ? c.sprites_f : c.sprites_m).length ? (female ? c.sprites_f : c.sprites_m) : [...c.sprites_m, ...c.sprites_f];
+	// 그림의 첫 번째(4세대풍)가 자주 나오고, 다른 세대 그림도 가끔
+	const sprite = Math.random() < 0.6 ? sprites[0] : rng.pick(sprites);
+	const name = c.pair ? `${rng.pick(NAMES_M)}·${rng.pick(NAMES_F)}` : rng.pick(female ? NAMES_F : NAMES_M);
+	const lines = { intro: rng.pick(c.lines.intro), ace: rng.pick(c.lines.ace), lose: rng.pick(c.lines.lose), win: rng.pick(c.lines.win) };
+	return { className: c.name, name, female, types: c.types.length ? c.types : undefined, sprite, lines };
 }
 
 export function namedSprite(t: NamedTrainer) { return EXTRA_SPRITE[t.id] || NAMED_SPRITE[t.id] || t.id; }

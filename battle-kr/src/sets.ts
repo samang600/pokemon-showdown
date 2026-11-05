@@ -422,8 +422,15 @@ export function cheatSP<T extends PSet>(set: T): T {
 export function toSimTeam(team: PSet[], cheat = false) {
 	// 치트 배틀: 합계 66 제한 없이 능력마다 최대 32포인트
 	team = team.map(s => cheat ? cheatSP(cloneSet(s)) : normalizeSP(cloneSet(s)));
+	// 닉네임: 시뮬레이터가 못 쓰는 글자(, | [ ])를 빼고, 같은 팀에 같은 이름이 있으면 번호를 붙임 (교체 화면 등에서 이름으로 찾음)
+	const used = new Set<string>();
+	const nameOf = (s: PSet) => {
+		let n = (s.name || speciesKo(s.species)).replace(/[,|[\]]/g, '').trim().slice(0, 18) || speciesKo(s.species);
+		for (let k = 2; used.has(n); k++) n = `${(s.name || speciesKo(s.species)).slice(0, 15)}${k}`;
+		used.add(n); return n;
+	};
 	return team.map(s => ({
-		name: s.name || speciesKo(s.species), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
+		name: nameOf(s), species: s.species, item: s.item, ability: s.ability, moves: s.moves.slice(),
 		nature: s.nature, evs: { ...s.evs }, ivs: { ...s.ivs }, level: s.level, gender: s.gender || '', shiny: !!s.shiny, gigantamax: !!s.gigantamax && !!speciesData(s.species, 9)?.gx, pokeball: s.pokeball || 'pokeball',
 		teraType: s.teraType || speciesData(s.species, 9)?.t[0],
 	}));

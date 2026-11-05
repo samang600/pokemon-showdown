@@ -6,7 +6,7 @@ import { BattleView } from './ui/battle';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree, runRank, rankTier } from './modes';
-import { loadRecords, loadSettings, saveSettings, load, loadReplays, deleteReplay, type Settings, type SavedReplay } from './store';
+import { loadRecords, loadSettings, saveSettings, load, remove, loadReplays, deleteReplay, type Settings, type SavedReplay } from './store';
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
 import { CUPS, NAMED } from './trainers';
@@ -156,13 +156,17 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
-		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠'], ['oss', '공개 음원']] as const).map(([k, l]) => <button class={(s.bgmStyle || 'chip') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
-		{s.bgmStyle === 'oss' && <p class="muted small">공개 음원: OpenGameArt 의 CC0·CC BY 곡 (Yubatake, Matthew Pablo, CleytonKauffman, Emma_MA, HydroGene). 처음 들을 때 인터넷에서 받고, 못 받으면 관현악으로 나옵니다.</p>}
+		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠']] as const).map(([k, l]) => <button class={(s.bgmStyle === 'orch' ? 'orch' : 'chip') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
 		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>기술 효과음</span><div class="seg">{([0, 1, 2, 3] as const).map(v => <button class={s.moveSfx === v ? 'on' : ''} onClick={() => { up({ moveSfx: v }); setMoveSfxVolume(v); }}>{['끔', '작게', '보통', '크게'][v]}</button>)}</div></div>
 		<h3 class="sec">배틀 음악</h3>
 		<div class="seg wrap">{BGM_CHOICES.map(([k, l]) => <button class={s.battleBgm === k ? 'on' : ''} onClick={() => { up({ battleBgm: k }); if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); } }}>{l}</button>)}</div>
 		<p class="muted small">무작위면 배틀마다 상황에 맞는 곡 중 하나가 흐릅니다. 고르면 미리 들을 수 있어요.</p>
+		<h3 class="sec">기록</h3>
+		<div class="seg"><button class="danger" onClick={async () => {
+			if (!(await confirmBox('전적 초기화', '연승 기록·대회 우승·네임드 승리·랭크 포인트·승패 기록을 모두 지웁니다.\n(팀·리플레이·설정은 그대로입니다) 정말 지울까요?', '모두 지우기', '취소'))) return;
+			remove('records'); toast('전적을 초기화했습니다.');
+		}}>전적 초기화</button></div>
 		<h3 class="sec">창틀 디자인</h3>
 		<div class="seg">{([['stone', '블루'], ['silver', '레드'], ['dark', '블랙']] as const).map(([k, l]) => <button class={s.frame === k ? 'on' : ''} onClick={() => { up({ frame: k }); applyTheme({ ...s, frame: k }); }}>{l}</button>)}</div>
 		<h3 class="sec">메뉴 배경</h3>
@@ -170,7 +174,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<p class="muted small">효과음·배경음악은 이 앱에서 합성한 칩튠, 기술 효과음은 Pokémon Reborn 제작. 울음소리는 인터넷에서 받아 옵니다.</p>
 		<h3 class="sec">배틀 규칙</h3>
 		{[...new Set(RULES.map(r => r.group))].map(g => <div class="set-row rule-row"><span>{g}</span><div class="seg wrap">
-			{RULES.filter(r => r.group === g).map(r => <button class={s.battleRule === r.id ? 'on' : ''} onClick={() => up({ battleRule: r.id })}>{r.name.replace(/^(룰|전국도감|챔피언스 레귤레이션) · ?/, '')}</button>)}</div></div>)}
+			{RULES.filter(r => r.group === g).map(r => <button class={s.battleRule === r.id ? 'on' : ''} onClick={() => up({ battleRule: r.id })}>{r.name.replace(/^(룰|전국도감|챔피언스 레귤레이션)\s*·?\s*/, '')}</button>)}</div></div>)}
 		<p class="muted small"><b>{ruleById(s.battleRule).name}</b>: {ruleById(s.battleRule).desc} 모든 모드의 나와 상대에게 적용되고, 무작위·렌탈 팀과 상대 팀도 이 규칙에 맞게 만들어집니다.</p>
 		<h3 class="sec">배틀 화면</h3>
 		<div class="seg">

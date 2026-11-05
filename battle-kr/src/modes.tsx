@@ -273,10 +273,19 @@ export async function runTower() {
 interface FactoryState { fmt: Fmt; level: 50 | 100; team: PSet[]; streak: number; partner?: { id: string; team: PSet[] } }
 const FACTORY_KEY = (fmt: Fmt, lv: number, o: BattleOpts) => `factory-${fmt}-${lv}${optsTag(o)}`;
 
+/** 세트(7연승)마다 렌탈 등급: PU → NU → RU → UU → OU → OU+Uber 절반 → Uber 위주 */
+const FACTORY_GRADE = ['PU', 'NU', 'RU', 'UU', 'OU', 'OU·Uber', 'Uber'];
+const factoryGrade = (streak: number) => FACTORY_GRADE[Math.min(Math.floor(streak / 7), FACTORY_GRADE.length - 1)];
 function factoryPool(streak: number, level: number, size: number, exclude?: Set<string>, type?: string) {
-	// 세트가 오를수록 높은 티어의 렌탈: PU → NU → RU → UU → OU (타입 구애면 그 타입만, 모자라면 다른 티어·무작위로 채움)
-	const tier = FACTORY_TIERS[Math.min(Math.floor(streak / 7), 4)];
-	let team = factoryTeam(tier, size, level, exclude, type);
+	// 세트가 오를수록 높은 티어의 렌탈 (타입 구애면 그 타입만, 모자라면 다른 티어·무작위로 채움)
+	const grade = factoryGrade(streak);
+	let team: PSet[];
+	if (grade.includes('Uber')) {
+		const nUber = grade === 'Uber' ? Math.ceil(size * 0.7) : Math.ceil(size / 2);
+		const ub = factoryTeam('Uber', nUber, level, exclude, type);
+		team = [...ub, ...factoryTeam('OU', size - ub.length, level, new Set([...(exclude || []), ...ub.map(s => toID(s.species))]), type)];
+	} else team = factoryTeam(grade, size, level, exclude, type);
+	void FACTORY_TIERS;
 	if (type && team.length < size) {
 		const have = new Set([...(exclude || []), ...team.map(s => toID(s.species))]);
 		for (const t2 of ['OU', 'UU', 'RU', 'NU', 'PU']) { if (team.length >= size) break; team = [...team, ...factoryTeam(t2, size - team.length, level, have, type)]; team.forEach(s => have.add(toID(s.species))); }
@@ -304,8 +313,8 @@ export async function runFactory() {
 	}
 	const rentalRound = async (streak: number) => {
 		const rentals = factoryPool(streak, level, n === 6 ? 8 : 6);
-		return ask<PSet[]>(r => <PickScreen title="렌탈 포켓몬 선택" team={rentals} gen={9} count={n}
-			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다.`} onDone={r} />);
+		return ask<PSet[]>(r => <PickScreen title={`렌탈 포켓몬 선택 · ${factoryGrade(streak)} 등급`} team={rentals} gen={9} count={n}
+			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다. (세트가 오를수록 더 강한 등급에서 빌려 줍니다)`} onDone={r} />);
 	};
 	/** 멀티: 파트너도 세트마다 렌탈 2마리 (내 포켓몬과 겹치지 않게) */
 	const partnerRental = (streak: number, mine: PSet[]) => factoryPool(streak, level, 2, new Set(mine.map(s => toID(s.species))));
@@ -378,7 +387,7 @@ export async function runFactory() {
 		if (!noRec(opts)) updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); });
 		if (s % 7 === 0) {
 			await ask<void>(r => <InfoScreen title="배틀팩토리" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
-				lines={['새로운 렌탈 포켓몬을 고릅니다.']} actions={[{ label: '계속', onClick: () => r() }]} />);
+				lines={['빌린 포켓몬을 모두 반납하고, 새 렌탈 포켓몬을 처음부터 다시 고릅니다.', `다음 세트 렌탈 등급: ${factoryGrade(s)}${factoryGrade(s) !== factoryGrade(s - 1) ? ' (등급 상승!)' : ''}`]} actions={[{ label: '새로 빌리기', onClick: () => r() }]} />);
 			state.team = await rentalRound(s);
 			if (state.partner) state.partner.team = partnerRental(s, state.team);
 		} else {
