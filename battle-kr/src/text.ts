@@ -429,7 +429,7 @@ export class KoreanText {
 			const [, ident, effect, arg3] = args;
 			if ('silent' in kw) return '';
 			const eff = effectInfo(effect);
-			if (eff.id === 'dynamax') this.justDynamaxed = ident;
+			if (eff.id === 'dynamax') { this.justDynamaxed = ident; if (arg3 === 'Gmax') return F('{POKEMON:topic} 거다이맥스했다!', { POKEMON: pk(ident) }); }
 			const from = effectInfo(kw.from);
 			const vals: any = { POKEMON: pk(ident), EFFECT: eff.name, SOURCE: pk(kw.of), MOVE: '', NUMBER: '', TYPE: '' };
 			if (eff.id === 'typechange') {

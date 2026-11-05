@@ -136,7 +136,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<h3 class="sec">포켓몬 그림</h3>
 		<div class="seg">
 			<button class={s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: true })}>움직이는 그림</button>
-			<button class={!s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: false })}>정지 그림</button>
+			<button class={!s.animatedSprites ? 'on' : ''} onClick={() => up({ animatedSprites: false })}>정지 도트 그림 (기본)</button>
 		</div>
 		<p class="muted small">포켓몬 그림은 인터넷에 연결되어 있을 때 표시됩니다. (오프라인이면 이름 카드로 표시)</p>
 		<h3 class="sec">정보</h3>

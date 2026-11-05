@@ -402,11 +402,16 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			if (id.startsWith('stockpile')) { for (const k of [...m.vol]) if (k.startsWith('stockpile')) m.vol.delete(k); }
 			m.vol.add(id);
 			if (id === 'substitute') animate(m, 'enter', 400);
-			if (id === 'dynamax') { sfx('dynamax'); if (fxRef.current) FX.flash(fxRef.current, '#ff2040', 500); return 700; }
+			if (id === 'dynamax') {
+				// 거다이맥스: 시뮬레이터는 모습을 바꾸지 않고 '|-start|…|Dynamax|Gmax' 만 보내므로 그림을 직접 바꾼다
+				if (args[3] === 'Gmax' && !/-Gmax$/.test(m.species)) m.transformed = m.species.replace(/-.*$/, '') + '-Gmax';
+				sfx('dynamax'); if (fxRef.current) FX.flash(fxRef.current, '#ff2040', 500); return 700;
+			}
 			return 0;
 		}
 		case '-end': {
 			const m = activeMon(args[1]);
+			if (m && toID(args[2]) === 'dynamax' && /-Gmax$/.test(m.transformed || '')) m.transformed = undefined;
 			if (!m) return 0;
 			const id = effectInfo(args[2]).id;
 			m.vol.delete(id);

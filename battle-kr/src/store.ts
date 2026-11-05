@@ -55,8 +55,10 @@ export function loadSettings(): Settings {
 		saved.battleRule = { one: 'natdex', free: 'natdexfree', mega: 'gen6', zmove: 'gen7', dynamax: 'gen8', tera: 'gen9', none: 'none' }[old || 'one'] || 'natdex';
 		delete (saved as any).gimmickRule; saved.ver = 4; save('settings', saved);
 	}
-	return { speed: 2, animatedSprites: true, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true,
-		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 4, moveSfx: 1, battleRule: 'natdex', ...saved };
+	// 설정 v5: 기본 그림을 정지 도트 그림으로 (한 번만)
+	if ((saved.ver || 0) < 5) { saved.animatedSprites = false; saved.ver = 5; save('settings', saved); }
+	return { speed: 2, animatedSprites: false, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true,
+		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 5, moveSfx: 1, battleRule: 'natdex', ...saved };
 }
 export function saveSettings(s: Settings) { save('settings', s); }
 
