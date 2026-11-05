@@ -4,6 +4,7 @@ import { ruleById, speciesAllowed, megaStoneAllowed } from './rules';
 import { Teams } from '../../sim/teams';
 import { RAW, speciesData, learnset, moveData, toID, bst, speciesKo, nickKo, megaStonesFor, zCrystalForType, type Gen, type StatID } from './data';
 import FACTORY_SETS from '../../data/random-battles/gen9/factory-sets.json';
+import { smogonSet, synergyPick } from './smogon';
 
 export interface PSet {
 	name: string; species: string; item: string; ability: string; moves: string[]; nature: string;
@@ -188,8 +189,11 @@ function sanitizeMoves(moves: string[], gen: Gen) {
 }
 
 /** 랜덤배틀 세트(있으면) 또는 자동 세트 */
-export function randomSetFor(speciesId: string, gen: Gen, level = 50, doubles = false): PSet {
+export function randomSetFor(speciesId: string, gen: Gen, level = 50, doubles = false, quality = 0.5): PSet {
 	const id = toID(speciesId);
+	// Smogon 사용률 통계가 있으면 실전형 세트 (quality 가 높을수록 자주 쓰는 구성)
+	const sm = smogonSet(id, gen, level, doubles, quality);
+	if (sm) { sm.name = nickKo(id); return sm; }
 	const g = generator(gen);
 	let set: PSet;
 	const table = doubles ? g.randomDoublesSets : g.randomSets;
@@ -270,27 +274,44 @@ export function dedupeItems(team: PSet[]) {
 	return team;
 }
 
-export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?: number; itemClause?: boolean; must?: string[]; doubles?: boolean; gimmicks?: boolean }): PSet[] {
+export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?: number; itemClause?: boolean; must?: string[]; doubles?: boolean; gimmicks?: boolean;
+	/** 0~1: 높을수록 Smogon 통계상 흔한(검증된) 세트와 자주 같이 쓰는 동료로 팀을 짬 (기본 0.5) */ quality?: number }): PSet[] {
+	const quality = o.quality ?? 0.5;
 	const pool = rng.shuffle(speciesPool(o));
 	const picked: string[] = [...(o.must || [])];
 	const usedBase = new Set(picked.map(id => speciesData(id, o.gen)?.num));
+	const free = () => new Set(pool.filter(id => !usedBase.has(speciesData(id, o.gen)!.num)));
 	for (const id of pool) {
 		if (picked.length >= o.size) break;
-		const num = speciesData(id, o.gen)!.num;
+		// 이미 고른 포켓몬과 자주 같이 쓰이는 포켓몬을 우선 (날씨·트릭룸 같은 조합이 자연스럽게)
+		let next = id;
+		if (picked.length && Math.random() < 0.3 + 0.5 * quality) next = synergyPick(picked, free(), !!o.doubles, quality) || id;
+		const num = speciesData(next, o.gen)!.num;
 		if (usedBase.has(num)) continue;
 		usedBase.add(num);
-		picked.push(id);
+		picked.push(next);
 	}
 	const team = picked.map(id => {
-		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles);
+		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles, quality);
 		if (speciesData(id, o.gen)?.gx && Math.random() < 0.6) set.gigantamax = true;
 		set.pokeball = rng.pick(['pokeball', 'pokeball', 'pokeball', 'greatball', 'ultraball', 'premierball', 'luxuryball', 'duskball', 'quickball', 'timerball', 'netball', 'diveball', 'nestball', 'repeatball', 'healball', 'friendball', 'loveball', 'moonball', 'dreamball', 'beastball']);
 		// 개체값이 없는 챔피언스 규칙: 초반 상대의 약함은 능력 포인트를 줄여서 표현
 		if (o.ivs !== undefined && o.ivs < 31) for (const k in set.evs) (set.evs as any)[k] = Math.floor((set.evs as any)[k] * Math.max(0, o.ivs) / 31);
 		return set;
 	});
+	limitGimmickItems(team);
 	if (o.gimmicks !== false) assignGimmicks(team);
 	return o.itemClause === false ? team : dedupeItems(team);
+}
+/** 통계 세트로 메가스톤·Z크리스탈이 여러 개 생기면 하나씩만 남김 */
+export function limitGimmickItems(team: PSet[]) {
+	let mega = false, z = false;
+	for (const s of team) {
+		const it = RAW.items[s.item];
+		if (it?.mega) { if (mega) s.item = ''; mega = true; }
+		else if (it?.zt || it?.zu) { if (z) s.item = ''; z = true; }
+	}
+	return team;
 }
 
 /** 팀에 메가스톤·Z크리스탈을 하나씩 (가능하면) 나눠 주고 테라스탈 타입을 정함 */

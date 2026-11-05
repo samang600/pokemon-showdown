@@ -74,6 +74,8 @@ export interface Records {
 	/** 모의 랭크 매치 RP (형식별) 와 최고 RP */
 	rp?: { [fmt: string]: number };
 	rpBest?: { [fmt: string]: number };
+	/** 랭크 매치 현재 연승 (획득 RP 보너스) */
+	rankStreak?: { [fmt: string]: number };
 	battles: number;
 	wins: number;
 }

@@ -7,7 +7,7 @@ import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natu
 	itemDesc, RAW, type Gen } from '../data';
 import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords, saveReplay, newId } from '../store';
-import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon } from './core';
+import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon, ItemIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
 import { estimateDamage, typeEffOf } from '../ai';
 import * as FX from '../fx';
@@ -41,7 +41,10 @@ interface Mon {
 	vol: Set<string>; anim: string; ability?: string; item?: string; transformed?: string; hidden?: boolean; tera?: string; seen: string[]; pendingSpecies?: string; itemSeen?: boolean;
 }
 interface SideScene { id: string; name: string; active: (Mon | null)[]; team: Mon[]; cond: { [id: string]: number }; teamSize: number }
-interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number }
+interface Scene { p1: SideScene; p2: SideScene; weather: string; pseudo: Set<string>; turn: number;
+	/** 특성·도구 발동 표시 (원작처럼 화면 옆에 '포켓몬의 / 특성' 띠) */
+	popup?: { p1?: Popup; p2?: Popup } }
+interface Popup { who: string; what: string; kind: 'ability' | 'item'; item?: string; key: number }
 
 const VOLATILE_KO: { [id: string]: string } = {
 	substitute: '대타', confusion: '혼란', leechseed: '씨뿌리기', taunt: '도발', encore: '앵콜', torment: '트집',
@@ -287,9 +290,34 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	}
 
 	/** 줄 하나를 화면 상태에 반영. 연출 대기시간(ms) 반환 */
+	/** 특성·도구가 발동한 줄이면 그 포켓몬 쪽에 띠를 띄운다 */
+	const popupTimer = useRef<{ [side: string]: any }>({});
+	function showPopup(p: ParsedLine) {
+		const { cmd, args, kw } = p;
+		if (kw.silent) return;
+		const isMon = (x?: string) => !!x && /^p[12][a-d]?: /.test(x);
+		let kind: 'ability' | 'item' | null = null, name = '', owner = '';
+		const from = kw.from || '';
+		if (/^ability: /.test(from)) { kind = 'ability'; name = from.slice(9); owner = isMon(kw.of) ? kw.of! : args[1]; }
+		else if (/^item: /.test(from)) { kind = 'item'; name = from.slice(6); owner = isMon(kw.of) && cmd === '-damage' ? kw.of! : args[1]; }
+		else if (cmd === '-ability' && args[2]) { kind = 'ability'; name = args[2]; owner = args[1]; }
+		else if (cmd === '-activate' && /^(ability|item): /.test(args[2] || '')) { kind = args[2].startsWith('ability') ? 'ability' : 'item'; name = args[2].replace(/^(ability|item): /, ''); owner = args[1]; }
+		else if (cmd === '-enditem' && args[2] && !/^move: /.test(from) && !kw.stealeat && from !== 'stealeat') { kind = 'item'; name = args[2]; owner = args[1]; }
+		if (!kind || !isMon(owner)) return;
+		const mon = activeMon(owner) || findMon(owner);
+		if (!mon) return;
+		const side = owner.slice(0, 2) as 'p1' | 'p2';
+		const scene = sceneRef.current;
+		const id = toID(name);
+		scene.popup = { ...(scene.popup || {}), [side]: { who: mon.nick, what: kind === 'ability' ? abilityKo(id) : itemKo(id), kind, item: kind === 'item' ? id : undefined, key: Math.random() } };
+		clearTimeout(popupTimer.current[side]);
+		popupTimer.current[side] = setTimeout(() => { if (scene.popup) { scene.popup = { ...scene.popup, [side]: undefined }; rerender(); } }, 1700 / FX.fxSpeed());
+	}
+
 	function apply(p: ParsedLine): number {
 		const scene = sceneRef.current;
 		const { cmd, args, kw } = p;
+		try { showPopup(p); } catch { /* 표시용이라 무시 */ }
 		switch (cmd) {
 		case 'switch': case 'drag': case 'replace': {
 			const ident = args[1];
@@ -1124,6 +1152,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			<div class={'weather-ov ' + (scene.weather || '')} />
 			<div class={'weather-ov terrain-ov ' + [...scene.pseudo].join(' ')} />
 			<div class="anim-bg-layer" ref={animBgRef} />
+			{(['p1', 'p2'] as const).map(sd => { const pp = scene.popup?.[sd]; return pp ? <div class={'ab-pop ' + (sd === 'p1' ? 'own' : 'foe') + ' ' + pp.kind} key={pp.key}>
+				{pp.item && <ItemIcon item={pp.item} />}<span><small>{pp.who}의</small><b>{pp.what}</b></span></div> : null; })}
 			<canvas class="anim-canvas back" ref={backRef} />
 			{setup.p2.sprite && <img class={'trainer-spr foe' + (trainerVis.foe ? ' in' : '')} src={SPRITE_URL(setup.p2.sprite)} alt="" onError={trainerImgError} />}
 			{setup.p1.sprite && <img class={'trainer-spr own' + (trainerVis.own ? ' in' : '')} src={SPRITE_URL(setup.p1.sprite)} alt="" onError={trainerImgError} />}

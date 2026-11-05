@@ -47,7 +47,7 @@ const LEGEND_BY_TYPE: { [t: string]: string[] } = {
 	Normal: ['regigigas', 'meloetta'], Fire: ['hooh', 'reshiram', 'groudon'], Water: ['kyogre', 'palkia', 'lugia', 'manaphy'], Electric: ['zekrom', 'miraidon', 'zeraora'],
 	Grass: ['shaymin', 'celebi', 'virizion'], Ice: ['kyurem', 'kyuremwhite', 'glastrier'], Fighting: ['koraidon', 'keldeo', 'marshadow'], Poison: ['eternatus', 'pecharunt'],
 	Ground: ['groudon', 'zygarde', 'landorus'], Flying: ['lugia', 'hooh', 'rayquaza', 'yveltal'], Psychic: ['mewtwo', 'lugia', 'lunala', 'necrozma', 'calyrex'], Bug: ['genesect', 'buzzwole'],
-	Rock: ['diancie', 'regirock'], Ghost: ['giratina', 'lunala', 'marshadow', 'spectrier'], Dragon: ['rayquaza', 'dialga', 'palkia', 'reshiram', 'zekrom', 'eternatus'],
+	Rock: ['diancie'], Ghost: ['giratina', 'lunala', 'marshadow', 'spectrier'], Dragon: ['rayquaza', 'dialga', 'palkia', 'reshiram', 'zekrom', 'eternatus'],
 	Dark: ['yveltal', 'darkrai', 'hoopaunbound'], Steel: ['dialga', 'solgaleo', 'jirachi', 'magearna', 'melmetal'], Fairy: ['xerneas', 'zacian', 'diancie', 'magearna'],
 };
 const SUB_BY_TYPE: { [t: string]: string[] } = {
