@@ -28,8 +28,10 @@ const megaIds = (list: string[]) => new Set(list.map(n => {
 }));
 
 export const RULES: BattleRule[] = [
-	{ id: 'natdex', name: '전국도감 · 기믹 한 종류', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'all',
-		desc: '모든 포켓몬. 메가진화·Z기술·다이맥스·테라스탈 중 한 배틀에 한 종류만 (기본).' },
+	{ id: 'natdexflat', name: '전국도감 · 플랫', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'sub',
+		desc: '초전설·환상 제외(준전설은 가능). 메가진화·Z기술·다이맥스·테라스탈 중 한 배틀에 한 종류만 (기본).' },
+	{ id: 'natdex', name: '전국도감 · 전부', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: true, legend: 'all',
+		desc: '초전설·환상 포함 모든 포켓몬. 기믹은 한 배틀에 한 종류만.' },
 	{ id: 'natdexfree', name: '전국도감 · 기믹 모두', group: '전국도감', kinds: ['mega', 'zmove', 'dynamax', 'tera'], oneKind: false, legend: 'all',
 		desc: '모든 포켓몬. 네 가지 기믹을 종류마다 한 번씩 쓸 수 있습니다.' },
 	{ id: 'gen9', name: '9세대 (테라스탈)', group: '세대별', kinds: ['tera'], oneKind: true, legend: 'all', desc: '스칼렛·바이올렛 규칙. 테라스탈만.' },
@@ -45,7 +47,7 @@ export const RULES: BattleRule[] = [
 		desc: '2026.4~6 (출시 규칙). 메가진화 1회(허용 메가 59종), 전설·준전설·환상 제외.' },
 	{ id: 'none', name: '기믹 없음', group: '기타', kinds: [], oneKind: true, legend: 'all', desc: '기믹 없이 배틀합니다.' },
 ];
-export const DEFAULT_RULE = 'natdex';
+export const DEFAULT_RULE = 'natdexflat';
 export function ruleById(id: string): BattleRule { return RULES.find(r => r.id === id) || RULES[0]; }
 
 /** 이 규칙에서 쓸 수 있는 포켓몬인가 (메가 모습 등 아이템으로 바뀌는 모습은 기본 모습으로 판단) */

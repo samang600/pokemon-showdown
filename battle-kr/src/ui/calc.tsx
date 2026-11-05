@@ -6,7 +6,7 @@ import { speciesData, moveData, learnset, toID, abilityKo, itemKo, natureKo, nat
 	nickKo, allSpecies, typeKo, RAW, type Gen, type StatID } from '../data';
 import { randomSetFor, evToSp, spToEv, type PSet } from '../sets';
 import { loadTeams } from '../store';
-import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast } from './core';
+import { Screen, Sprite, MiniSprite, TypeBadge, Modal, toast, CatIcon } from './core';
 import { SetEditor, matches } from './teambuilder';
 
 const GEN: Gen = 9;
@@ -223,27 +223,27 @@ export function CalcScreen({ onBack }: { onBack: () => void }) {
 			onChange={s => { const ns = { ...side, set: s }; if (editor === 'atk') { setAtk(ns); if (!s.moves.includes(move)) setMove(s.moves[0] || 'tackle'); } else setDef(ns); }} />;
 	}
 	const boostRow = (side: Side, setSide: (s: Side) => void, keys: StatID[]) => <div class="boost-row">
-		{keys.map(k => <div class="boost-cell"><span>{STAT_SHORT[k]}</span>
+		{keys.map(k => <div class="boost-cell"><span class="bc-label">{STAT_SHORT[k]} 랭크</span><span class="bc-ctl">
 			<button onClick={() => setSide({ ...side, boosts: { ...side.boosts, [k]: Math.max(-6, (side.boosts[k] || 0) - 1) } })}>−</button>
 			<b class={(side.boosts[k] || 0) > 0 ? 'up' : (side.boosts[k] || 0) < 0 ? 'down' : ''}>{(side.boosts[k] || 0) > 0 ? '+' : ''}{side.boosts[k] || 0}</b>
 			<button onClick={() => setSide({ ...side, boosts: { ...side.boosts, [k]: Math.min(6, (side.boosts[k] || 0) + 1) } })}>+</button>
-		</div>)}
+		</span></div>)}
 	</div>;
 	const sideCard = (label: string, side: Side, setSide: (s: Side) => void, which: 'atk' | 'def') => {
 		const sd = speciesData(effSpeciesId(side.set), GEN)!;
 		return <div class="calc-side">
-			<div class="calc-head"><b>{label}</b>
-				<button class="btn small" onClick={() => setPicker(which)}>포켓몬 선택</button>
-				<button class="btn small" onClick={() => setEditor(which)}>세트 편집</button></div>
+			<div class="calc-head"><b class={'calc-role ' + which}>{which === 'atk' ? '⚔' : '🛡'} {label}</b>
+				<button class="btn small" onClick={() => setPicker(which)}>포켓몬</button>
+				<button class="btn small" onClick={() => setEditor(which)}>세트</button></div>
 			<div class="calc-mon" onClick={() => setEditor(which)}>
 				<MiniSprite species={side.set.species} gen={GEN} size={56} shiny={side.set.shiny} />
 				<div class="calc-mon-info">
-					<b>{side.set.name || sd.n}</b> <span class="muted small">Lv{side.set.level}</span>
-					<div class="types">{sd.t.map(t => <TypeBadge type={t} small />)}{side.tera && side.set.teraType && <span class="small"> → <TypeBadge type={side.set.teraType} small /></span>}</div>
-					<div class="muted small">{abilityKo(side.set.ability)} · {side.set.item ? itemKo(side.set.item) : '도구 없음'} · {natureKo(side.set.nature)}</div>
-					<div class="muted small">{STATS.map(k => `${STAT_SHORT[k]} ${stat(side.set, k)}`).join(' / ')}</div>
+					<div class="cm-name"><b>{side.set.name || sd.n}</b><span class="muted small">Lv{side.set.level}</span>
+						<span class="types">{sd.t.map(t => <TypeBadge type={t} small />)}{side.tera && side.set.teraType && <><span class="small">→</span><TypeBadge type={side.set.teraType} small /></>}</span></div>
+					<div class="cm-meta"><span>{abilityKo(side.set.ability)}</span><span>{side.set.item ? itemKo(side.set.item) : '도구 없음'}</span><span>{natureKo(side.set.nature)}</span></div>
 				</div>
 			</div>
+			<div class="stat-strip">{STATS.map(k => <div class={'ss ' + ((which === 'atk' ? (k === 'atk' || k === 'spa' || k === 'spe') : (k === 'hp' || k === 'def' || k === 'spd' || k === 'spe')) ? 'key' : '')}><span>{STAT_SHORT[k]}</span><b>{stat(side.set, k)}</b></div>)}</div>
 			<div class="chips-row">
 				<button class={'chipbtn' + (side.tera ? ' on' : '')} onClick={() => setSide({ ...side, tera: !side.tera })}>테라스탈 {typeKo(side.set.teraType || sd.t[0])}</button>
 				{(which === 'atk' ? ['brn', 'par', 'psn'] : ['brn', 'par', 'psn', 'slp']).map(st => <button class={'chipbtn' + (side.status === st ? ' on' : '')} onClick={() => setSide({ ...side, status: side.status === st ? '' : st })}>{{ brn: '화상', par: '마비', psn: '독', slp: '잠듦' }[st]}</button>)}
@@ -254,15 +254,17 @@ export function CalcScreen({ onBack }: { onBack: () => void }) {
 	const md = moveData(move, GEN);
 	const spdA = stat(atk.set, 'spe') * boostMul(atk.boosts.spe || 0) * (atk.status === 'par' ? 0.5 : 1) * (toID(atk.set.item) === 'choicescarf' ? 1.5 : 1);
 	const spdD = stat(def.set, 'spe') * boostMul(def.boosts.spe || 0) * (def.status === 'par' ? 0.5 : 1) * (toID(def.set.item) === 'choicescarf' ? 1.5 : 1);
-	return <Screen title="배틀 계산기" onBack={onBack} right={<button class="btn small" onClick={swap}>공수 교대</button>}>
+	return <Screen title="배틀 계산기" onBack={onBack} right={<button class="btn small" onClick={swap}>⇅ 교대</button>}>
 		<div class="seg"><button class={tab === 'damage' ? 'on' : ''} onClick={() => setTab('damage')}>데미지</button><button class={tab === 'speed' ? 'on' : ''} onClick={() => setTab('speed')}>스피드</button></div>
 		{sideCard('공격', atk, setAtk, 'atk')}
 		{tab === 'damage' && <>
-			<button class="option" onClick={() => setMovePick(true)}>
-				{md && <TypeBadge type={md.type} small />}
-				<span class="opt-body"><b>{md?.name || move}</b><small>{md ? `${md.category === 'Physical' ? '물리' : md.category === 'Special' ? '특수' : '변화'} · 위력 ${md.basePower || '—'} · 명중 ${md.accuracy || '—'}` : ''}</small></span>
-				<span class="opt-badge">기술 선택</span>
+			<div class="calc-arrow">▼ 기술</div>
+			<button class="option calc-move" onClick={() => setMovePick(true)}>
+				{md && <span class="pm-icons"><TypeBadge type={md.type} small /><CatIcon cat={md.category} /></span>}
+				<span class="opt-body"><b>{md?.name || move}</b><small>{md ? `위력 ${md.basePower || '—'} · 명중 ${md.accuracy || '—'}` : ''}</small></span>
+				<span class="opt-badge">바꾸기 ▸</span>
 			</button>
+			<div class="calc-arrow">▼</div>
 			{movePick && <Modal title="기술" onClose={() => setMovePick(false)}>
 				<MoveList species={toID(atk.set.species)} current={atk.set.moves} onPick={m => { setMove(m); setMovePick(false); }} />
 			</Modal>}

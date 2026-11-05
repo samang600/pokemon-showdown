@@ -8,3 +8,5 @@
 /android/*.keystore
 /public/sprites/
 /public/cries/
+/android/app/src/full/assets/www/
+/android/app/src/lite/assets/www/

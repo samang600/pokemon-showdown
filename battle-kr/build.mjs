@@ -7,6 +7,7 @@
  *
  * 먼저 저장소 루트에서 `npm install` · `node build` · `node battle-kr/scripts/gen-data.cjs` 필요.
  */
+import { execSync } from 'child_process';
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,6 +38,10 @@ const shimPlugin = {
 
 if (!args.has('--test')) fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
+const lite = args.has('--lite');
+// 저용량판: 그림·울음소리·애니메이션을 앱에 넣지 않고 인터넷에서 받음 (애니메이션은 jsDelivr 의 저장소 파일)
+const animCommit = lite ? execSync('git log -1 --format=%H -- battle-kr/public/anims', { cwd: path.join(HERE, '..') }).toString().trim() : '';
+const ANIM_BASE = lite ? `https://cdn.jsdelivr.net/gh/samang600/pokemon-showdown@${animCommit}/battle-kr/public/anims/` : 'anims/';
 const result = await esbuild.build({
 	entryPoints: [path.join(HERE, args.has('--test') ? 'test/selfplay.ts' : 'src/main.tsx')],
 	bundle: true,
@@ -49,7 +54,8 @@ const result = await esbuild.build({
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
-		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
+		'__LITE__': String(lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE),
+		'__LOCAL_CRIES__': JSON.stringify(!lite && fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',
 	loader: { '.json': 'json' },
@@ -70,13 +76,13 @@ const html = template
 if (args.has('--test')) { fs.writeFileSync(path.join(HERE, 'test/selfplay.html'), html); console.log('test/selfplay.html'); process.exit(0); }
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 if (!fs.existsSync(path.join(HERE, 'public/sprites/gen5'))) console.warn('⚠ public/sprites 가 없습니다 — 오프라인 그림을 넣으려면 먼저 `bash battle-kr/scripts/fetch-sprites.sh`');
-fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true });
+fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true, filter: src => !lite || !/[\\/]public[\\/](sprites|cries|anims)(?:[\\/]|$)/.test(src) });
 console.log(`battle-kr/dist/index.html ${(html.length / 1024 / 1024).toFixed(2)} MB`);
 
 if (args.has('--android')) {
-	const assets = path.join(HERE, 'android/app/src/main/assets/www');
+	const assets = path.join(HERE, lite ? 'android/app/src/lite/assets/www' : 'android/app/src/full/assets/www');
 	fs.rmSync(assets, { recursive: true, force: true });
 	fs.mkdirSync(assets, { recursive: true });
 	fs.cpSync(OUT, assets, { recursive: true });
-	console.log('→ android/app/src/main/assets/www 에 복사');
+	console.log(`→ ${path.relative(HERE, assets)} 에 복사`);
 }

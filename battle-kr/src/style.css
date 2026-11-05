@@ -741,3 +741,48 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .weather-ov.mistyterrain { background: linear-gradient(0deg, rgba(255,170,230,.28), rgba(255,200,240,.06) 50%); }
 .weather-ov.psychicterrain { background: linear-gradient(0deg, rgba(190,100,255,.24), transparent 45%); }
 .weather-ov.trickroom { box-shadow: inset 0 0 40px 10px rgba(200,100,255,.3); background: none; }
+
+/* ── 날씨 v3: 줄이 한 줄로 정렬돼 보이지 않게 — 길이가 다른 빗줄기 두 겹(주기·각도·속도 다름) + 점선 마스크 ── */
+.weather-ov.raindance::before, .weather-ov.primordialsea::before {
+	background: repeating-linear-gradient(100deg, transparent 0 27px, rgba(215,232,255,.17) 27px 28.3px, rgba(215,232,255,.05) 28.3px 29.5px, transparent 29.5px 41px);
+	-webkit-mask-image: repeating-linear-gradient(10deg, #000 0 46px, transparent 46px 83px); mask-image: repeating-linear-gradient(10deg, #000 0 46px, transparent 46px 83px);
+	animation: rainfall .5s linear infinite; }
+/* 100deg 줄무늬는 세로 41px/cos(80°)=236.1px, 10deg 마스크(주기 83px)는 세로 83px/cos(10°)=84.3px → 둘의 공배수 근사 1180.5px 를 2.5s 에 */
+@keyframes rainfall { to { transform: translateY(1180.5px); } }
+.weather-ov.raindance::before { animation-duration: 2.5s; top: -1200px; height: calc(100% + 1200px); }
+.weather-ov.raindance::after, .weather-ov.primordialsea::after { content: ''; position: absolute; left: 0; right: 0; top: -1200px; height: calc(100% + 1200px);
+	background: repeating-linear-gradient(97deg, transparent 0 48px, rgba(225,238,255,.12) 48px 49px, transparent 49px 67px);
+	-webkit-mask-image: repeating-linear-gradient(7deg, transparent 0 30px, #000 30px 58px, transparent 58px 95px); mask-image: repeating-linear-gradient(7deg, transparent 0 30px, #000 30px 58px, transparent 58px 95px);
+	animation: rainfall2 3.4s linear infinite; }
+/* 97deg: 67/cos(83°)=549.8px, 7deg 마스크: 95/cos(7°)=95.7px → 공배수 근사 1099.6px */
+@keyframes rainfall2 { to { transform: translateY(1099.6px); } }
+.weather-ov.primordialsea::before { animation-duration: 1.8s; }
+.weather-ov.primordialsea::after { animation-duration: 2.4s; }
+/* 모래바람도 두 겹 + 점선 */
+.weather-ov.sandstorm::before { -webkit-mask-image: repeating-linear-gradient(85deg, #000 0 40px, transparent 40px 75px); mask-image: repeating-linear-gradient(85deg, #000 0 40px, transparent 40px 75px);
+	left: -1300px; width: calc(100% + 1300px); animation: sandblow 2.6s linear infinite; }
+/* 175deg 줄무늬 가로 252.4px, 85deg 마스크(75px) 가로 75/sin(85°)=75.3px → 근사 공배수 1262px */
+@keyframes sandblow { to { transform: translateX(1262px); } }
+.weather-ov.sandstorm::after { content: ''; position: absolute; top: 0; bottom: 0; left: -1300px; width: calc(100% + 1300px);
+	background: repeating-linear-gradient(178deg, transparent 0 30px, rgba(230,200,130,.14) 30px 31px, transparent 31px 47px);
+	-webkit-mask-image: repeating-linear-gradient(88deg, transparent 0 20px, #000 20px 56px, transparent 56px 90px); mask-image: repeating-linear-gradient(88deg, transparent 0 20px, #000 20px 56px, transparent 56px 90px);
+	animation: sandblow2 3.2s linear infinite; }
+/* 178deg: 47/sin(2°)=1346.7px, 88deg 마스크: 90/sin(88°)=90.05px → 근사 공배수 1350px */
+@keyframes sandblow2 { to { transform: translateX(1350px); } }
+/* ── 배틀 계산기 ── */
+.calc-head { gap: 6px; } .calc-head b { font-size: 17px; } .calc-role.atk { color: #ff9a80; } .calc-role.def { color: #8cc8ff; }
+.calc-mon-info { font-size: 13px; }
+.cm-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .cm-name b { font-size: 16px; } .cm-name .types { display: inline-flex; align-items: center; gap: 2px; }
+.cm-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; color: var(--grey); font-size: 12px; margin-top: 2px; } .cm-meta span { white-space: nowrap; }
+.stat-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin: 2px 0; }
+.stat-strip .ss { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,.3); border-radius: 6px; padding: 2px 0; line-height: 1.2; }
+.stat-strip .ss span { font-size: 10.5px; color: var(--grey); } .stat-strip .ss b { font-size: 14px; }
+.stat-strip .ss.key { background: rgba(255,216,74,.18); box-shadow: inset 0 0 0 1px rgba(255,216,74,.5); } .stat-strip .ss.key b { color: var(--yellow); }
+.boost-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 2px 0; }
+.boost-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(0,0,0,.25); border-radius: 8px; padding: 4px 2px; }
+.bc-label { font-size: 11px; color: var(--grey); white-space: nowrap; }
+.bc-ctl { display: flex; align-items: center; gap: 4px; } .bc-ctl button { width: 30px; height: 26px; border-radius: 6px; background: var(--p-row2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); font-size: 16px; line-height: 26px; text-align: center; }
+.bc-ctl b { width: 26px; text-align: center; font-size: 15px; }
+.calc-arrow { text-align: center; color: var(--grey); font-size: 12px; line-height: 14px; }
+.calc-move .opt-badge { white-space: nowrap; }
+.calc-side .chips-row { padding: 2px 0; }

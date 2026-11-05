@@ -37,6 +37,9 @@ export function TypeBadge({ type, small }: { type: string; small?: boolean }) {
 const SPRITE_HOST = 'https://play.pokemonshowdown.com/sprites';
 /** 앱 안에 들어 있는 그림 (scripts/fetch-sprites.sh 로 받음) — 오프라인에서도 표시 */
 export const LOCAL_SPRITES = 'sprites';
+declare const __LITE__: boolean;
+/** 저용량판: 앱 안에 그림이 없어 전부 인터넷에서 */
+export const LITE = typeof __LITE__ === 'boolean' ? __LITE__ : false;
 const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 /** 도구 아이콘 (쇼다운 아이템 아이콘 시트, 24×24) */
@@ -44,7 +47,7 @@ export function ItemIcon({ item, size = 24 }: { item: string; size?: number }) {
 	const n = RAW.items[toID(item)]?.sp;
 	if (!item || n === undefined) return <span class="item-icon none" style={{ width: size, height: size }} />;
 	const k = size / 24;
-	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: `url(${LOCAL_SPRITES}/itemicons-sheet.png), url(${SPRITE_HOST}/itemicons-sheet.png)`,
+	return <span class="item-icon" style={{ width: size, height: size, backgroundImage: LITE ? `url(${SPRITE_HOST}/itemicons-sheet.png)` : `url(${LOCAL_SPRITES}/itemicons-sheet.png), url(${SPRITE_HOST}/itemicons-sheet.png)`,
 		backgroundPosition: `${-(n % 16) * 24 * k}px ${-Math.floor(n / 16) * 24 * k}px`, backgroundSize: `${384 * k}px ${1152 * k}px` }} />;
 }
 
@@ -96,7 +99,7 @@ export function Sprite({ species, back, shiny, gen = 5, size = 96, anim, cls }: 
 /** 그림 후보 순서: 온라인이면 움직이는 그림 → 앱 안의 정지 그림 → 서버 정지 그림, 오프라인이면 앱 안의 그림부터 */
 function spriteCandidates(species: string, id: string, back: boolean, shiny: boolean, useAnim: boolean, gen: Gen): string[] {
 	const b = back ? '-back' : '', sh = shiny ? '-shiny' : '';
-	if (id === 'substitute') return [`${LOCAL_SPRITES}/substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
+	if (id === 'substitute') return LITE ? [`${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`] : [`${LOCAL_SPRITES}/substitutes/gen5${b}/substitute.png`, `${SPRITE_HOST}/substitutes/gen5${b}/substitute.png`];
 	const local = [`${LOCAL_SPRITES}/gen5${b}${sh}/${id}.png`];
 	// 앱에 없는 모습(일부 Z-A 메가 등)은 기본 모습으로
 	const base = speciesData(toID(species), 9 as Gen)?.base;
@@ -105,6 +108,7 @@ function spriteCandidates(species: string, id: string, back: boolean, shiny: boo
 	if (useAnim) remote.push(`${SPRITE_HOST}/ani${b}${sh}/${id}.gif`, `${SPRITE_HOST}/gen5ani${b}${sh}/${id}.gif`);
 	if (gen === 4) remote.push(`${SPRITE_HOST}/gen4${b}${sh}/${id}.png`);
 	const remoteStatic = `${SPRITE_HOST}/gen5${b}${sh}/${id}.png`;
+	if (LITE) { const rb = base ? [`${SPRITE_HOST}/gen5${b}${sh}/${spriteId(base)}.png`] : []; return useAnim ? [...remote, remoteStatic, ...rb] : [remoteStatic, ...rb]; }
 	if (!online()) return [...local, remoteStatic];
 	return useAnim ? [...remote, local[0], remoteStatic, ...local.slice(1)] : [local[0], remoteStatic, ...local.slice(1)];
 }

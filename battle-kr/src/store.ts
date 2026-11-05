@@ -57,8 +57,10 @@ export function loadSettings(): Settings {
 	}
 	// 설정 v5: 기본 그림을 정지 도트 그림으로 (한 번만)
 	if ((saved.ver || 0) < 5) { saved.animatedSprites = false; saved.ver = 5; save('settings', saved); }
+	// 설정 v6: 기본 규칙을 플랫(초전설·환상 제외)으로
+	if ((saved.ver || 0) < 6) { if (!saved.battleRule || saved.battleRule === 'natdex') saved.battleRule = 'natdexflat'; saved.ver = 6; save('settings', saved); }
 	return { speed: 2, animatedSprites: false, playerName: '플레이어', showLog: false, sound: true, music: true, playerSprite: 'lucas', effects: true,
-		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 5, moveSfx: 1, battleRule: 'natdex', ...saved };
+		damagePreview: false, musicVolume: 2, sfxVolume: 1, frame: 'stone', homeBg: 'title', battleBgm: 'random', fastForward: false, vibrate: true, ver: 6, moveSfx: 1, battleRule: 'natdexflat', ...saved };
 }
 export function saveSettings(s: Settings) { save('settings', s); }
 

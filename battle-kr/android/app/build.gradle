@@ -7,8 +7,14 @@ android {
         applicationId 'kr.battlesim.app'
         minSdk 24
         targetSdk 35
-        versionCode 15
-        versionName '1.9.3'
+        versionCode 16
+        versionName '2.0.0'
+    }
+    // full: 그림·울음소리·애니메이션 내장 / lite: 전부 인터넷에서 받는 저용량판 (같이 설치 가능)
+    flavorDimensions 'size'
+    productFlavors {
+        full { dimension 'size' }
+        lite { dimension 'size'; applicationIdSuffix '.lite'; versionNameSuffix '-lite' }
     }
     // 서명 키는 저장소에 넣지 않음: 환경변수 BATTLESIM_KEYSTORE(경로) / BATTLESIM_KEY_PASSWORD 로 지정.
     // 없으면 디버그 키로 서명 (설치·실행은 가능, 다른 키로 만든 APK 위에 업데이트 설치는 불가)

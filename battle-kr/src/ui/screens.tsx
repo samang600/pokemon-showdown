@@ -51,6 +51,7 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 			{ label: '닫기', kind: 'ghost', onClick: () => setView(null) },
 		]} />}
 		<div class="sticky-bottom">
+			{picked.length === 0 && <button class="btn ghost" onClick={() => onDone(team.slice(0, need))}>이 순서 그대로</button>}
 			<button class="btn primary big" disabled={picked.length !== Math.min(count, team.length)}
 				onClick={() => onDone(picked.map(i => team[i]))}>결정 ({picked.length}/{Math.min(count, team.length)})</button>
 		</div>

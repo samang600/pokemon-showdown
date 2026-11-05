@@ -21,7 +21,8 @@ export interface PlayCtx {
 	onFrame?: (i: number) => void;
 }
 
-const ANIM_BASE = 'anims/';
+declare const __ANIM_BASE__: string;
+const ANIM_BASE = typeof __ANIM_BASE__ === 'string' ? __ANIM_BASE__ : 'anims/';
 const loaded: { [id: string]: AnimData[] | null } = {};
 const images: { [name: string]: HTMLImageElement | null } = {};
 const FRAME_MS = 50;
