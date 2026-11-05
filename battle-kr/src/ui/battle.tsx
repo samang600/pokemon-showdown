@@ -740,6 +740,8 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			const t = /Hidden Power (\w+)/.exec(m.move)?.[1];
 			if (t) { type = t; name = `잠재파워(${typeKo(t)})`; }
 		}
+		// 상황에 따라 타입이 바뀌는 기술: 실제 타입으로 표시
+		type = dynamicType(m.id, type, gimmick === 'terastallize' ? activeReq?.canTerastallize : undefined);
 		let eff = '';
 		if (md && md.category !== 'Status' && !setup.doubles) {
 			const s = sessionRef.current!.battle;
@@ -755,6 +757,23 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	const pressRef = useRef<{ t: any; long: boolean }>({ t: 0, long: false });
 	const [infoMove, setInfoMove] = useState<number | null>(null);
+	/** 테라버스트·웨더볼·심판의힘 등 상황에 따라 바뀌는 기술 타입 (사용자의 현재 상태 기준) */
+	const dynamicType = (id: string, base: string, teraSoon?: string): string => {
+		const b = sessionRef.current?.battle; const u = b?.p1.active[slotIdx];
+		if (!b || !u) return base;
+		const tera = u.terastallized || teraSoon;
+		const weather = b.field.effectiveWeather?.() || b.field.weather;
+		switch (id) {
+		case 'terablast': return tera || base;
+		case 'weatherball': return ({ sunnyday: 'Fire', desolateland: 'Fire', raindance: 'Water', primordialsea: 'Water', sandstorm: 'Rock', hail: 'Ice', snowscape: 'Ice' } as any)[weather] || base;
+		case 'terrainpulse': return ({ electricterrain: 'Electric', grassyterrain: 'Grass', mistyterrain: 'Fairy', psychicterrain: 'Psychic' } as any)[b.field.terrain] || base;
+		case 'judgment': case 'multiattack': case 'revelationdance': case 'ragingbull': case 'ivycudgel': return tera || u.getTypes()[0] || base;
+		case 'technoblast': return ({ dousedrive: 'Water', shockdrive: 'Electric', burndrive: 'Fire', chilldrive: 'Ice' } as any)[u.item] || base;
+		case 'aurawheel': return u.species.id === 'morpekohangry' ? 'Dark' : base;
+		case 'naturalgift': return b.dex.items.get(u.item)?.naturalGift?.type || base;
+		default: return base;
+		}
+	};
 	const renderMoves = () => {
 		if (!activeReq) return null;
 		return <div class="move-panel">
