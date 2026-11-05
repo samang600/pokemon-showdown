@@ -86,3 +86,4 @@ import { KoreanText, parseLine } from '../src/text';
 	res.sample = res.sample.slice(0, 40);
 	return res;
 };
+(window as any).__Battle = Battle; // 테스트용: 상태이상 확률 측정 등

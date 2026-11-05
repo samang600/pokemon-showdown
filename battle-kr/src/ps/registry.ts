@@ -19,6 +19,7 @@ import * as rb_gen9 from '../../../data/random-battles/gen9/teams';
 
 import * as formats from './formats';
 import CHAMP from './champions-moves.json';
+import { Conditions as CHAMP_CONDITIONS } from '../../../data/mods/champions/conditions';
 
 /** 포켓몬 챔피언스 PP: 5→8, 10→12, 15→16, 20 이상→20 (1 같은 특수값은 그대로) */
 export function championsPP(pp: number) { return pp >= 20 ? 20 : pp >= 15 ? 16 : pp >= 10 ? 12 : pp >= 5 ? 8 : pp; }
@@ -52,6 +53,18 @@ export function applyChampionsMoves(Moves: { [id: string]: any }) {
 	}
 }
 applyChampionsMoves((base_moves as any).Moves);
+
+/** 포켓몬 챔피언스 상태이상 (Showdown 의 champions 모드와 같음):
+ *  마비 — 행동 불능 1/8 (본가 1/4) / 잠듦 — 2~3턴 (2턴째에 깰 확률 1/3, 본가 1~3턴) / 얼음 — 최대 3턴, 매 턴 1/4 로 녹음 (본가 1/5, 상한 없음)
+ *  화상·독·맹독 등 지속 데미지는 본가와 같아 그대로 */
+export function applyChampionsConditions(Conditions: { [id: string]: any }) {
+	for (const [id, patch] of Object.entries(CHAMP_CONDITIONS as { [id: string]: any })) {
+		if (!Conditions[id]) continue;
+		const { inherit, ...rest } = patch;
+		Object.assign(Conditions[id], rest);
+	}
+}
+applyChampionsConditions((base_conditions as any).Conditions);
 
 export const MODS: string[] = [];
 
