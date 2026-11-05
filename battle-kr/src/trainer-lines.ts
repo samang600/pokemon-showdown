@@ -165,5 +165,9 @@ export function trainerImgError(e: Event) {
 	else img.style.display = 'none';
 }
 export const PLAYER_SPRITES = [
-	{ id: 'lucas', name: '소년 A' }, { id: 'dawn', name: '소녀 A' }, { id: 'hilbert', name: '소년 B' }, { id: 'hilda', name: '소녀 B' },
+	{ id: 'red', name: '레드' }, { id: 'leaf-gen3', name: '리프' }, { id: 'ethan', name: '심향' }, { id: 'lyra', name: '금선' }, { id: 'kris', name: '크리스' },
+	{ id: 'brendan', name: '휘웅' }, { id: 'may', name: '봄이' }, { id: 'lucas', name: '광휘' }, { id: 'dawn', name: '빛나' },
+	{ id: 'hilbert', name: '투지' }, { id: 'hilda', name: '투희' }, { id: 'nate', name: '공명' }, { id: 'rosa', name: '명희' },
+	{ id: 'calem', name: '칼름' }, { id: 'serena', name: '세레나' }, { id: 'elio', name: '영태' }, { id: 'selene', name: '미월' },
+	{ id: 'victor', name: '승재' }, { id: 'gloria', name: '우리' }, { id: 'florian-s', name: '보민' }, { id: 'juliana-s', name: '푸름' },
 ];

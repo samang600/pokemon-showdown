@@ -832,3 +832,8 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 /* 필드(테라인): 바닥 그라데이션만 — 입자·선 없음 */
 .weather-ov.electricterrain::before, .weather-ov.electricterrain::after, .weather-ov.grassyterrain::before, .weather-ov.grassyterrain::after,
 .weather-ov.mistyterrain::before, .weather-ov.mistyterrain::after, .weather-ov.psychicterrain::before, .weather-ov.psychicterrain::after { content: none !important; display: none; }
+
+/* 주인공 모습 고르기: 격자 */
+.avatar-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.avatar-pick button { padding: 4px 2px; font-size: 11px; }
+.avatar-pick img { height: 56px; }
