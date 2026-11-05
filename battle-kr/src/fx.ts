@@ -346,6 +346,82 @@ export function maxMove(layer: HTMLElement, arena: HTMLElement, type: string, fr
 	return 840;
 }
 
+/** Z기술 전용 대형 연출 (1.2초): ① Z파워 모으기(화면 어두워짐·황금빛 줄기·Z 문양) ② 타입별 대기술 ③ 대폭발
+ *  돌진형(노말·격투·비행·벌레·악·강철) / 낙하형(바위·땅·드래곤·얼음) / 광선형(불꽃·물·전기·풀·에스퍼·고스트·페어리·독) */
+export function zMove(layer: HTMLElement, arena: HTMLElement, type: string, cat: string, from: Pt, hits: Pt[], s: number): number {
+	const { c, l, d } = col(type);
+	const to = hits[0];
+	const W = layer.clientWidth || 400, H = layer.clientHeight || 300;
+	// ① Z파워: 화면을 어둡게, 사용자에게 황금빛 줄기가 모이고 Z 문양
+	const dim = px(layer, W / 2, H / 2, W, H, 'rgba(10,6,30,.55)');
+	anim(dim, [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: 1250, easing: 'linear' });
+	for (let i = 0; i < 14; i++) {
+		const a = (i / 14) * Math.PI * 2;
+		const len = 70 * s;
+		const st = px(layer, from.x + Math.cos(a) * len, from.y + Math.sin(a) * len * 0.7, 3 * s, 18 * s, i % 2 ? '#ffe040' : '#fff8c0', `transform-origin:center;border-radius:2px;box-shadow:0 0 6px #ffd000`);
+		st.style.rotate = `${a + Math.PI / 2}rad`;
+		anim(st, [{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translate(${-Math.cos(a) * len}px,${-Math.sin(a) * len * 0.7}px)`, opacity: 0 }], { duration: 480, delay: i * 14, easing: 'steps(6)' });
+	}
+	const glyph = document.createElement('div');
+	glyph.className = 'fxp fx-zglyph';
+	glyph.textContent = 'Z';
+	glyph.style.cssText = `left:${from.x - 30 * s}px;top:${from.y - 70 * s}px;width:${60 * s}px;height:${60 * s}px;font-size:${54 * s}px;line-height:${60 * s}px;`;
+	layer.appendChild(glyph);
+	anim(glyph, [{ transform: 'scale(.2) rotate(-20deg)', opacity: 0 }, { transform: 'scale(1.15) rotate(0)', opacity: 1, offset: 0.35 }, { transform: 'scale(1)', opacity: 1, offset: 0.75 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: 640, easing: 'steps(8)' });
+	const aura = px(layer, from.x, from.y, 80 * s, 80 * s, `radial-gradient(circle, ${l}, ${c} 45%, transparent 70%)`, 'border-radius:50%');
+	anim(aura, [{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1.3)', opacity: .9, offset: 0.6 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: 640, easing: 'steps(8)' });
+	// ② 타입별 대기술 (600ms~)
+	const rushT = ['Normal', 'Fighting', 'Flying', 'Bug', 'Dark', 'Steel'], fallT = ['Rock', 'Ground', 'Dragon', 'Ice'];
+	const kind = fallT.includes(type) ? 'fall' : rushT.includes(type) || cat === 'Physical' && !['Fire', 'Water', 'Electric', 'Grass', 'Psychic', 'Ghost', 'Fairy', 'Poison'].includes(type) ? 'rush' : 'beam';
+	later(() => {
+		if (kind === 'rush') {
+			// 혜성처럼 빛을 두르고 돌진: 굵은 꼬리 + 잔상
+			for (let i = 0; i < 7; i++) {
+				const g = px(layer, from.x, from.y, 46 * s, 46 * s, `radial-gradient(circle, #fff, ${l} 35%, ${c} 65%, transparent 70%)`, `border-radius:50%;opacity:${1 - i * 0.12}`);
+				anim(g, [{ transform: 'translate(0,0) scale(1)' }, { transform: `translate(${to.x - from.x}px,${to.y - from.y}px) scale(${1.4 - i * 0.1})`, opacity: 0.2 }], { duration: 420, delay: i * 30, easing: 'steps(9)' });
+			}
+			for (let i = 0; i < 5; i++) later(() => punch(layer, { x: to.x + rnd(-24, 24) * s, y: to.y + rnd(-18, 18) * s }, type, s * 1.4), 380 + i * 60);
+		} else if (kind === 'fall') {
+			// 하늘에서 거대한 덩어리가 떨어짐 (바위·대지·용의 기운·빙산)
+			const big = 120 * s;
+			const shape = type === 'Ice' ? 'clip-path:polygon(50% 0,100% 40%,80% 100%,20% 100%,0 40%)' : type === 'Dragon' ? 'border-radius:50%' : 'clip-path:polygon(20% 0,85% 8%,100% 55%,75% 100%,10% 90%,0 35%)';
+			const rock = px(layer, to.x, to.y - H, big, big, `radial-gradient(circle at 35% 30%, ${l}, ${c} 55%, ${d})`, `${shape};box-shadow:0 0 24px 6px ${c}`);
+			anim(rock, [{ transform: 'translate(0,0) scale(.6)' }, { transform: `translate(0,${H - 10 * s}px) scale(1)` }], { duration: 480, easing: 'steps(10)' });
+			throwRocks(layer, { x: to.x, y: to.y - H * 0.8 }, to, type, s * 1.3, 6);
+			if (type === 'Ground' || type === 'Rock') later(() => quake(layer, arena, type, s), 420);
+		} else {
+			// 거대 광선 + 타입별 덧붙임
+			beam(layer, from, to, type, s * 2.6, 560);
+			later(() => beam(layer, from, to, type, s * 1.4, 420), 120);
+			if (type === 'Water' || type === 'Psychic' || type === 'Ghost' || type === 'Poison') later(() => vortex(layer, to, type, s * 1.6, 700), 200);
+			if (type === 'Electric') later(() => bolt(layer, to, type, s * 1.5, 6), 160);
+			if (type === 'Fire') later(() => burst(layer, to, type, s * 2, true), 260);
+			if (type === 'Grass' || type === 'Fairy') later(() => powder(layer, to, type, s * 1.6), 200);
+		}
+	}, 620);
+	// ③ 대폭발 (1100ms~): 흰 섬광, 강한 흔들림, 충격파 고리, 파편
+	later(() => {
+		flash(layer, '#fff', 260);
+		shake(arena, true, 560);
+		for (const h of hits) {
+			const core = px(layer, h.x, h.y, 40 * s, 40 * s, `radial-gradient(circle, #fff, ${l} 35%, ${c} 70%, transparent 74%)`, 'border-radius:50%');
+			anim(core, [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(6)', opacity: 0 }], { duration: 700, easing: 'steps(9)' });
+			for (let r = 0; r < 4; r++) {
+				const rg = px(layer, h.x, h.y, 44 * s, 28 * s, 'transparent', `border-radius:50%;box-shadow:0 0 0 ${4 - r}px ${r % 2 ? '#ffe040' : l}`);
+				anim(rg, [{ transform: 'scale(.3)', opacity: 1 }, { transform: `scale(${6 + r * 1.6})`, opacity: 0 }], { duration: 640, delay: r * 80, easing: 'steps(8)' });
+			}
+			for (let i = 0; i < 30; i++) {
+				const a = (i / 30) * Math.PI * 2 + rnd(-0.1, 0.1);
+				const dd = rnd(60, 130) * s;
+				const el = px(layer, h.x, h.y, rnd(3, 8) * s, rnd(3, 8) * s, i % 3 === 0 ? '#ffe040' : i % 3 === 1 ? c : '#fff');
+				anim(el, [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${Math.cos(a) * dd}px,${Math.sin(a) * dd * 0.7 - 20 * s}px)`, opacity: 0 }], { duration: rnd(560, 820), easing: 'steps(8)' });
+			}
+			burst(layer, h, type, s * 1.5, true);
+		}
+	}, 1100);
+	return 1120;
+}
+
 /** 몬스터볼에서 나오기: 볼이 날아가 열리고 빛이 퍼짐 */
 /** 볼 종류별 색 [윗부분, 아랫부분, 빛 색, 입자 색] */
 export const BALL_STYLE: { [id: string]: [string, string, string, string] } = {

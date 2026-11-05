@@ -281,6 +281,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		const to = slotPoint(target || '') || hits[0] || from;
 		if (!hits.length) hits = [to];
+		// Z기술(전용 Z기술 포함, 변화 Z기술 제외): 전용 대형 연출
+		if (simMove?.isZ && cat !== 'Status') {
+			const impact = (1 / FX.fxSpeed()) * FX.zMove(layer, arena, type, cat, from, hits, scale);
+			pendingHitRef.current = { at: impact, sound: 'hitExplode' };
+			return impact;
+		}
 		// 다이맥스 기술(맥스·거다이맥스): 전용 대형 연출
 		if (simMove?.isMax || /^(max|gmax)[a-z]/.test(mid)) {
 			const impact = (1 / FX.fxSpeed()) * FX.maxMove(layer, arena, type, from, hits, scale);

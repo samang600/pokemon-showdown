@@ -930,3 +930,6 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .teff.up { background: #c42c1c; } .teff.down { background: #4a5a7a; }
 .nick-row input { flex: 1; min-width: 0; max-width: 150px; font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid #8aa0d0; background: #10182e; color: #fff; }
 .nick-row > span { white-space: nowrap; }
+/* Z기술 연출의 Z 문양 */
+.fx-zglyph { background: none; color: #ffe040; font-weight: bold; text-align: center; font-family: inherit;
+	text-shadow: 0 0 6px #ff9000, 0 0 14px #ffd000, 2px 2px 0 #7a3a00; }
