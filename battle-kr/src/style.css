@@ -866,3 +866,9 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .pack-prog { position: relative; height: 22px; background: rgba(0,0,0,.4); border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
 .pack-bar { height: 100%; background: linear-gradient(180deg, #7ad868, #3a9a30); transition: width .3s; }
 .pack-prog span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; text-shadow: 1px 1px 0 #000; }
+/* 세트 편집 머리 부분: 드롭다운이 카드 밖으로 넘치지 않게 */
+.detail-head { align-items: flex-start; }
+.detail-head > div { flex: 1 1 auto; min-width: 0; max-width: 100%; }
+.sel-row { width: 100%; min-width: 0; }
+.sel-row select { width: 100%; max-width: 100%; min-width: 0; flex: 1 1 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.sel-row.big { margin: 2px 8px; width: calc(100% - 16px); box-sizing: border-box; }
