@@ -54,7 +54,7 @@ function withLevel(team: PSet[], level: number) { return team.map(s => ({ ...clo
 
 async function chooseFormat(title: string, desc?: string, extended = false, opts?: BattleOpts, show: OptKey[] = ALL_OPTS): Promise<Fmt | typeof BACK> {
 	return ask<Fmt | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
-		intro={<>{desc && <p class="hint">{desc}</p>}{opts && <OptsBox opts={opts} show={show} />}</>}
+		intro={desc ? <p class="hint">{desc}</p> : undefined} footer={opts && <OptsBox opts={opts} show={show} />}
 		options={[
 			{ value: 'singles' as Fmt, label: extended ? '싱글 3vs3' : '싱글배틀', desc: '1대1로 싸웁니다 · 3마리', icon: '①' },
 			{ value: 'doubles' as Fmt, label: extended ? '더블 4vs4' : '더블배틀', desc: '2마리씩 동시에 싸웁니다 · 4마리', icon: '②' },
@@ -427,7 +427,7 @@ export async function runNamed() {
 			if (t === BACK) break;
 			const opts = defaultOpts();
 			const mode = await ask<'s3' | 's6' | 'd4' | 'd6' | typeof BACK>(r => <ChoiceScreen title={`${t.name} · 규칙`} onBack={() => r(BACK)}
-				intro={<><p class="hint">“{t.line}”</p><OptsBox opts={opts} show={ALL_OPTS} /></>}
+				intro={<p class="hint">“{t.line}”</p>} footer={<OptsBox opts={opts} show={ALL_OPTS} />}
 				options={[
 					{ value: 's3' as const, label: '싱글 3vs3', desc: '6마리 중 3마리 선택', icon: '①' },
 					{ value: 's6' as const, label: '싱글 6vs6 (풀배틀)', desc: '전원 참가', icon: '⑥' },

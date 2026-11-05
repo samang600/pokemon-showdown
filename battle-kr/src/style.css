@@ -875,8 +875,13 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .sel-row select { width: 100%; max-width: 100%; min-width: 0; flex: 1 1 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .sel-row.big { margin: 2px 8px; width: calc(100% - 16px); box-sizing: border-box; }
 /* 모드 옵션 체크박스 (치트 팀 허용 · 레벨 100 · 거꾸로 배틀) */
-.opts-box { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
+.opts-box { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 10px; }
+.opts-box::before { content: '옵션'; font-size: 12px; opacity: .75; margin-left: 4px; }
 .check.opt { align-items: flex-start; gap: 10px; padding: 8px 10px; background: rgba(0,0,0,.28); border-radius: 8px; font-size: 14px; }
 .check.opt input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; }
 .check.opt span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .check.opt small { font-size: 12px; opacity: .8; line-height: 1.35; }
+/* 메인 메뉴 타일 제목이 두 줄로 꺾이지 않게 (반 폭 타일은 글자를 조금 작게) */
+.mode-text { min-width: 0; }
+.mode-text b { white-space: nowrap; letter-spacing: -0.3px; }
+.mode-tile:not(.wide) .mode-text b { font-size: 17px; }

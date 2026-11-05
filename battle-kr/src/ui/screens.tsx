@@ -107,8 +107,8 @@ export function SwapScreen({ mine, theirs, gen, onDone }: {
 }
 
 /** 선택지 목록 */
-export function ChoiceScreen<T>({ title, intro, options, onPick, onBack }: {
-	title: string; intro?: ComponentChildren; onBack?: () => void;
+export function ChoiceScreen<T>({ title, intro, footer, options, onPick, onBack }: {
+	title: string; intro?: ComponentChildren; footer?: ComponentChildren; onBack?: () => void;
 	options: { value: T; label: string; desc?: string; badge?: string; disabled?: boolean; icon?: ComponentChildren }[];
 	onPick: (v: T) => void;
 }) {
@@ -121,6 +121,7 @@ export function ChoiceScreen<T>({ title, intro, options, onPick, onBack }: {
 				{o.badge && <span class="opt-badge">{o.badge}</span>}
 			</button>)}
 		</div>
+		{footer}
 	</Screen>;
 }
 
