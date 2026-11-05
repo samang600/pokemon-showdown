@@ -61,6 +61,14 @@ export function speciesAllowed(rule: BattleRule, speciesId: string): boolean {
 	if (rule.legend === 'none' && tags.includes('Sub-Legendary')) return false;
 	return true;
 }
+/** 메가스톤 없이 메가진화하는 경우(레쿠쟈·화룡점정): 그 메가 모습이 규칙에서 허용되는가 */
+export function megaFormAllowed(rule: BattleRule, formeId: string): boolean {
+	if (!rule.kinds.includes('mega')) return false;
+	const s = RAW.species[toID(formeId)];
+	if (rule.noFuture && s?.fut) return false;
+	if (rule.megaOnly && !rule.megaOnly.has(toID(formeId))) return false;
+	return true;
+}
 /** 이 규칙에서 쓸 수 있는 메가스톤인가 */
 export function megaStoneAllowed(rule: BattleRule, itemId: string): boolean {
 	const it = RAW.items[toID(itemId)];

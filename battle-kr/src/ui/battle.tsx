@@ -259,6 +259,12 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		const to = slotPoint(target || '') || hits[0] || from;
 		if (!hits.length) hits = [to];
+		// 다이맥스 기술(맥스·거다이맥스): 전용 대형 연출
+		if (simMove?.isMax || /^(max|gmax)[a-z]/.test(mid)) {
+			const impact = (1 / FX.fxSpeed()) * FX.maxMove(layer, arena, type, from, hits, scale);
+			pendingHitRef.current = { at: impact, sound: 'hitExplode' };
+			return impact;
+		}
 		const impact = (1 / FX.fxSpeed()) * FX.playMove(layer, arena, { id: mid, type, category: cat, flags: simMove?.flags || {}, target: tt, basePower: simMove?.basePower }, from, to, scale, hits);
 		const hitSound = RXp(/explosion|selfdestruct|boomburst|eruption|mindblown/, mid) ? 'hitExplode' : RXp(/punch|fist|kick|slam|smash|hammer|tackle|headbutt|rush|charge|press|chop/, mid) ? 'hitPunch' : RXp(/slash|cut|claw|blade|sword|edge|scissor|wing|razor|fang|bite|crunch/, mid) ? 'hitSlash' : 'hit';
 		pendingHitRef.current = { at: impact, sound: hitSound };

@@ -117,13 +117,11 @@ export async function runTower() {
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(TOWER_KEY(fmt), state); return; }
 		if (go === 'quit') { remove(TOWER_KEY(fmt)); return; }
-		// 상대 엔트리를 보고 선봉·나오는 순서 정하기
-		const order = await ask<PSet[]>(r => <PickScreen title="선봉·순서 정하기" team={state!.team} gen={9} count={state!.team.length}
-			hint="배틀타워에서는 상대 엔트리를 볼 수 없습니다. 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다." onDone={r} />);
+		// 배틀타워 규칙(Pt/HGSS): 도전 시작 때 고른 포켓몬·순서로 7연전, 상대 엔트리는 볼 수 없음
 		const res = await battle({
 			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: opp.boss || (opp as any).special ? 'champion' : 'tower',
 			label: `배틀타워 ${state.streak + 1}번째`,
-			p1: { name: playerName(), team: order, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: opp.team, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
+			p1: { name: playerName(), team: state.team, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: opp.team, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (res.win) {
 			state.streak++;
@@ -212,11 +210,10 @@ export async function runFactory() {
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />);
 		if (go === 'rest') { save(FACTORY_KEY(fmt, level), state); return; }
 		if (go === 'quit') { remove(FACTORY_KEY(fmt, level)); return; }
-		const order = await ask<PSet[]>(r => <PickScreen title="선봉·순서 정하기" team={state!.team} gen={9} count={state!.team.length}
-			hint={`${hint} 나오는 순서를 정하세요. 처음 고른 포켓몬이 선봉입니다.`} onDone={r} />);
+		// 배틀팩토리 규칙: 빌린 순서대로 싸움 (교환으로만 바뀜), 직원 힌트만 제공
 		const res = await battle({
 			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`,
-			p1: { name: playerName(), team: order, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppTeam, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
+			p1: { name: playerName(), team: state.team, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppTeam, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (!res.win) {
 			const s = state.streak;
@@ -319,8 +316,9 @@ export async function runPWT() {
 			<BracketView rounds={rounds} highlight={me} />
 		</InfoScreen>);
 		const oppTeam = opp.team();
+		// PWT(BW2): 배틀 전 상대 엔트리를 보고 6마리 중 n마리를 고름
 		const picked = await ask<PSet[]>(r => <PickScreen title="참가 포켓몬 선택" team={myTeam} gen={9} count={n}
-			hint={`대회에서는 상대 엔트리를 볼 수 없습니다. ${n}마리를 순서대로 고르세요. 처음 고른 포켓몬이 선봉입니다.`} onDone={r} />);
+			opponent={{ name: `${opp.title} ${opp.name}`, team: oppTeam }} onDone={r} />);
 		// 상대도 n마리 선택 (에이스 포함)
 		const oppPick = [...rng.shuffle(oppTeam.slice(0, -1)).slice(0, n - 1), oppTeam[oppTeam.length - 1]];
 		const res = await battle({

@@ -20,6 +20,9 @@ import * as rb_gen9 from '../../../data/random-battles/gen9/teams';
 import * as formats from './formats';
 import CHAMP from './champions-moves.json';
 
+/** 포켓몬 챔피언스 PP: 5→8, 10→12, 15→16, 20 이상→20 (1 같은 특수값은 그대로) */
+export function championsPP(pp: number) { return pp >= 20 ? 20 : pp >= 15 ? 16 : pp >= 10 ? 12 : pp >= 5 ? 8 : pp; }
+
 /** 포켓몬 챔피언스 기술 사양 적용 (basePower·accuracy·type·secondary·self·boosts·flags·target·critRatio·ignoreAbility) */
 export function applyChampionsMoves(Moves: { [id: string]: any }) {
 	for (const [id, patch] of Object.entries(CHAMP as { [id: string]: any })) {
@@ -32,6 +35,12 @@ export function applyChampionsMoves(Moves: { [id: string]: any }) {
 			else if (k === 'self') m.self = { ...(m.self || {}), ...(v as any) };
 			else m[k] = v;
 		}
+	}
+	// PP: 챔피언스는 PP업 없이 5→8, 10→12, 15→16, 20 이상→20 (Pokébase 자료)
+	for (const m of Object.values(Moves)) {
+		if (!m || typeof m.pp !== 'number') continue;
+		m.pp = championsPP(m.pp);
+		m.noPPBoosts = true;
 	}
 	// 소금절이: 매 턴 1/16 (물·강철 타입은 1/8) — 본가는 1/8·1/4
 	if (Moves.saltcure?.condition) {

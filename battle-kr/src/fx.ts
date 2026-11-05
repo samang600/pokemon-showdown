@@ -294,6 +294,58 @@ export function pillar(layer: HTMLElement, at: Pt, color: string, s: number) {
 	sparkle(layer, at, 'Normal', s);
 }
 
+/** 다이맥스 기술: 사용자에게 기운이 모이고, 거대한 타입 색 구체가 날아가 큰 폭발 + 하늘에서 내리꽂는 빛기둥 + 화면 흔들림 */
+export function maxMove(layer: HTMLElement, arena: HTMLElement, type: string, from: Pt, hits: Pt[], s: number): number {
+	const col = TYPE_COLOR[type] || '#fff';
+	const light = `color-mix(in srgb, ${col} 45%, #fff)`;
+	// 1) 모으기: 사용자 주위로 조여드는 고리와 입자 (0~420ms)
+	for (let i = 0; i < 16; i++) {
+		const a = (i / 16) * Math.PI * 2;
+		const el = px(layer, from.x + Math.cos(a) * 46 * s, from.y + Math.sin(a) * 30 * s, 5 * s, 5 * s, i % 2 ? col : light, 'border-radius:50%');
+		anim(el, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { transform: `translate(${-Math.cos(a) * 46 * s}px,${-Math.sin(a) * 30 * s}px)`, opacity: 0 }], { duration: 420, delay: i * 10, easing: 'steps(6)' });
+	}
+	const ring = px(layer, from.x, from.y, 90 * s, 60 * s, 'transparent', `border-radius:50%;box-shadow:0 0 0 3px ${col}, 0 0 14px 4px ${col}`);
+	anim(ring, [{ transform: 'scale(1.3)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: 'scale(.25)', opacity: 0 }], { duration: 420, easing: 'steps(7)' });
+	// 2) 거대 구체 발사 (420~820ms)
+	const to = hits[0];
+	later(() => {
+		const orb = px(layer, from.x, from.y - 10 * s, 34 * s, 34 * s, `radial-gradient(circle at 35% 35%, #fff, ${light} 30%, ${col} 70%, transparent 72%)`, `border-radius:50%;box-shadow:0 0 18px 6px ${col}`);
+		anim(orb, [{ transform: 'translate(0,0) scale(.5)' }, { transform: `translate(${(to.x - from.x) / 2}px,${(to.y - from.y) / 2 - 60 * s}px) scale(1.2)`, offset: 0.5 },
+			{ transform: `translate(${to.x - from.x}px,${to.y - from.y + 10 * s}px) scale(1.4)` }], { duration: 400, easing: 'steps(10)' });
+		for (let i = 0; i < 6; i++) {
+			const tr = px(layer, from.x, from.y - 10 * s, 10 * s, 10 * s, col, 'border-radius:50%;opacity:.6');
+			anim(tr, [{ transform: 'translate(0,0)', opacity: 0.6 }, { transform: `translate(${(to.x - from.x) * (0.3 + i * 0.1)}px,${(to.y - from.y) * (0.3 + i * 0.1) - 40 * s}px)`, opacity: 0 }], { duration: 380, delay: i * 25, easing: 'steps(8)' });
+		}
+	}, 420);
+	// 3) 충격: 폭발 + 빛기둥 + 고리 3겹 + 파편 + 흔들림 (820ms~)
+	later(() => {
+		flash(layer, light, 220);
+		shake(arena, true, 420);
+		for (const h of hits) {
+			const pil = document.createElement('div');
+			pil.className = 'fxp';
+			const w = 70 * s;
+			pil.style.cssText = `left:${h.x - w / 2}px;top:0;width:${w}px;height:${h.y + 24 * s}px;background:linear-gradient(180deg, transparent, ${light} 60%, ${col});`;
+			layer.appendChild(pil);
+			anim(pil, [{ opacity: 0, transform: 'scaleX(.1)' }, { opacity: 1, transform: 'scaleX(1)', offset: 0.25 }, { opacity: 0, transform: 'scaleX(1.8)' }], { duration: 700, easing: 'steps(8)' });
+			const core = px(layer, h.x, h.y, 30 * s, 30 * s, `radial-gradient(circle, #fff, ${light} 40%, ${col} 75%, transparent 78%)`, 'border-radius:50%');
+			anim(core, [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(5)', opacity: 0 }], { duration: 620, easing: 'steps(8)' });
+			for (let r = 0; r < 3; r++) {
+				const rg = px(layer, h.x, h.y, 40 * s, 26 * s, 'transparent', `border-radius:50%;box-shadow:0 0 0 ${3 - r}px ${r % 2 ? light : col}`);
+				anim(rg, [{ transform: 'scale(.3)', opacity: 1 }, { transform: `scale(${5 + r * 1.5})`, opacity: 0 }], { duration: 560, delay: r * 90, easing: 'steps(7)' });
+			}
+			for (let i = 0; i < 26; i++) {
+				const a = (i / 26) * Math.PI * 2 + rnd(-0.1, 0.1);
+				const d = rnd(50, 110) * s;
+				const el = px(layer, h.x, h.y, rnd(3, 7) * s, rnd(3, 7) * s, i % 3 ? col : '#fff');
+				anim(el, [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px,${Math.sin(a) * d * 0.7 - 20 * s}px)`, opacity: 0 }], { duration: rnd(500, 760), easing: 'steps(8)' });
+			}
+			burst(layer, h, type, s, true);
+		}
+	}, 820);
+	return 840;
+}
+
 /** 몬스터볼에서 나오기: 볼이 날아가 열리고 빛이 퍼짐 */
 /** 볼 종류별 색 [윗부분, 아랫부분, 빛 색, 입자 색] */
 export const BALL_STYLE: { [id: string]: [string, string, string, string] } = {

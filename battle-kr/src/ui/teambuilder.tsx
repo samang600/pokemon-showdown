@@ -250,6 +250,10 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' } | { kind: 'ability' } | { kind: 'ball' }>(null);
 	const up = (patch: Partial<PSet>) => { const n = { ...s, ...patch }; setS(n); onChange(n); };
 	const sd = speciesData(toID(s.species), gen)!;
+	// 같은 포켓몬의 다른 모습 (메가·원시·거다이맥스처럼 배틀 중 바뀌는 모습과 배틀 전용 모습 제외)
+	const baseId = RAW.species[toID(s.species)]?.base || toID(s.species);
+	const formes = useMemo(() => Object.keys(RAW.species).filter(id => (id === baseId || RAW.species[id].base === baseId)).map(id => speciesData(id, gen)!)
+		.filter(f => f && !f.bo && !f.req), [baseId, gen]);
 	const nat = RAW.natures[s.nature];
 	const sp = cheat ? Object.fromEntries(STATS.map(k => [k, evToSp(s.evs[k] || 0)])) as { [k in StatID]: number } : spOf(s);
 	const spTotal = STATS.reduce((a, k) => a + sp[k], 0);
@@ -290,6 +294,12 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			<div>
 				<div class="types">{sd.t.map(t => <TypeBadge type={t} />)}</div>
 				<label class="check"><input type="checkbox" checked={!!s.shiny} onChange={e => up({ shiny: (e.target as HTMLInputElement).checked })} /> 색이 다른 포켓몬</label>
+				{formes.length > 1 && <div class="row wrap forme-row"><span class="muted small">모습</span>
+					{formes.map(f => <button class={'chipbtn' + (f.id === toID(s.species) ? ' on' : '')} onClick={() => {
+						if (f.id === toID(s.species)) return;
+						const nsd = speciesData(f.id, gen)!;
+						up({ species: nsd.en, ability: nsd.ab.includes(s.ability) ? s.ability : nsd.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? nsd.t[0] : s.teraType) });
+					}}>{formeLabel(f, sd)}</button>)}</div>}
 				<div class="row wrap gender-row"><span class="muted small">성별</span>
 					{(sd.gr ? [sd.gr] : ['M', 'F']).map(g => <button class={'chipbtn' + ((s.gender || '') === g || (sd.gr && sd.gr === g) ? ' on' : '')} onClick={() => !sd.gr && up({ gender: g })}>{g === 'M' ? '♂ 수컷' : g === 'F' ? '♀ 암컷' : '성별 없음'}</button>)}
 					{!sd.gr && <button class={'chipbtn' + (!s.gender ? ' on' : '')} onClick={() => up({ gender: '' })}>무작위</button>}</div>
@@ -436,6 +446,13 @@ function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) =>
 			</button>)}
 		</div>
 	</Screen>;
+}
+
+/** 모습 이름: '로토무' 기준 '히트로토무', '나인테일(알로라)' 는 '알로라' 처럼 짧게 */
+function formeLabel(f: NonNullable<ReturnType<typeof speciesData>>, cur: NonNullable<ReturnType<typeof speciesData>>) {
+	const m = /\(([^)]+)\)$/.exec(f.n);
+	if (m) return m[1];
+	return f.n;
 }
 
 const SP_PRESETS: [string, Partial<{ [k in StatID]: number }>][] = [

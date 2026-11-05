@@ -403,6 +403,7 @@ export class KoreanText {
 			return F(T('transform', 'transform'), { POKEMON: pk(args[1]), SPECIES: speciesKo(this.nickname(args[2])) });
 		case '-mega': {
 			const [, ident, , item] = args;
+			if (!item) return F('{POKEMON:topic} 강한 바람에 휩싸였다!', { POKEMON: pk(ident) }); // 레쿠쟈(화룡점정): 메가스톤 없음
 			return F(T('mega'), { POKEMON: pk(ident), ITEM: itemKo(item || ''), TRAINER: this.ctx.trainerName(this.sideOf(ident)) });
 		}
 		case '-primal':

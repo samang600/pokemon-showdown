@@ -836,3 +836,12 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .weather-ov.electricterrain::before, .weather-ov.electricterrain::after, .weather-ov.grassyterrain::before, .weather-ov.mistyterrain::before, .weather-ov.psychicterrain::before, .weather-ov.desolateland::before { content: none; }
 .weather-ov.electricterrain, .weather-ov.grassyterrain, .weather-ov.mistyterrain, .weather-ov.psychicterrain { animation: terrainBreath 3s ease-in-out infinite; }
 @keyframes terrainBreath { 50% { opacity: .78; } }
+.forme-row { align-items: center; }
+
+/* 끝의대지: 위로 떠오르는 열기 입자를 되살리되 아주 느리게·성기게 */
+.weather-ov.desolateland::before { content: ''; position: absolute; inset: 0; opacity: .7;
+	background-image: radial-gradient(rgba(255,170,60,.8) 1.3px, transparent 2px), radial-gradient(rgba(255,230,120,.5) 1px, transparent 1.5px);
+	background-size: 53px 53px, 79px 79px; background-position: 0 0, 25px 30px; animation: slowRise 26s linear infinite; }
+/* 53·79 의 공배수 4187px 를 26초에 → 초당 약 160px → 눈에 띄지 않게 느림 */
+@keyframes slowRise { to { background-position: 0 -4187px, 25px -4157px; } }
+.weather-ov.desolateland::after { animation-duration: 2.6s; }

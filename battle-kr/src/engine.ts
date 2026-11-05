@@ -3,7 +3,7 @@ import { Battle } from '../../sim/battle';
 import type { PokemonSet } from '../../sim/teams';
 import { chooseAI } from './ai';
 import { loadSettings } from './store';
-import { ruleById, megaStoneAllowed, type BattleRule, type GimmickKind } from './rules';
+import { ruleById, megaStoneAllowed, megaFormAllowed, type BattleRule, type GimmickKind } from './rules';
 
 export interface SideConfig { name: string; team: PokemonSet[] }
 export interface SessionConfig {
@@ -155,13 +155,16 @@ export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind
 		if (!a) return;
 		const p = simSide?.active?.[i];
 		// 메가진화: 규칙·허용 메가 목록
-		const stoneOk = p ? megaStoneAllowed(rule, p.item) : allow('mega');
+		// 메가스톤이 없는 메가진화(레쿠쟈: 화룡점정)는 메가 모습으로 판단
+		const stoneOk = !p ? allow('mega') : p.getItem?.()?.megaStone ? megaStoneAllowed(rule, p.item) : megaFormAllowed(rule, p.canMegaEvo || 'rayquazamega');
 		if (!allow('mega') || !stoneOk) { delete a.canMegaEvo; delete a.canMegaEvoX; delete a.canMegaEvoY; }
 		if (!allow('mega')) delete a.canUltraBurst;
 		if (!allow('zmove')) delete a.canZMove;
 		// 테라스탈: 쇼다운은 메가스톤 소지 포켓몬의 테라스탈을 막아 두므로 규칙상 되면 열어 준다
 		if (!allow('tera')) delete a.canTerastallize;
-		else if (p && !a.canTerastallize && !p.terastallized && p.canTerastallize === null && !['Ogerpon', 'Terapagos'].includes(p.species.baseSpecies)) {
+		// 메가진화·원시회귀·울트라버스트한 포켓몬은 테라스탈 불가 (쇼다운이 막아 둔 '메가스톤 소지' 경우만 열어 줌)
+		else if (p && !a.canTerastallize && !p.terastallized && p.canTerastallize === null && !['Ogerpon', 'Terapagos'].includes(p.species.baseSpecies) &&
+			!p.species.isMega && !p.species.isPrimal && p.species.forme !== 'Ultra') {
 			p.canTerastallize = p.teraType; a.canTerastallize = p.teraType;
 		}
 		// 다이맥스
