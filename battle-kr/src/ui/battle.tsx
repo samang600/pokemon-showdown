@@ -9,7 +9,7 @@ import { toSimTeam, type PSet } from '../sets';
 import { loadSettings, updateRecords, saveReplay, newId } from '../store';
 import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon, ItemIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
-import { estimateDamage, typeEffOf } from '../ai';
+import { estimateDamage, typeEffOf, chooseAI } from '../ai';
 import * as FX from '../fx';
 import { sfx, moveSound, playMusic, stopMusic, cry, preloadCries, pickBattleMusic, animSfxVolume, vibrate } from '../sound';
 import { saveSettings, loadSettings as loadSettings2 } from '../store';
@@ -34,6 +34,8 @@ export interface BattleSetup {
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
 	/** 배경음악 상황 (없으면 배경으로 정함): 악의 조직 간부·보스는 'evil', 관장·사천왕·챔피언은 'boss' */
 	music?: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion';
+	/** 멀티배틀: p1.team 중 theirs[i] 가 true 인 포켓몬은 파트너(AI)의 것. 포켓몬 주인이 지시함 */
+	partner?: { name: string; theirs: boolean[]; skill?: number };
 }
 export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
 
@@ -649,6 +651,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!req || req.wait) { setPhase('playing'); return; }
 		if (setup.replay) { void replayStep(); return; }
 		const first = firstSlot(req, 0);
+		if (first < 0 && setup.partner) { void submit([]); return; }
 		setSlotIdx(first);
 		setMenu(req.forceSwitch ? 'switch' : 'main');
 		setPhase('input');
@@ -658,10 +661,53 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		else if (mon) setMessage(`${mon.nick}${josaTopic(mon.nick)} 무엇을 할까?`);
 	}
 
+	// ── 멀티배틀: 파트너(AI)가 지시하는 슬롯 ──
+	const partnerOf = (p: any) => !!p?.kPartner;
+	function benchAlive(partner: boolean) {
+		return sessionRef.current!.battle.p1.pokemon.some((p: any) => !p.fainted && !p.isActive && partnerOf(p) === partner);
+	}
+	/** 이 슬롯을 파트너가 고르는가: 싸우는 중이면 그 포켓몬의 주인, 비었으면 0번은 나(내 포켓몬이 남았을 때)·1번은 파트너(파트너 포켓몬이 남았을 때) */
+	function aiSlot(req: any, i: number): boolean {
+		if (!setup.partner || setup.replay) return false;
+		if (req.forceSwitch) return i === 0 ? !benchAlive(false) : benchAlive(true);
+		return partnerOf(sessionRef.current!.battle.p1.active[i]);
+	}
+	/** 파트너의 선택: 내 대기 포켓몬은 잠시 기절한 것으로 가려서 파트너가 자기 포켓몬만 내보내게 함 */
+	function partnerParts(req: any): string[] {
+		const b = sessionRef.current!.battle;
+		const mask: any[] = [];
+		if (benchAlive(true)) for (const p of b.p1.pokemon as any[]) if (!partnerOf(p) && !p.fainted && !p.isActive) { p.fainted = true; mask.push(p); }
+		try {
+			const c = chooseAI(b, req, 'p1', setup.partner?.skill ?? 0.85);
+			return c && c !== 'default' ? c.split(', ') : [];
+		} finally { for (const p of mask) p.fainted = false; }
+	}
+	/** 내 선택에 파트너의 선택을 슬롯 순서대로 끼워 넣음 */
+	function mergePartner(req: any, mine: string[]): string[] {
+		if (!setup.partner || setup.replay) return mine;
+		const n = req.forceSwitch ? req.forceSwitch.length : req.active?.length || 1;
+		const needed: number[] = [];
+		for (let i = 0; i < n; i++) {
+			if (req.forceSwitch) { if (req.forceSwitch[i]) needed.push(i); continue; }
+			const mon = req.side.pokemon[i];
+			if (mon && !mon.condition.endsWith(' fnt') && mon.condition !== '0 fnt' && !req.active[i]?.commanding) needed.push(i);
+		}
+		if (!needed.some(i => aiSlot(req, i))) return mine;
+		const ai = req.forceSwitch ? partnerParts({ ...req, forceSwitch: req.forceSwitch.map((f: boolean, i: number) => f && aiSlot(req, i)) }) : partnerParts(req);
+		const out: string[] = [];
+		let mi = 0, ai2 = 0;
+		needed.forEach((slot, k) => {
+			if (aiSlot(req, slot)) out.push((req.forceSwitch ? ai[ai2++] : ai[k]) || (req.forceSwitch ? 'pass' : 'move 1'));
+			else out.push(mine[mi++] || 'move 1');
+		});
+		return out;
+	}
+
 	/** 이번에 선택해야 하는 슬롯 */
 	function firstSlot(req: any, from: number): number {
 		const n = req.forceSwitch ? req.forceSwitch.length : req.active?.length || 1;
 		for (let i = from; i < n; i++) {
+			if (aiSlot(req, i)) continue;
 			if (req.forceSwitch) { if (req.forceSwitch[i]) return i; continue; }
 			const mon = req.side.pokemon[i];
 			if (mon && !mon.condition.endsWith(' fnt') && mon.condition !== '0 fnt' && !req.active[i]?.commanding) return i;
@@ -692,7 +738,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			setMessage(`${setup.p2.title ? setup.p2.title + ' ' : ''}${setup.p2.name}${josaSubject(setup.p2.name)} 생각하고 있다…`);
 			await new Promise(r => setTimeout(r, 50));
 		}
-		const lines = s.choose(choiceParts.join(', '));
+		const lines = s.choose(mergePartner(s.p1Request, choiceParts).join(', '));
 		if (!lines) {
 			toast('선택할 수 없습니다: ' + (s.lastError.replace(/^\[.*?\]\s*/, '') || '다시 골라 주세요'));
 			beginInput();
@@ -747,6 +793,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		});
 		// 내 팀은 미리 등록 (교체 화면용)
 		const lines = s.start();
+		if (setup.partner) (s.battle.p1.pokemon as any[]).forEach((p, i) => { p.kPartner = !!setup.partner!.theirs[i]; });
 		let wake: any = null;
 		(navigator as any).wakeLock?.request?.('screen').then((w: any) => { wake = w; }).catch(() => {});
 		wakeRelease.current = () => { try { wake?.release(); } catch {} };
@@ -762,6 +809,7 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 			setMessage(`${who}${josaSubject(setup.p2.name)} 승부를 걸어왔다!`);
 			pushLog(`${who}${josaSubject(setup.p2.name)} 승부를 걸어왔다!`);
 			await wait(SPEED_MS[settings.speed] * 1.3);
+			if (setup.partner) { showMsg(`${setup.partner.name}${josaWith(setup.partner.name)} 함께 싸운다!`); await wait(SPEED_MS[settings.speed] * 1.1); }
 			const intro = setup.p2.lines?.intro || setup.p2.line;
 			if (intro) {
 				showMsg(`${who}: “${intro}”`);
@@ -1002,14 +1050,15 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 				const fainted = hp.status === 'fnt';
 				// 부활의기원(Revival Blessing): 쓰러진 포켓몬만 고를 수 있음
 				const reviving = reqMon.some((x: any) => x.reviving);
-				const disabled = reviving ? (!fainted || chosen.has(i + 1)) : (isActive || fainted || trapped || chosen.has(i + 1));
+				const theirs = !!setup.partner && partnerOf(sessionRef.current!.battle.p1.pokemon[i]);
+				const disabled = theirs || (reviving ? (!fainted || chosen.has(i + 1)) : (isActive || fainted || trapped || chosen.has(i + 1)));
 				return <button key={i} class={'switch-btn' + (isActive ? ' active' : '') + (disabled ? ' off' : '')}
 					onClick={() => setSheet({ idx: i, canSwitch: !disabled })}>
 					<span class="sw-sprite"><Sprite species={species} gen={gen} size={40} anim={false} shiny={/, shiny/.test(p.details)} /></span>
 					<span class="sw-info">
 						<b>{nick}</b>
 						<HPBar hp={hp.hp} maxhp={hp.maxhp || 1} />
-						<small>{fainted ? '기절' : `${hp.hp}/${hp.maxhp}`} {hp.status && hp.status !== 'fnt' && <StatusBadge status={hp.status} />}{isActive && !fainted && ' · 배틀 중'}</small>
+						<small>{fainted ? '기절' : `${hp.hp}/${hp.maxhp}`} {hp.status && hp.status !== 'fnt' && <StatusBadge status={hp.status} />}{isActive && !fainted && ' · 배틀 중'}{theirs && ` · ${setup.partner!.name}의 포켓몬`}</small>
 					</span>
 				</button>;
 			})}
@@ -1283,6 +1332,12 @@ function josaSubject(word: string) {
 	const ch = word.charCodeAt(word.length - 1);
 	if (ch >= 0xAC00 && ch <= 0xD7A3) return (ch - 0xAC00) % 28 ? '이' : '가';
 	return '가';
+}
+
+function josaWith(word: string) {
+	const ch = word.charCodeAt(word.length - 1);
+	if (ch >= 0xAC00 && ch <= 0xD7A3) return (ch - 0xAC00) % 28 ? '과' : '와';
+	return '와';
 }
 
 function josaTopic(word: string) {

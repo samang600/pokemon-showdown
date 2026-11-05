@@ -248,7 +248,7 @@ function seq(str: string): (number | null)[] {
 const decodeCh = (s: string) => Array.from(s, ch => ch === ' ' ? null : ch === '!' ? -1 : ch.charCodeAt(0) - 14);
 const CHIP: { [k: string]: Track } = Object.fromEntries(Object.entries(CHIP_RAW as { [k: string]: any }).map(([k, r]) =>
 	[k, { bpm: r.bpm, intro: r.intro, loop: true, leadType: r.leadType, lead: decodeCh(r.lead), harm: decodeCh(r.harm), bass: decodeCh(r.bass), arp: decodeCh(r.arp), drums: r.drums }]));
-const chipStyle = () => (loadSettings().bgmStyle || 'chip') === 'chip';
+const chipStyle = () => bgmStyle() === 'chip';
 const TRACKS: { [k: string]: Track } = {
 	// 일반 배틀: d단조, 빠른 베이스 8분 + 긴장감 있는 반음 진행
 	battle: {
@@ -356,17 +356,25 @@ let current = '';
 /** 작곡한 배경음악(public/bgm/*.mp3)의 루프 지점(초): 인트로 뒤 ~ 곡 끝. 빌드가 public/bgm/loops.json 에서 넣음 */
 declare const __BGM_LOOPS__: { [name: string]: { start: number; end: number } };
 const BGM_LOOPS: { [name: string]: { start: number; end: number } } = typeof __BGM_LOOPS__ === 'object' ? __BGM_LOOPS__ : {};
+/** 공개 음원(CC0·CC BY, public/bgm-oss): 저용량판은 앱에 넣지 않고 처음 들을 때 jsDelivr 에서 받음 */
+declare const __OSS_LOOPS__: { [name: string]: { start: number; end: number } };
+declare const __OSS_BASE__: string;
+const OSS_LOOPS: { [name: string]: { start: number; end: number } } = typeof __OSS_LOOPS__ === 'object' ? __OSS_LOOPS__ : {};
+const OSS_BASE = typeof __OSS_BASE__ === 'string' ? __OSS_BASE__ : 'bgm-oss/';
+const ossMissing: { [k: string]: boolean } = {};
+export type BgmStyle = 'orch' | 'chip' | 'oss';
+const bgmStyle = (): BgmStyle => (loadSettings().bgmStyle as BgmStyle) || 'chip';
 const BGM_VOL = [0.25, 0.5, 0.8];
 let bgmSrc: AudioBufferSourceNode | null = null;
 let bgmGain: GainNode | null = null;
 let bgmToken = 0;
 const bgmBufs: { [name: string]: Promise<AudioBuffer | null> } = {};
 /** mp3 를 받아 디코딩 (file:// 에서도 되도록 XHR) — 실패하면 null */
-function loadBgm(name: string, c: AudioContext): Promise<AudioBuffer | null> {
-	return bgmBufs[name] ||= new Promise(resolve => {
+function loadBgm(name: string, c: AudioContext, url = `bgm/${name}.mp3`): Promise<AudioBuffer | null> {
+	return bgmBufs[url] ||= new Promise(resolve => {
 		try {
 			const x = new XMLHttpRequest();
-			x.open('GET', `bgm/${name}.mp3`); x.responseType = 'arraybuffer';
+			x.open('GET', url); x.responseType = 'arraybuffer';
 			x.onload = () => {
 				const ok = (x.status === 200 || x.status === 0) && x.response && (x.response as ArrayBuffer).byteLength > 1000;
 				if (!ok) { resolve(null); return; }
@@ -402,16 +410,18 @@ export function playMusic(name: string) {
 	current = name;
 	// 0) 음악 스타일이 칩튠이면 작곡한 곡의 칩튠판
 	if (chipStyle() && CHIP[name]) { startSynth(name, c, CHIP[name]); return; }
+	// 0-1) 공개 음원 스타일: 받아 둔 곡이 있으면 그것을, 못 받으면 관현악으로
+	const oss = bgmStyle() === 'oss' && OSS_LOOPS[name] && !ossMissing[name];
 	// 1) 작곡한 곡(루프 지점이 있는 mp3): Web Audio 로 디코딩해 인트로 뒤부터 이음새 없이 반복
-	if (BGM_LOOPS[name] && !bgmFileMissing[name]) {
+	if (oss || (BGM_LOOPS[name] && !bgmFileMissing[name])) {
 		const token = ++bgmToken;
-		loadBgm(name, c).then(buf => {
+		loadBgm(name, c, oss ? `${OSS_BASE}${name}.mp3` : undefined).then(buf => {
 			if (token !== bgmToken || current !== name) return;
-			if (!buf) { bgmFileMissing[name] = true; current = ''; playMusic(name); return; }
-			const L = BGM_LOOPS[name];
+			if (!buf) { if (oss) ossMissing[name] = true; else bgmFileMissing[name] = true; current = ''; playMusic(name); return; }
+			const L = (oss ? OSS_LOOPS : BGM_LOOPS)[name];
 			const src = c.createBufferSource();
 			src.buffer = buf;
-			src.loop = true;   // 작곡한 곡은 승리 곡도 팡파르(인트로) 뒤 구간을 반복
+			src.loop = L.end - L.start > 1;   // 작곡한 곡은 승리 곡도 팡파르(인트로) 뒤 구간을 반복, 공개 음원 승리 팡파르는 한 번만
 			src.loopStart = Math.min(L.start, buf.duration);
 			src.loopEnd = Math.min(L.end, buf.duration);
 			bgmGain = c.createGain(); bgmGain.gain.value = BGM_VOL[(loadSettings().musicVolume || 2) - 1];

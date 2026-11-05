@@ -43,7 +43,7 @@ export function deleteTeam(id: string) { saveTeams(loadTeams().filter(t => t.id 
 export function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 // ── 설정 ──
-export interface Settings { speed: 1 | 2 | 3 | 4; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string; fastForward: boolean; vibrate: boolean; ver: number; moveSfx: 0 | 1 | 2 | 3; /** 배틀 규칙 id (rules.ts) */ battleRule: string; /** 배경음악 스타일: 관현악(mp3) / 칩튠 */ bgmStyle?: 'orch' | 'chip' }
+export interface Settings { speed: 1 | 2 | 3 | 4; animatedSprites: boolean; playerName: string; showLog: boolean; sound: boolean; music: boolean; playerSprite: string; effects: boolean; damagePreview: boolean; musicVolume: 1 | 2 | 3; sfxVolume: 1 | 2 | 3; frame: 'stone' | 'silver' | 'dark'; homeBg: string; battleBgm: string; fastForward: boolean; vibrate: boolean; ver: number; moveSfx: 0 | 1 | 2 | 3; /** 배틀 규칙 id (rules.ts) */ battleRule: string; /** 배경음악 스타일: 관현악(mp3) / 칩튠 */ bgmStyle?: 'orch' | 'chip' | 'oss' }
 export function loadSettings(): Settings {
 	const saved = load<Partial<Settings>>('settings', {});
 	// 설정 v2: 효과음·울음소리 기본값을 '작게'로 (이전 버전에서 저장된 값도 한 번 낮춤)

@@ -42,8 +42,8 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
 function Home({ go }: { go: (v: string) => void }) {
 	const rec = loadRecords();
 	const settings = loadSettings();
-	const towerBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64', 'doubles6'].map(f => rec.best[`tower-${f}`] || 0), 0);
-	const factoryBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64', 'doubles6'].flatMap(f => [50, 100].map(l => rec.best[`factory-${f}-${l}`] || 0)), 0);
+	const towerBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64', 'doubles6', 'multi'].map(f => rec.best[`tower-${f}`] || 0), 0);
+	const factoryBest = Math.max(...['singles', 'doubles', 'singles6', 'doubles64', 'doubles6', 'multi'].flatMap(f => [50, 100].map(l => rec.best[`factory-${f}-${l}`] || 0)), 0);
 	const cupWins = Object.values(rec.cups).reduce((a, b) => a + b, 0);
 	const namedWins = Object.keys(rec.named).length;
 	const suspended = ['tower-singles', 'tower-doubles'].some(k => load(k, null)) || ['singles', 'doubles'].some(f => [50, 100].some(l => load(`factory-${f}-${l}`, null)));
@@ -97,6 +97,7 @@ function Records({ onBack, onPlay }: { onBack: () => void; onPlay: (rp: SavedRep
 	const rows: [string, string][] = [
 		['배틀타워 싱글 3vs3', `${r.best['tower-singles'] || 0}연승`], ['배틀타워 더블 4vs4', `${r.best['tower-doubles'] || 0}연승`],
 		['배틀타워 싱글 6vs6', `${r.best['tower-singles6'] || 0}연승`], ['배틀타워 더블 6vs6', `${r.best['tower-doubles6'] || 0}연승`],
+		['배틀타워 멀티', `${r.best['tower-multi'] || 0}연승`], ['팩토리 멀티 Lv50', `${r.best['factory-multi-50'] || 0}연승`],
 		['팩토리 싱글 Lv50', `${r.best['factory-singles-50'] || 0}연승`], ['팩토리 싱글 오픈', `${r.best['factory-singles-100'] || 0}연승`],
 		['팩토리 더블 Lv50', `${r.best['factory-doubles-50'] || 0}연승`], ['팩토리 더블 오픈', `${r.best['factory-doubles-100'] || 0}연승`],
 		['팩토리 싱글 6vs6 Lv50', `${r.best['factory-singles6-50'] || 0}연승`], ['팩토리 더블 6vs6 Lv50', `${r.best['factory-doubles6-50'] || 0}연승`],
@@ -155,7 +156,8 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
-		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠']] as const).map(([k, l]) => <button class={(s.bgmStyle || 'chip') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
+		<div class="set-row"><span>음악 스타일</span><div class="seg">{([['orch', '관현악'], ['chip', '칩튠'], ['oss', '공개 음원']] as const).map(([k, l]) => <button class={(s.bgmStyle || 'chip') === k ? 'on' : ''} onClick={() => { up({ bgmStyle: k }); setTimeout(restartMusic, 0); }}>{l}</button>)}</div></div>
+		{s.bgmStyle === 'oss' && <p class="muted small">공개 음원: OpenGameArt 의 CC0·CC BY 곡 (Yubatake, Matthew Pablo, CleytonKauffman, Emma_MA, HydroGene). 처음 들을 때 인터넷에서 받고, 못 받으면 관현악으로 나옵니다.</p>}
 		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>기술 효과음</span><div class="seg">{([0, 1, 2, 3] as const).map(v => <button class={s.moveSfx === v ? 'on' : ''} onClick={() => { up({ moveSfx: v }); setMoveSfxVolume(v); }}>{['끔', '작게', '보통', '크게'][v]}</button>)}</div></div>
 		<h3 class="sec">배틀 음악</h3>

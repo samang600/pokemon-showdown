@@ -7,7 +7,7 @@ export interface NamedTrainer {
 	id: string;
 	name: string;
 	title: string; // 예: '회색체육관 관장'
-	region: '관동' | '성도' | '호연' | '신오' | '하나' | '칼로스' | '알로라' | '가라르' | '팔데아';
+	region: '관동' | '성도' | '호연' | '신오' | '하나' | '칼로스' | '알로라' | '가라르' | '팔데아' | '미르시티';
 	role: 'leader' | 'elite' | 'champion' | 'hero' | 'rival' | 'admin' | 'boss';
 	team: string[]; // 종족 ID 6마리 (앞쪽이 에이스 순서 아님)
 	ace: string; // 마지막에 나오는 에이스
@@ -154,8 +154,15 @@ export const NAMED: NamedTrainer[] = [
 ];
 const EXTRA_SPRITE: { [id: string]: string } = Object.fromEntries(EXTRA_NAMED.map(e => [e.id, e.sprite]));
 /** 배틀 메시지에 붙는 호칭 (관장·사천왕·챔피언, 그 밖은 '로켓단 보스' 같은 직함) */
-export function namedTitle(t: NamedTrainer) { return ['leader', 'elite', 'champion'].includes(t.role) ? ROLE_KO[t.role] : t.title; }
-export const REGIONS: NamedTrainer['region'][] = ['관동', '성도', '호연', '신오', '하나', '칼로스', '알로라', '가라르', '팔데아'];
+export function namedTitle(t: NamedTrainer) {
+	// 레전즈 Z-A 인물·추가 인물은 직함 그대로 (예: 'ZA로열 F랭크 승급전')
+	if (t.region === '미르시티') return t.title.split(' · ')[0];
+	if (EXTRA_SPRITE[t.id] !== undefined) return t.title;
+	return ['leader', 'elite', 'champion'].includes(t.role) ? ROLE_KO[t.role] : t.title;
+}
+export const REGIONS: NamedTrainer['region'][] = ['관동', '성도', '호연', '신오', '하나', '칼로스', '알로라', '가라르', '팔데아', '미르시티'];
+/** 지역 이름 표시 ('미르시티'는 레전즈 Z-A 의 도시라 '지방'을 붙이지 않음) */
+export const regionLabel = (r: string) => r === '미르시티' ? '미르시티 (레전즈 Z-A)' : `${r} 지방`;
 export const ROLE_KO: { [role: string]: string } = { leader: '체육관 관장', elite: '사천왕', champion: '챔피언', hero: '주인공', rival: '라이벌', admin: '간부', boss: '보스' };
 
 // ── 일반 트레이너 ──
