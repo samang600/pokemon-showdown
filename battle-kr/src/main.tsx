@@ -5,7 +5,7 @@ import { bindView, Screen, Sprite, toast, confirmBox, QuitToMenu, resetAbort, as
 import { BattleView } from './ui/battle';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
-import { runTower, runFactory, runPWT, runNamed, runFree } from './modes';
+import { runTower, runFactory, runPWT, runNamed, runFree, runRank, rankTier } from './modes';
 import { loadRecords, loadSettings, saveSettings, load, loadReplays, deleteReplay, type Settings, type SavedReplay } from './store';
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
@@ -18,6 +18,7 @@ const MODES = [
 	{ id: 'factory', name: '배틀팩토리', sub: '렌탈 배틀', run: runFactory, color: '#e0812b', icon: '🏭', mon: 'metagross' },
 	{ id: 'pwt', name: 'PWT', sub: '월드 토너먼트', run: runPWT, color: '#d23a6a', icon: '🏆', mon: 'hydreigon' },
 	{ id: 'named', name: '네임드 트레이너', sub: '관장 · 챔피언 · 라이벌 · 악당', run: runNamed, color: '#7a4ad8', icon: '⭐', mon: 'dragonite' },
+	{ id: 'rank', name: '랭크 매치', sub: '챔피언스식 6→3 · 6→4', run: runRank, color: '#c08a20', icon: '🏅', mon: 'incineroar' },
 	{ id: 'free', name: '프리 배틀', sub: '싱글 · 더블 바로 대전', run: () => runFree(), color: '#2a9d6a', icon: '⚔', mon: 'lucario' },
 ];
 
@@ -49,6 +50,7 @@ function Home({ go }: { go: (v: string) => void }) {
 	const badge: { [id: string]: string } = {
 		tower: towerBest ? `최고 ${towerBest}연승` : '', factory: factoryBest ? `최고 ${factoryBest}연승` : '',
 		pwt: cupWins ? `우승 ${cupWins}회` : `${CUPS.length}개 대회`, named: `${namedWins}/${NAMED.length} 격파`, free: '',
+		rank: (() => { const rp = Math.max(rec.rp?.singles || 0, rec.rp?.doubles || 0); return rp ? `${rankTier(rp).name} ${rp}RP` : ''; })(),
 	};
 	return <div class="home">
 		<div class="home-head">
@@ -60,7 +62,7 @@ function Home({ go }: { go: (v: string) => void }) {
 		</div>
 		{suspended && <div class="notice">쉬는 중인 도전이 있어요. 해당 시설에 들어가면 이어서 할 수 있습니다.</div>}
 		<div class="mode-grid">
-			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 || i === MODES.length - 1 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
+			{MODES.map((m, i) => <button class={'mode-tile' + (i < 2 ? ' wide' : '')} style={{ '--mc': m.color } as any} onClick={() => go('mode:' + m.id)}>
 				<span class="mode-icon">{m.icon}</span>
 				<span class="mode-text"><b>{m.name}</b><small>{m.sub}</small>{badge[m.id] && <em>{badge[m.id]}</em>}</span>
 				<span class="mode-mon"><Sprite species={m.mon} gen={9} size={64} anim={false} /></span>
@@ -103,6 +105,8 @@ function Records({ onBack, onPlay }: { onBack: () => void; onPlay: (rp: SavedRep
 		<div class="record-card"><b>총 전적</b><span>{r.wins}승 {r.battles - r.wins}패{r.battles ? ` · 승률 ${Math.round(r.wins / r.battles * 100)}%` : ''}</span></div>
 		<h3 class="sec">🎬 리플레이</h3>
 		<ReplayList onPlay={onPlay} />
+		<h3 class="sec">랭크 매치</h3>
+		{(['singles', 'doubles'] as const).map(f => <div class="record-row"><span>{f === 'singles' ? '싱글 6→3' : '더블 6→4'}</span><b>{rankTier(r.rp?.[f] || 0).name} {r.rp?.[f] || 0}RP{r.rpBest?.[f] ? ` (최고 ${r.rpBest[f]})` : ''}</b></div>)}
 		<h3 class="sec">최고 연승</h3>
 		{rows.map(([k, v]) => <div class="record-row"><span>{k}</span><b>{v}</b></div>)}
 		<h3 class="sec">PWT 우승</h3>

@@ -71,6 +71,9 @@ export interface Records {
 	cups: { [cup: string]: number }; // 우승 횟수
 	named: { [id: string]: number }; // 승리 횟수
 	bp: number;
+	/** 모의 랭크 매치 RP (형식별) 와 최고 RP */
+	rp?: { [fmt: string]: number };
+	rpBest?: { [fmt: string]: number };
 	battles: number;
 	wins: number;
 }

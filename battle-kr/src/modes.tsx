@@ -8,6 +8,8 @@ import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assi
 import { NAMED, CUPS, REGIONS, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, namedTitle, type NamedTrainer } from './trainers';
 import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
+import { ruleById } from './rules';
+import { rosterForRule } from './legends';
 import { speciesKo, spriteId, megaStonesFor, moveKo, typeKo, speciesData, toID, type Gen } from './data';
 
 type Fmt = 'singles' | 'doubles' | 'singles6' | 'doubles64' | 'doubles6';
@@ -291,9 +293,11 @@ export async function runFactory() {
 
 // ───────────── PWT ─────────────
 function namedTeam(t: NamedTrainer, size: number, gen: Gen = 9): PSet[] {
-	// 에이스는 항상 포함, 나머지 무작위
-	const others = rng.shuffle(t.team.filter(s => s !== t.ace)).slice(0, size - 1);
-	const species = [...others, t.ace];
+	// 배틀 규칙에 맞춘 엔트리(전설·환상 허용이면 설정상 어울리는 전설을 넣어 강하게). 에이스는 항상 포함, 나머지 무작위
+	const roster = rosterForRule(t, ruleById(loadSettings().battleRule));
+	const aceId = roster[roster.length - 1];
+	const others = rng.shuffle(roster.slice(0, -1)).slice(0, size - 1);
+	const species = [...others, aceId];
 	const team = species.map(id => {
 		const set = randomSetFor(id, gen, 50);
 		if (id === 'pikachu') set.item = 'lightball';
@@ -452,6 +456,83 @@ export async function runNamed() {
 			await ask<void>(r => <InfoScreen title={t.name} trainer={namedSprite(t)} heading={res.win ? `${t.name}에게 승리했다!` : `${t.name}에게 졌다…`}
 				lines={[`“${res.win ? namedLines(t).lose : namedLines(t).win}”`, ...(noRec(opts) ? ['(치트·거꾸로 배틀은 전적에 남지 않습니다)'] : [])]} actions={[{ label: '확인', onClick: () => r() }]} />);
 		}
+	}
+}
+
+// ───────────── 모의 랭크 매치 (포켓몬 챔피언스 방식) ─────────────
+export const RANK_TIERS = [
+	{ name: '비기너', min: 0, ball: 'pokeball' }, { name: '몬스터볼급', min: 100, ball: 'pokeball' }, { name: '슈퍼볼급', min: 300, ball: 'greatball' },
+	{ name: '하이퍼볼급', min: 600, ball: 'ultraball' }, { name: '마스터볼급', min: 1000, ball: 'masterball' },
+];
+export function rankTier(rp: number) { let t = RANK_TIERS[0]; for (const x of RANK_TIERS) if (rp >= x.min) t = x; return t; }
+type RankFmt = 'singles' | 'doubles';
+/** RP 에 따라 강해지는 상대: AI 실력 0.5→0.97, 종족값 하한 420→560, 300 RP 부터 준전설, (전설 허용 규칙이면) 600 RP 부터 전설 1마리·1000 RP 부터 2마리,
+ *  초반엔 능력 포인트도 덜 찍음. 마스터볼급에서는 가끔 챔피언·주인공급 네임드 트레이너가 나옴 */
+function rankOpponent(rp: number, fmt: RankFmt, level: number) {
+	const rule = ruleById(loadSettings().battleRule);
+	const s = Math.min(1, rp / 1200);
+	const skill = Math.min(0.97, 0.5 + 0.5 * s);
+	const doubles = fmt === 'doubles';
+	if (rp >= 1000 && Math.random() < 0.35) {
+		const pool = NAMED.filter(t => ['champion', 'hero', 'boss'].includes(t.role));
+		const t = rng.pick(pool);
+		return { name: t.name, title: namedTitle(t), sprite: namedSprite(t), lines: namedLines(t), line: t.line, skill: 0.97, team: withLevel(namedTeam(t, 6), level), named: true };
+	}
+	const nLeg = rule.legend === 'all' ? (rp >= 1000 ? 2 : rp >= 600 ? 1 : 0) : 0;
+	const ivs = rp < 100 ? 18 : rp < 300 ? 26 : 31;
+	const base = randomTeam({ gen: 9, size: 6 - nLeg, minBst: 420 + Math.round(140 * s), maxBst: rp < 300 ? 580 : undefined, allowSubLegend: rp >= 300, doubles, ivs, gimmicks: false });
+	const legends = nLeg ? randomTeam({ gen: 9, size: nLeg, legendOnly: true, doubles, ivs, gimmicks: false, exclude: new Set(base.map(x => toID(x.species))) }) : [];
+	const team = dedupeItems(assignGimmicks([...base, ...legends]));
+	const tr = randomTrainer();
+	return { name: tr.name, title: tr.className, sprite: tr.sprite, lines: tr.lines, line: tr.lines.intro, skill, team: withLevel(team, level), named: false };
+}
+export async function runRank() {
+	const opts = defaultOpts();
+	const fmt = await ask<RankFmt | typeof BACK>(r => <ChoiceScreen title="모의 랭크 매치" onBack={() => r(BACK)}
+		intro={<p class="hint">포켓몬 챔피언스 방식: 6마리를 등록하고 상대 엔트리를 본 뒤 참가 포켓몬을 고릅니다. 이기면 RP가 올라 등급이 오르고, 올라갈수록 상대 포켓몬과 AI가 강해집니다.</p>}
+		options={[
+			{ value: 'singles' as RankFmt, label: '싱글 6→3', desc: '6마리 중 3마리 선택 · 1대1', icon: '③', badge: `${rankTier(loadRecords().rp?.singles || 0).name} ${loadRecords().rp?.singles || 0}RP` },
+			{ value: 'doubles' as RankFmt, label: '더블 6→4', desc: '6마리 중 4마리 선택 · 2대2', icon: '④', badge: `${rankTier(loadRecords().rp?.doubles || 0).name} ${loadRecords().rp?.doubles || 0}RP` },
+		]} footer={<OptsBox opts={opts} show={ALL_OPTS} />} onPick={r} />);
+	if (fmt === BACK) return;
+	const team = await chooseTeam(9, '랭크 매치 · 팀 등록', true, opts.cheat, lvl(opts));
+	if (team === BACK) return;
+	const n = fmt === 'doubles' ? 4 : 3;
+	const key = fmt;
+	while (true) {
+		const rec = loadRecords();
+		const rp = rec.rp?.[key] || 0;
+		const tier = rankTier(rp);
+		const opp = rankOpponent(rp, fmt, lvl(opts));
+		const gain = 20 + (tier.min >= 1000 ? 5 : 0), loss = rp < 100 ? 0 : 12;
+		const go = await ask<'go' | 'quit'>(r => <InfoScreen title={`랭크 매치 · ${fmt === 'doubles' ? '더블 6→4' : '싱글 6→3'}`} banner={`${tier.name} · ${rp} RP`}
+			heading={`${opp.title ? opp.title + ' ' : ''}${opp.name}${josa(opp.name)} 매칭되었다!`} trainer={opp.sprite}
+			lines={[`승리 +${gain} RP · 패배 -${loss} RP`, ...(opp.named ? ['★ 강적 등장!'] : []), ...optsLines(opts)]}
+			sprites={team.map(s => s.species)} sets={team} gen={9}
+			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '그만두기', kind: 'ghost', onClick: () => r('quit') }]} />);
+		if (go === 'quit') return;
+		// 챔피언스 방식: 상대 엔트리를 보고 참가 포켓몬 선택 (상대도 에이스 포함 n마리)
+		const picked = await ask<PSet[]>(r => <PickScreen title={`참가 포켓몬 ${n}마리`} team={team} gen={9} count={Math.min(n, team.length)}
+			opponent={{ name: `${opp.title ? opp.title + ' ' : ''}${opp.name}`, team: opp.team }} onDone={r} />);
+		const oppPick = [...rng.shuffle(opp.team.slice(0, -1)).slice(0, n - 1), opp.team[opp.team.length - 1]];
+		const res = await battle({
+			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: tier.min >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}`,
+			noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
+			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
+		});
+		let newRp = rp, msg = '';
+		if (!noRec(opts)) {
+			newRp = Math.max(0, rp + (res.win ? gain : -loss));
+			updateRecords(r => { r.rp = { ...(r.rp || {}), [key]: newRp }; r.rpBest = { ...(r.rpBest || {}), [key]: Math.max(r.rpBest?.[key] || 0, newRp) }; });
+			const nt = rankTier(newRp);
+			if (nt.min > tier.min) msg = `🎉 ${nt.name}(으)로 승급!`;
+			else if (nt.min < tier.min) msg = `${nt.name}(으)로 강등…`;
+		}
+		const again = await ask<'next' | 'quit'>(r => <InfoScreen title="랭크 매치" banner={res.win ? '승리!' : '패배…'}
+			heading={noRec(opts) ? '(전적·RP에 반영되지 않습니다)' : `${rp} → ${newRp} RP${msg ? ' · ' + msg : ''}`}
+			lines={[`현재 등급: ${rankTier(newRp).name}`, ...(res.win && opp.lines?.lose ? [`“${opp.lines.lose}”`] : !res.win && opp.lines?.win ? [`“${opp.lines.win}”`] : [])]}
+			actions={[{ label: '다음 매치', onClick: () => r('next') }, { label: '메뉴로', kind: 'ghost', onClick: () => r('quit') }]} />);
+		if (again === 'quit') return;
 	}
 }
 

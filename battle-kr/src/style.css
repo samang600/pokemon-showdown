@@ -894,3 +894,5 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .replay-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: rgba(0,0,0,.28); border-radius: 8px; }
 .replay-mons { display: flex; flex-wrap: wrap; width: 60px; gap: 1px; flex-shrink: 0; }
 .replay-body { flex: 1; min-width: 0; display: flex; flex-direction: column; } .replay-body b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .replay-body small { font-size: 11px; opacity: .8; }
+/* 모달 안의 검색창은 머리글이 없으므로 맨 위에 붙임 (계산기 기술 검색이 중간에 떠 있던 문제) */
+.modal .search { top: 0; }
