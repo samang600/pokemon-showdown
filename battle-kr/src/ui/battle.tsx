@@ -33,7 +33,7 @@ export interface BattleSetup {
 	replay?: { seed: [number, number, number, number]; ruleId: string; p1: string[]; p2: string[] };
 	bg?: 'tower' | 'factory' | 'pwt' | 'field' | 'champion';
 	/** 배경음악 상황 (없으면 배경으로 정함): 악의 조직 간부·보스는 'evil', 관장·사천왕·챔피언은 'boss' */
-	music?: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil';
+	music?: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion';
 }
 export interface BattleResult { win: boolean; forfeit: boolean; turns: number; p1Left: number; p2Left: number; quit?: boolean }
 

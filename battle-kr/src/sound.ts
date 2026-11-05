@@ -376,13 +376,15 @@ let nextTime = 0;
 let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
 
-export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['evil', '악의 조직'],
-	['battle2', '칩튠 배틀 1'], ['battle3', '칩튠 배틀 2'], ['pwt', '칩튠 토너먼트']];
+export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['champion', '챔피언 결전'], ['pwt', 'PWT 토너먼트'], ['evil', '악의 조직'],
+	['battle2', '칩튠 배틀 1'], ['battle3', '칩튠 배틀 2']];
 /** 배틀 음악 선택: 설정이 '상황에 맞게'면 상황별 곡 (작곡한 곡 우선) */
-export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil') {
+export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion') {
 	const pref = loadSettings().battleBgm || 'random';
 	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref])) return pref;
-	const pool = situation === 'boss' ? ['boss'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower'] : situation === 'pwt' ? ['battle', 'tower'] : ['battle'];
+	const has = (n: string) => !!BGM_LOOPS[n];   // 작곡한 곡이 없으면 비슷한 곡으로
+	const pool = situation === 'champion' ? [has('champion') ? 'champion' : 'boss'] : situation === 'boss' ? ['boss'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower']
+		: situation === 'pwt' ? (has('pwt') ? ['pwt'] : ['battle', 'tower']) : ['battle'];
 	return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -401,7 +403,7 @@ export function playMusic(name: string) {
 			const L = BGM_LOOPS[name];
 			const src = c.createBufferSource();
 			src.buffer = buf;
-			src.loop = name !== 'victory';
+			src.loop = true;   // 작곡한 곡은 승리 곡도 팡파르(인트로) 뒤 구간을 반복
 			src.loopStart = Math.min(L.start, buf.duration);
 			src.loopEnd = Math.min(L.end, buf.duration);
 			bgmGain = c.createGain(); bgmGain.gain.value = BGM_VOL[(loadSettings().musicVolume || 2) - 1];
@@ -426,7 +428,7 @@ export function playMusic(name: string) {
 }
 
 function startSynth(name: string, c: AudioContext) {
-	const tr = TRACKS[name] || (name === 'evil' ? TRACKS.boss : null); if (!tr) return;
+	const tr = TRACKS[name] || (name === 'evil' || name === 'champion' ? TRACKS.boss : null); if (!tr) return;
 	step = 0; nextTime = c.currentTime + 0.05;
 	const stepDur = 60 / tr.bpm / 4;
 	const len = tr.lead.length;

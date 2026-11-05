@@ -395,7 +395,7 @@ export async function runPWT() {
 		const oppPick = aiPickEntry(oppTeam, myTeam, n, isDoubles(fmt), Math.min(0.97, opp.skill + round * 0.04), !!opp.named);
 		const res = await battle({
 			gen: 9, doubles: isDoubles(fmt), aiSkill: Math.min(0.97, opp.skill + round * 0.04), bg: round === 2 ? 'champion' : 'pwt',
-			label: `${cup.name} ${['1회전', '준결승', '결승'][round]}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: opp.named ? namedMusic(opp.named) : round === 2 ? 'boss' : undefined,
+			label: `${cup.name} ${['1회전', '준결승', '결승'][round]}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: opp.named ? namedMusic(opp.named) : round === 2 ? 'champion' : undefined,
 			p1: { name: me, team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});
 		// 대진표 갱신 (다른 경기는 무작위)
@@ -428,7 +428,7 @@ export async function runPWT() {
 }
 
 /** 네임드 트레이너와의 배경음악: 악의 조직 간부·보스 → 악의 조직 테마, 관장·사천왕·챔피언·주인공 → 중요 배틀 테마 */
-export const namedMusic = (t: NamedTrainer) => ['admin', 'boss'].includes(t.role) ? 'evil' as const : ['leader', 'elite', 'champion', 'hero'].includes(t.role) ? 'boss' as const : 'battle' as const;
+export const namedMusic = (t: NamedTrainer) => ['admin', 'boss'].includes(t.role) ? 'evil' as const : ['champion', 'hero'].includes(t.role) ? 'champion' as const : ['leader', 'elite'].includes(t.role) ? 'boss' as const : 'battle' as const;
 
 // ───────────── 네임드 트레이너 ─────────────
 const ROLE_ORDER = ['leader', 'elite', 'champion', 'hero', 'rival', 'admin', 'boss'];
@@ -554,7 +554,7 @@ export async function runRank() {
 			opponent={{ name: `${opp.title ? opp.title + ' ' : ''}${opp.name}`, team: opp.team }} onDone={r} />);
 		const oppPick = aiPickEntry(opp.team, team, n, fmt === 'doubles', opp.skill, opp.named);
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: oppRp >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}${upper ? ' · 상위 매칭' : ''}`, music: (opp as any).music ?? (oppRp >= 1000 ? 'boss' : 'tower'),
+			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: oppRp >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}${upper ? ' · 상위 매칭' : ''}`, music: (opp as any).music ?? (oppRp >= 1000 ? 'champion' : 'tower'),
 			noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});

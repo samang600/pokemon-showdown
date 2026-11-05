@@ -75,7 +75,7 @@ _cache = json.load(open(_cache_path)) if os.path.exists(_cache_path) else {}
 class Sampled:
     """음높이 악기: 폴더에서 `pick` 정규식에 맞는 파일만 골라 음 이름으로 구역을 만든다.
     음 이름과 실제 소리가 옥타브 다를 수 있어 한 파일을 측정해 보정한다."""
-    def __init__(self, key, repo, folder, pick, play, step=1):
+    def __init__(self, key, repo, folder, pick, play, step=1, pitch_of=None):
         self.key, self.repo, self.folder, self.play = key, repo, folder, play
         # pick: 정규식 하나 또는 우선순위 목록. 앞의 것으로 먼저 채우고, 빈 음은 뒤의 것으로 채움
         picks = [pick] if isinstance(pick, str) else list(pick)
@@ -84,6 +84,10 @@ class Sampled:
         for pk in picks:
             for f in allf:
                 if not re.search(pk, os.path.basename(f)): continue
+                if pitch_of:   # 파일 이름이 번호인 샘플: 음 높이를 함수로
+                    p = pitch_of(os.path.basename(f))
+                    if p is not None: zones.setdefault(p, f)
+                    continue
                 m = re.search(r'(?<![A-Za-z])([A-G](?:#|b)?)(-?\d)(?=[_\.])', os.path.basename(f))
                 if not m: continue
                 zones.setdefault(midi(m.group(1) + m.group(2)), f)

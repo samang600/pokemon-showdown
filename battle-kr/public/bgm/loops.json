@@ -18,5 +18,17 @@
  "evil": {
   "start": 3.2,
   "end": 54.4
+ },
+ "victory": {
+  "start": 3.6364,
+  "end": 32.7273
+ },
+ "pwt": {
+  "start": 3.0,
+  "end": 51.0
+ },
+ "champion": {
+  "start": 5.2174,
+  "end": 46.9565
  }
 }
