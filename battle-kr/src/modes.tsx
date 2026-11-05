@@ -485,6 +485,8 @@ export const RANK_TIERS = [
 	{ name: '비기너', min: 0, ball: 'pokeball' }, { name: '몬스터볼급', min: 100, ball: 'pokeball' }, { name: '슈퍼볼급', min: 300, ball: 'greatball' },
 	{ name: '하이퍼볼급', min: 600, ball: 'ultraball' }, { name: '마스터볼급', min: 1000, ball: 'masterball' },
 ];
+/** 기본 획득 RP · 상위 매칭(확률·실력 차이·승리 보너스) */
+const RANK_BASE = 30, UPPER_RATE = 0.2, UPPER_GAP = 400, UPPER_BONUS = 30;
 export function rankTier(rp: number) { let t = RANK_TIERS[0]; for (const x of RANK_TIERS) if (rp >= x.min) t = x; return t; }
 type RankFmt = 'singles' | 'doubles';
 /** RP 에 따라 강해지는 상대: AI 실력 0.5→0.97, 종족값 하한 420→560, 300 RP 부터 준전설, (전설 허용 규칙이면) 600 RP 부터 전설 1마리·1000 RP 부터 2마리,
@@ -530,13 +532,18 @@ export async function runRank() {
 		const rec = loadRecords();
 		const rp = rec.rp?.[key] || 0;
 		const tier = rankTier(rp);
-		const opp = rankOpponent(rp, fmt, lvl(opts));
-		// 연승할수록 더 많이 오름: 20 → 25 → 30 → 35 → 40 (+마스터볼급 5). 연승 수는 기록에 남아 나갔다 와도 이어짐
+		// 상위 매칭: 가끔(20%) 지금보다 400 RP 높은 실력의 상대와 붙음. 이기면 보너스, 져도 연승은 유지
+		const upper = (globalThis as any).__rankUpper ?? Math.random() < UPPER_RATE; // __rankUpper: 테스트용 강제
+		const oppRp = upper ? rp + UPPER_GAP : rp;
+		const opp = rankOpponent(oppRp, fmt, lvl(opts));
+		// 연승할수록 더 많이 오름: 30 → 35 → 40 → 45 → 50 (+마스터볼급 5). 연승 수는 기록에 남아 나갔다 와도 이어짐
 		const streak = rec.rankStreak?.[key] || 0;
-		const gain = 20 + 5 * Math.min(streak, 4) + (tier.min >= 1000 ? 5 : 0), loss = rp < 100 ? 0 : 12;
+		const gain = RANK_BASE + 5 * Math.min(streak, 4) + (tier.min >= 1000 ? 5 : 0) + (upper ? UPPER_BONUS : 0), loss = rp < 100 ? 0 : 12;
 		const go = await ask<'go' | 'quit'>(r => <InfoScreen title={`랭크 매치 · ${fmt === 'doubles' ? '더블 6→4' : '싱글 6→3'}`} banner={`${tier.name} · ${rp} RP`}
-			heading={`${opp.title ? opp.title + ' ' : ''}${opp.name}${josa(opp.name)} 매칭되었다!`} trainer={opp.sprite}
-			lines={[`${streak ? `🔥 ${streak}연승 중 · ` : ''}승리 +${gain} RP · 패배 -${loss} RP`, ...(streak < 4 ? [`연승할수록 획득 RP 증가 (최대 +${40 + (tier.min >= 1000 ? 5 : 0)})`] : []), ...(opp.named ? ['★ 강적 등장!'] : []), ...(opp.ranker ? [`★ 상위 랭커 (${opp.ranker})`] : []), ...optsLines(opts)]}
+			heading={`${upper ? '⬆ 상위 매칭! ' : ''}${opp.title ? opp.title + ' ' : ''}${opp.name}${josa(opp.name)} 매칭되었다!`} trainer={opp.sprite}
+			lines={[`${streak ? `🔥 ${streak}연승 중 · ` : ''}승리 +${gain} RP${upper ? ` (상위 매칭 보너스 +${UPPER_BONUS} 포함)` : ''} · 패배 -${loss} RP`,
+				...(upper ? [`${rankTier(oppRp).name}(약 ${oppRp} RP) 실력의 상대입니다. 져도 연승은 끊기지 않아요.`] : []),
+				...(streak < 4 ? [`연승할수록 획득 RP 증가 (최대 +${RANK_BASE + 20 + (tier.min >= 1000 ? 5 : 0)})`] : []), ...(opp.named ? ['★ 강적 등장!'] : []), ...(opp.ranker ? [`★ 상위 랭커 (${opp.ranker})`] : []), ...optsLines(opts)]}
 			sprites={team.map(s => s.species)} sets={team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '그만두기', kind: 'ghost', onClick: () => r('quit') }]} />);
 		if (go === 'quit') return;
@@ -545,7 +552,7 @@ export async function runRank() {
 			opponent={{ name: `${opp.title ? opp.title + ' ' : ''}${opp.name}`, team: opp.team }} onDone={r} />);
 		const oppPick = aiPickEntry(opp.team, team, n, fmt === 'doubles', opp.skill, opp.named);
 		const res = await battle({
-			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: tier.min >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}`,
+			gen: 9, doubles: fmt === 'doubles', aiSkill: opp.skill, bg: oppRp >= 1000 ? 'champion' : 'pwt', label: `랭크 매치 · ${tier.name}${upper ? ' · 상위 매칭' : ''}`,
 			noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppPick, line: opp.line, sprite: opp.sprite, lines: opp.lines },
 		});
@@ -553,14 +560,18 @@ export async function runRank() {
 		if (!noRec(opts)) {
 			newRp = Math.max(0, rp + (res.win ? gain : -loss));
 			updateRecords(r => { r.rp = { ...(r.rp || {}), [key]: newRp }; r.rpBest = { ...(r.rpBest || {}), [key]: Math.max(r.rpBest?.[key] || 0, newRp) };
-				r.rankStreak = { ...(r.rankStreak || {}), [key]: res.win ? streak + 1 : 0 }; });
+				r.rankStreak = { ...(r.rankStreak || {}), [key]: res.win ? streak + 1 : upper ? streak : 0 }; });
 			const nt = rankTier(newRp);
 			if (nt.min > tier.min) msg = `🎉 ${nt.name}(으)로 승급!`;
 			else if (nt.min < tier.min) msg = `${nt.name}(으)로 강등…`;
 		}
 		const again = await ask<'next' | 'quit'>(r => <InfoScreen title="랭크 매치" banner={res.win ? '승리!' : '패배…'}
 			heading={noRec(opts) ? '(전적·RP에 반영되지 않습니다)' : `${rp} → ${newRp} RP${msg ? ' · ' + msg : ''}`}
-			lines={[`현재 등급: ${rankTier(newRp).name}${res.win && !noRec(opts) ? ` · ${streak + 1}연승` : ''}`, ...(res.win && opp.lines?.lose ? [`“${opp.lines.lose}”`] : !res.win && opp.lines?.win ? [`“${opp.lines.win}”`] : [])]}
+			lines={[`현재 등급: ${rankTier(newRp).name}${res.win && !noRec(opts) ? ` · ${streak + 1}연승` : ''}`,
+				...(upper && res.win && !noRec(opts) ? [`⬆ 상위 매칭 승리! 보너스 +${UPPER_BONUS} RP`] : []),
+				...(upper && !res.win && !noRec(opts) && streak ? [`상위 매칭이라 ${streak}연승은 그대로 이어집니다.`] : []),
+				// 상위 매칭에서 진 경우엔 '연승은 여기까지' 같은 상대 대사가 안내와 어긋나므로 생략
+				...(res.win && opp.lines?.lose ? [`“${opp.lines.lose}”`] : !res.win && !upper && opp.lines?.win ? [`“${opp.lines.win}”`] : [])]}
 			actions={[{ label: '다음 매치', onClick: () => r('next') }, { label: '메뉴로', kind: 'ghost', onClick: () => r('quit') }]} />);
 		if (again === 'quit') return;
 	}
