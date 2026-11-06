@@ -1,6 +1,6 @@
 /** 팀 편집 */
 import { h } from 'preact';
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo, useState, useRef, useLayoutEffect } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
 	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, allBalls, type Gen, type StatID } from '../data';
 import { typeEff } from './calc';
@@ -225,7 +225,7 @@ function SpeciesPicker({ gen, exclude, onPick, onBack }: { gen: Gen; exclude: st
 	if (sort !== 'num') shown = shown.slice().sort((a, b) => sort === 'bst' ? tot(b) - tot(a) : sort === 'spe' ? b!.bs[5] - a!.bs[5] :
 		sort === 'atk' ? Math.max(b!.bs[1], b!.bs[3]) - Math.max(a!.bs[1], a!.bs[3]) : a!.n.localeCompare(b!.n, 'ko'));
 	shown = shown.slice(0, 150);
-	return <Screen title="포켓몬 고르기" onBack={onBack}>
+	return <Screen top title="포켓몬 고르기" onBack={onBack}>
 		<input class="search" placeholder="이름 검색 (초성 가능: ㅎㅋㄹ)" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} autoFocus />
 		<div class="sort-bar"><span>정렬</span>{([['num', '도감'], ['name', '가나다'], ['bst', '종족값'], ['atk', '공격력'], ['spe', '스피드']] as const).map(([k, l]) =>
 			<button class={sort === k ? 'on' : ''} onClick={() => setSort(k)}>{l}</button>)}</div>
@@ -250,6 +250,10 @@ function statValue(base: number, ev: number, iv: number, level: number, nat: num
 export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set: PSet; gen: Gen; onChange: (s: PSet) => void; onDelete: () => void; onBack: () => void; cheat?: boolean }) {
 	const [s, setS] = useState<PSet>(() => (cheat ? cheatSP : normalizeSP)(JSON.parse(JSON.stringify(set))));
 	const [picker, setPicker] = useState<null | { kind: 'move'; idx: number } | { kind: 'item' } | { kind: 'nature' } | { kind: 'ability' } | { kind: 'ball' }>(null);
+	// 고르기 화면은 맨 위부터, 돌아오면 편집 화면의 원래 스크롤 위치로
+	const editY = useRef(0), hadPicker = useRef(false);
+	const openPicker = (p: NonNullable<typeof picker>) => { editY.current = window.scrollY; setPicker(p); };
+	useLayoutEffect(() => { if (!picker && hadPicker.current) window.scrollTo(0, editY.current); hadPicker.current = !!picker; }, [picker]);
 	const up = (patch: Partial<PSet>) => { const n = { ...s, ...patch }; setS(n); onChange(n); };
 	const sd = speciesData(toID(s.species), gen)!;
 	// 같은 포켓몬의 다른 모습 (메가·원시·거다이맥스처럼 배틀 중 바뀌는 모습과 배틀 전용 모습 제외)
@@ -270,7 +274,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 			onPick={mid => { const moves = s.moves.slice(); if (picker.idx < moves.length) moves[picker.idx] = mid; else moves.push(mid); up({ moves: moves.filter(Boolean) }); setPicker(null); }} />;
 	}
 	if (picker?.kind === 'ball') {
-		return <Screen title="볼 고르기" onBack={() => setPicker(null)}>
+		return <Screen top title="볼 고르기" onBack={() => setPicker(null)}>
 			<p class="hint">포켓몬이 나올 때 볼의 색과 빛이 달라집니다.</p>
 			<div class="ball-grid">{allBalls().map(b => <button class={'ball-cell' + ((s.pokeball || 'pokeball') === b.id ? ' on' : '')} onClick={() => { up({ pokeball: b.id }); setPicker(null); }}>
 				<ItemIcon item={b.id} size={30} /><span>{b.n}</span></button>)}</div>
@@ -283,7 +287,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 		return <ItemPicker gen={gen} onBack={() => setPicker(null)} onPick={id => { up({ item: id }); setPicker(null); }} />;
 	}
 	if (picker?.kind === 'nature') {
-		return <Screen title="성격" onBack={() => setPicker(null)}>
+		return <Screen top title="성격" onBack={() => setPicker(null)}>
 			<div class="pick-list">{allNatures().map(n => <button class="pick-row" onClick={() => { up({ nature: n.id }); setPicker(null); }}>
 				<span class="pick-name">{n.n}</span>
 				<small>{n.p ? <><span class="up">▲{STAT_SHORT[n.p]}</span> <span class="down">▼{STAT_SHORT[n.m]}</span></> : <span class="muted">변화 없음</span>}</small>
@@ -322,17 +326,17 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 		</div>
 		<h3 class="sec">특성</h3>
 		<div class="seg wrap">{sd.ab.map(a => <button class={s.ability === a ? 'on' : ''} onClick={() => up({ ability: a })}>{abilityKo(a)}</button>)}</div>
-		{cheat && <button class="option" onClick={() => setPicker({ kind: 'ability' })}><span class="opt-body"><b>🃏 다른 특성 고르기</b><small>지금: {abilityKo(s.ability)}</small></span></button>}
+		{cheat && <button class="option" onClick={() => openPicker({ kind: 'ability' })}><span class="opt-body"><b>🃏 다른 특성 고르기</b><small>지금: {abilityKo(s.ability)}</small></span></button>}
 		<p class="muted small">{abilityDesc(s.ability)}</p>
 		<h3 class="sec">도구</h3>
-		<button class="option" onClick={() => setPicker({ kind: 'item' })}><ItemIcon item={s.item} /><span class="opt-body"><b>{s.item ? itemKo(s.item) : '없음'}</b><small>{itemDesc(s.item)}</small></span></button>
+		<button class="option" onClick={() => openPicker({ kind: 'item' })}><ItemIcon item={s.item} /><span class="opt-body"><b>{s.item ? itemKo(s.item) : '없음'}</b><small>{itemDesc(s.item)}</small></span></button>
 		<h3 class="sec">기술</h3>
 		<div class="move-edit">
 			{[0, 1, 2, 3].map(i => {
 				const m = s.moves[i];
 				const md = m ? moveData(m, gen) : null;
 				const swap = (a: number, b: number) => { const mv = s.moves.slice(); [mv[a], mv[b]] = [mv[b], mv[a]]; up({ moves: mv }); };
-				return <button class="option move-row" onClick={() => setPicker({ kind: 'move', idx: Math.min(i, s.moves.length) })}>
+				return <button class="option move-row" onClick={() => openPicker({ kind: 'move', idx: Math.min(i, s.moves.length) })}>
 					{md ? <><span class="pm-icons"><TypeBadge type={md.type} small /><CatIcon cat={md.category} /></span><span class="opt-body"><b>{md.name}</b><small>{md.category === 'Status' ? '변화' : `${md.category === 'Physical' ? '물리' : '특수'} ${md.basePower || '-'}`} · 명중 {md.accuracy || '-'} · PP {md.pp}</small></span>
 						<span class="reorder" onClick={e => e.stopPropagation()}>
 							<button class="icon-btn" disabled={i === 0} onClick={() => swap(i, i - 1)} aria-label="위로">▲</button>
@@ -397,7 +401,7 @@ function MovePicker({ gen, species, current, onPick, onBack, all }: { gen: Gen; 
 		sort === 'pp' ? b.pp - a.pp || ko(a.name, b.name) : ko(a.name, b.name));
 	const types = ALL_TYPES.filter(t => moves.some(m => m.type === t));
 	const setS = (v: MoveSort) => { setSort(v); save('moveSort', v); };
-	return <Screen title="기술 고르기" onBack={onBack}>
+	return <Screen top title="기술 고르기" onBack={onBack}>
 		<input class="search" placeholder="기술 검색" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} />
 		<div class="sort-bar"><span>정렬</span>{([['name', '가나다'], ['power', '위력'], ['type', '타입'], ['acc', '명중'], ['pp', 'PP']] as const).map(([k, l]) =>
 			<button class={sort === k ? 'on' : ''} onClick={() => setS(k)}>{l}</button>)}</div>
@@ -419,7 +423,7 @@ function MovePicker({ gen, species, current, onPick, onBack, all }: { gen: Gen; 
 function AbilityPicker({ onPick, onBack }: { onPick: (id: string) => void; onBack: () => void }) {
 	const [q, setQ] = useState('');
 	const list = useMemo(() => Object.entries(RAW.abilities).map(([id, a]: [string, any]) => ({ id, n: a.n as string })).sort((a, b) => ko(a.n, b.n)), []);
-	return <Screen title="특성 고르기 (치트)" onBack={onBack}>
+	return <Screen top title="특성 고르기 (치트)" onBack={onBack}>
 		<input class="search" placeholder="특성 검색" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} />
 		<div class="pick-list">{list.filter(a => matches(q, a.n, a.id)).sort((a, b) => qRank(q, a.n) - qRank(q, b.n)).map(a => <button class="pick-row" onClick={() => onPick(a.id)}>
 			<span class="pick-name">{a.n}<small class="muted block">{abilityDesc(a.id)}</small></span></button>)}</div>
@@ -446,7 +450,7 @@ function ItemPicker({ gen, onPick, onBack }: { gen: Gen; onPick: (id: string) =>
 		return ko(a.n, b.n);
 	});
 	const setS = (v: ItemSort) => { setSort(v); save('itemSort', v); };
-	return <Screen title="도구 고르기" onBack={onBack}>
+	return <Screen top title="도구 고르기" onBack={onBack}>
 		<input class="search" placeholder="도구 검색" value={q} onInput={e => setQ((e.target as HTMLInputElement).value)} />
 		<div class="sort-bar"><span>정렬</span>{([['popular', '자주 쓰는 순'], ['name', '가나다']] as const).map(([k, l]) =>
 			<button class={sort === k ? 'on' : ''} onClick={() => setS(k)}>{l}</button>)}</div>

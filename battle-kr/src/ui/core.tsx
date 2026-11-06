@@ -153,9 +153,12 @@ export function Header({ title, onBack, right }: { title: string; onBack?: () =>
 	</header>;
 }
 
-export function Screen({ title, onBack, right, children, cls }: {
+export function Screen({ title, onBack, right, children, cls, top }: {
 	title: string; onBack?: () => void; right?: ComponentChildren; children: ComponentChildren; cls?: string;
+	/** 열릴 때 맨 위부터 보이기 (기술·도구 고르기 등 목록 화면) */
+	top?: boolean;
 }) {
+	useLayoutEffect(() => { if (top) window.scrollTo(0, 0); }, []);
 	return <div class={'screen ' + (cls || '')}>
 		<Header title={title} onBack={onBack} right={right} />
 		<main class="content">{children}</main>
