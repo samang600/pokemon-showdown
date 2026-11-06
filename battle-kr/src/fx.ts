@@ -296,8 +296,8 @@ export function pillar(layer: HTMLElement, at: Pt, color: string, s: number) {
 	sparkle(layer, at, 'Normal', s);
 }
 
-/** 메가진화 심볼 도트 그림 (10×15, 사용자가 준 그림 · 원본 src/assets/mega-symbol.png) */
-const MEGA_SYMBOL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAPCAYAAADd/14OAAABNElEQVR4nIWSv0rDUBjFT0O1VlO89bYlSB0MJVVBBze7iQg66uoDOOQFfBJfwN2idHMQVBwKFRzMUKtSY/+ROojQWKg9DrFqbNAzfd/HD865nAsE6H3skkH3IYjgEBj+uZxNV3gUkUh074C6H1QGQzFOtiMSW/cCByONYLtlecPczDUH2lx44ursrc8+BADZlVNW59IYX4piwpkCADiNGtRsBu29UAgAoBaKVAtFBilxQiJvEwDCiv6KtfkktE7Xe3Uz4nl1AOhAop5GO28z/GY/wEkpyMkyDrEI6P78Sb2GTK/qZTTsY6aiMWzLXxSA/Z6NF6vyfZgsxShdQemKr4wbXKd0BbXyrr8ArazR/ARNV9B0BePnO8F1Pl4J9lsGLYIXzdG/O3+2BJ26+P9j9FvGEPQBOeGjIisLmS8AAAAASUVORK5CYII=';
+/** 메가진화 심볼 도트 그림 (10×15, 사용자가 준 그림 · 흰 틈은 투명 · 원본 src/assets/mega-symbol.png) */
+const MEGA_SYMBOL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAPCAYAAADd/14OAAABMUlEQVR4nIWSwUoCYRSFzy+WaVq//SZD1KKQsVq4aJe7iKC2bnuAFr5AT9IL9ABSuIsIKlwMFLRoFmaIjY3KTIs2ToF5WljWMEPd1b2Xj3vu4V4gJD6magzrByCCATD6u7hcaPAkppB5fwRsPxj5Tow06cYUSs20OJ7ohMttqHsWl+7GcnvrbW4tP/jkBQDkNy/YWl1EohDHtDMHAHA6z0jmc3APhQAAJKsGk1Uj1GXmjETFIgCIGfOc22vzqPX1ketubET1ASQA2IDrthF9s5pwshEUVR0VURCBqWwzN2iNdtStU2bjKZTUSkD+aGDh1Wz8NGZvUlSepPLkeN9d7lB5klr9wO9Bq2ssf4FlT7LsSaav9sPP+XQrOezpNAledyf/vvmLKenY8v/HGPb0APQJ6RJ9YvtQAQcAAAAASUVORK5CYII=';
 /** 메가진화 표식: 포켓몬 위에 메가진화 심볼이 톡 튀어나와(확대 → 제자리) 두 번 번쩍이고 사라짐. 50ms 한 칸씩, 도트는 정수배로 확대 */
 export function megaIcon(layer: HTMLElement, at: Pt, s: number) {
 	const W = 10, H = 15, k = Math.max(2, Math.round(s * 2));
