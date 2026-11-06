@@ -296,10 +296,10 @@ export function pillar(layer: HTMLElement, at: Pt, color: string, s: number) {
 	sparkle(layer, at, 'Normal', s);
 }
 
-/** 메가진화 표식: 무지개 고리 안에 이중 나선 — 이 앱용으로 코드로 그린 32×32 도트 그림.
- * 포켓몬 위에 톡 튀어나와(확대 → 제자리) 고리 색이 돌며 빛나다가 사라짐. 50ms 한 칸씩. */
+/** 메가진화 표식: 이중 나선 문양만 — 이 앱용으로 코드로 그린 32×32 도트 그림.
+ * 포켓몬 위에 톡 튀어나와(확대 → 제자리) 반짝이다가 사라짐. 50ms 한 칸씩. */
 export function megaIcon(layer: HTMLElement, at: Pt, s: number) {
-	const N = 32, C = 16, k = Math.max(2, Math.round(s * 1.6));
+	const N = 32, C = 16, k = Math.max(3, Math.round(s * 2.2));
 	const cv = document.createElement('canvas');
 	cv.width = N; cv.height = N; cv.className = 'fxp pxfx';
 	const size = N * k;
@@ -317,20 +317,8 @@ export function megaIcon(layer: HTMLElement, at: Pt, s: number) {
 		return pts;
 	};
 	const A = strand(0), B = strand(Math.PI);
-	const HUES = ['#ff4040', '#ff9a30', '#ffe040', '#60e050', '#30d0d0', '#4070ff', '#a050ff', '#ff50c0'];
 	const draw = (f: number) => {
 		g.clearRect(0, 0, N, N);
-		for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-			const d = Math.hypot(x + 0.5 - C, y + 0.5 - C);
-			if (d > 15.5) continue;
-			if (d > 14.5) { px(x, y, '#0a0d14'); continue; }                  // 바깥 외곽선
-			if (d > 11.5) {                                                    // 무지개 고리 (각도마다 8색, 시간에 따라 돎)
-				const ang = (Math.atan2(y + 0.5 - C, x + 0.5 - C) / (Math.PI * 2) + 1 + f * 0.06) % 1;
-				px(x, y, HUES[Math.floor(ang * HUES.length) % HUES.length]); continue;
-			}
-			if (d > 10.5) { px(x, y, '#0a0d14'); continue; }                  // 안쪽 외곽선
-			px(x, y, d < 6 ? '#2a3048' : '#1e2336');                          // 안쪽 바탕 (2단)
-		}
 		// 가닥은 2×2 굵기, 바깥 한 칸 외곽선
 		const thick = (pts: [number, number][], c: string) => { for (const [x, y] of pts) { px(x, y, c); px(x + 1, y, c); px(x, y + 1, c); px(x + 1, y + 1, c); } };
 		for (const [x, y] of [...A, ...B]) for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) px(x + dx, y + dy, '#0a0d14');
