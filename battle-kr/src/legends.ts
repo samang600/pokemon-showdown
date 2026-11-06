@@ -71,9 +71,11 @@ function valid(ids: string[] | undefined, rule: BattleRule, used: Set<string>): 
 	return (ids || []).filter(id => RAW.species[id] && speciesAllowed(rule, id) && !used.has(id) && !used.has(RAW.species[id].base || ''));
 }
 
-/** 규칙에 맞춘 6마리 종족 id (에이스는 유지). 전설·환상 허용('all')이면 전설 + 준전설, 준전설 허용('sub')이면 준전설 하나를 넣고,
+/** 규칙에 맞춘 6마리 종족 id (에이스는 유지). 룰 · 무제한이면 초전설·환상 + 준전설, 그 밖에 준전설을 허용하면 준전설 하나를 넣고,
  *  금지된 전설이 원래 팀에 있으면 같은 타입의 강한 포켓몬으로 바꾼다. */
-export function rosterForRule(t: NamedTrainer, rule: BattleRule): string[] {
+export function rosterForRule(t: NamedTrainer, ruleIn: BattleRule): string[] {
+	// 초전설·환상은 '룰 · 무제한'(legendTeams)에서만 데려옴. 그 밖에 전설을 허용하는 규칙(룰·전부, 세대별 등)은 준전설까지만
+	const rule: BattleRule = ruleIn.legendTeams || ruleIn.legend !== 'all' ? ruleIn : { ...ruleIn, legend: 'sub' };
 	const strong = ['champion', 'hero', 'boss'].includes(t.role);
 	const type = dominantType(t.team);
 	const lore = LORE[t.id] || {};
