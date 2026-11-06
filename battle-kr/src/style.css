@@ -1006,3 +1006,25 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 /* 버튼 안 작은 표(타입·분류·상성)도 각지게 */
 .mvb .type, .mvb-top .type, .tcard .teff { border-radius: 0; box-shadow: 0 0 0 2px rgba(0,0,0,.55); }
 .mvb .cat-icon { border-radius: 0; box-shadow: 0 0 0 2px rgba(0,0,0,.55); border: 0; }
+/* 흰 테두리 2px + 둥근 모서리 (색 띠·딱 떨어지는 그림자는 그대로) */
+.cmd-fight, .cmd-sub, .gmb, .mvb, .tcard, .info, .msgbox, .msgbox.win-dark, .hud-top .badge,
+.controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn {
+	border: 2px solid var(--pi); border-radius: 9px;
+	box-shadow: 0 0 0 2px var(--po), 0 4px 0 2px var(--ps), inset 0 3px 0 rgba(255,255,255,.28), inset 0 -3px 0 rgba(0,0,0,.22);
+}
+.cmd-fight { border-radius: 14px; }
+.cmd-sub, .mvb, .tcard, .controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn { border-radius: 11px; }
+.info, .msgbox, .msgbox.win-dark { border-radius: 8px; } .hud-top .badge { border-radius: 7px; }
+.mvb .type, .mvb-top .type, .mvb .cat-icon, .tcard .teff, .mvb-eff, .mvb-dmg, .gmb-dot { border-radius: 4px; }
+.cmd-fight:active, .cmd-sub:active, .gmb:active, .mvb:active:not(.off), .tcard.on:active, .controls .switch-list .switch-btn:active:not(.off) {
+	transform: translateY(3px); box-shadow: 0 0 0 2px var(--po), inset 0 3px 0 rgba(255,255,255,.28), inset 0 -3px 0 rgba(0,0,0,.22);
+}
+.tcard.on, .tcard.ally.on, .gmb.on { box-shadow: 0 0 0 2px var(--po), 0 0 0 4px #e8ff60, 0 5px 0 3px var(--ps), inset 0 3px 0 rgba(255,255,255,.3), inset 0 -3px 0 rgba(0,0,0,.2); }
+/* 테두리가 얇아진 만큼 간격도 원래에 가깝게 */
+.cmd-menu { gap: 12px; padding: 6px 6px 8px; } .cmd-row { gap: 10px; }
+.move-grid, .move-grid.win-dark { gap: 12px 10px; padding: 6px 6px 8px; }
+.gm-bar { gap: 10px; padding: 4px 6px 6px; }
+.switch-list { gap: 12px 10px; padding: 6px 6px 8px; }
+.target-grid2 { gap: 14px 10px; padding: 8px 6px 8px; }
+.msgbox, .msgbox.win-dark { margin: 4px 4px 2px; }
+.hud-top .badge { margin: 2px 1px; }
