@@ -83,17 +83,6 @@ def song(bpm, lead_type, sections, bass_style, drums_main, drums_b, drums_intro,
     return {'bpm': bpm, 'intro': intro_len, 'leadType': lead_type, 'lead': enc(lead), 'harm': enc(harm), 'bass': enc(bass), 'arp': enc(arp), 'drums': drums}
 
 SONGS = {
-    # 로비(타이틀·메인 화면): 배틀 시설 로비처럼 차분하고 세련된 G장조 116, 메이저7·도미넌트7 화음, 4분 워킹 베이스, 살짝 스치는 하이햇
-    'lobby': song(116, 'pulse25', [
-        ('intro', ['Gmaj7', 'D7'],
-         'g5.4 b5.4 d6.4 f#6.4  a5.8 r.8'),
-        ('A', ['Gmaj7', 'Em7', 'Am7', 'D7', 'Bm7', 'E7', 'Am7', 'D7'],
-         'b5.6 a5.2 g5.4 d5.4  e5.6 f#5.2 g5.4 b5.4  c6.6 b5.2 a5.4 e5.4  f#5.8 a5.4 c6.4 '
-         'd6.6 c#6.2 b5.4 f#5.4  g#5.6 a5.2 b5.4 d6.4  c6.4 b5.4 a5.4 g5.4  f#5.8 e5.4 d5.4'),
-        ('B', ['Cmaj7', 'Bm7', 'Am7', 'Gmaj7', 'Em7', 'A7', 'Am7', 'D7'],
-         'e6.6 d6.2 b5.8  d6.6 c6.2 a5.8  c6.4 b5.2 a5.2 g5.4 e5.4  f#5.6 g5.2 b5.8 '
-         'g5.4 b5.4 e6.4 d6.4  c#6.6 b5.2 a5.4 g5.4  e6.4 d6.4 c6.4 a5.4  d6.2 c6.2 a5.2 f#5.2 d5.8'),
-    ], 'quarter', '....h.......h...', '..h...h...h...h.', '................', arp_in=('A', 'B')),
     'g3battle': song(156, 'pulse25', [
         ('intro', ['A', 'A'],
          'a4.1 bb4.1 b4.1 c5.1 c#5.1 d5.1 d#5.1 e5.1 f5.1 f#5.1 g5.1 g#5.1 a5.4  a5.2 r.2 a5.2 r.2 a5.2 r.2 a5.4'),
@@ -205,6 +194,17 @@ def consonance(name, sections):
 DR = {'main': 'k.h.s.hkk.hks.h.', 'b': 'k.hhs.hkk.hhs.hs', 'half': 'k.......s.......', 'intro': 's.s.s.s.s.s.ssss'}
 DR_FILL = 'k.s.k.s.s.ssssss'
 NEW = {
+    # 로비(타이틀·메인 화면): 처음 마을처럼 밝고 경쾌한 D장조 112 — 순차 진행 위주 선율, 3도 아래 대선율, 통통 튀는 워킹 베이스, 가벼운 드럼
+    'lobby': (112, [
+        ('intro', ['D', 'A'],
+         'a5.2 f#5.2 d5.2 f#5.2 a5.4 d6.4|c#6.4 b5.2 a5.2 e5.4 r.4', {'harm': 'third', 'bass': 'walk', 'drum': 'intro'}),
+        ('A', ['D', 'G', 'D', 'A', 'D', 'G', 'A', 'D'],
+         'f#5.4 a5.2 c#6.2 d6.4 a5.4|b5.3 a5.1 g5.4 b5.4 d6.4|a5.6 f#5.2 d5.4 f#5.4|e5.2 f#5.2 g5.2 a5.2 c#6.4 e6.4|'
+         'd6.4 f#6.2 e6.2 d6.4 a5.4|b5.4 d6.2 c#6.2 b5.4 g5.4|a5.2 b5.2 c#6.2 e6.2 a5.4 c#6.4|d6.8 r.4 a5.4', {'harm': 'third', 'bass': 'walk'}),
+        ('B', ['G', 'A', 'F#m', 'Bm', 'G', 'A', 'D', 'A7'],
+         'g5.4 b5.4 d6.6 b5.2|c#6.4 e6.4 a6.6 e6.2|f#6.6 e6.2 c#6.4 a5.4|b5.4 d6.2 c#6.2 b5.8|'
+         'd6.4 b5.2 g5.2 b5.4 d6.4|e6.4 c#6.2 a5.2 c#6.4 e6.4|f#6.4 e6.2 d6.2 a5.4 f#5.4|g5.2 a5.2 b5.2 c#6.2 e6.8', {'harm': 'pad', 'bass': 'walk', 'arp': True}),
+    ], {'main': 'k...h.h.s...h.h.', 'intro': 'k.......s...s.s.'}, 'k...h.h.s.h.s.ss'),
     # 라이벌·강한 트레이너 (A단조 164): 반음 찌르기 인트로, A 뒤 Bb(나폴리) 로 긴장, C장조 브리지
     'g3rival': (164, [
         ('intro', ['Am', 'Am', 'F', 'E7'],
@@ -266,9 +266,9 @@ NEW = {
          {'harm': 'stab', 'bass': 'gallop', 'arp': True, 'drum': 'b'}),
     ]),
 }
-for k, (bpm, secs) in NEW.items():
+for k, (bpm, secs, *dr) in NEW.items():
     print(consonance(k, secs))
-    SONGS[k] = song2(bpm, secs, DR, DR_FILL)
+    SONGS[k] = song2(bpm, secs, dr[0] if dr else DR, dr[1] if dr else DR_FILL)
 
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), '../src/gen/chip-gen3.json')

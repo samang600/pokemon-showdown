@@ -386,14 +386,17 @@ let nextTime = 0;
 let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
 
-export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['champion', '챔피언 결전'], ['pwt', 'PWT 토너먼트'], ['evil', '악의 조직'],
+export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['shuffle', '무작위'], ['none', '없음'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['champion', '챔피언 결전'], ['pwt', 'PWT 토너먼트'], ['evil', '악의 조직'],
 	['g3battle', '트레이너 배틀 (3세대풍)'], ['g3gym', '관장전 (3세대풍)'], ['g3frontier', '배틀 프런티어 (3세대풍)'],
 	['g3rival', '라이벌 배틀 (3세대풍)'], ['g3evil', '악의 조직 (3세대풍)'], ['g3brain', '프런티어 브레인 (3세대풍)'], ['g3champion', '챔피언 결전 (3세대풍)'],
 	['battle2', '옛 칩튠 1'], ['battle3', '옛 칩튠 2']];
 /** 배틀 음악 선택: 설정이 '상황에 맞게'면 상황별 곡 (작곡한 곡 우선) */
 export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion') {
 	const pref = loadSettings().battleBgm || 'random';
-	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref] || CHIP[pref])) return pref;
+	if (pref === 'none') return '';
+	const real = (n: string) => !!(TRACKS[n] || BGM_LOOPS[n] || CHIP[n]);
+	if (pref === 'shuffle') { const all = BGM_CHOICES.map(c => c[0]).filter(real); return all[Math.floor(Math.random() * all.length)]; }
+	if (pref !== 'random' && real(pref)) return pref;
 	const has = (n: string) => !!(BGM_LOOPS[n] || CHIP[n]);   // 작곡한 곡(칩튠판 포함)이 없으면 비슷한 곡으로
 	const pool = situation === 'champion' ? [has('champion') ? 'champion' : 'boss', 'g3champion'] : situation === 'boss' ? ['boss', 'g3gym', 'g3brain'] : situation === 'evil' ? ['evil', 'g3evil'] : situation === 'tower' ? ['tower', 'g3frontier']
 		: situation === 'pwt' ? (has('pwt') ? ['pwt'] : ['battle', 'tower']) : ['battle', 'g3battle', 'g3rival'];
@@ -401,6 +404,7 @@ export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' |
 }
 
 export function playMusic(name: string) {
+	if (!name) { stopMusic(); return; }   // 배틀 음악 '없음'
 	if (current === name) return;
 	stopMusic();
 	if (!musicOn()) return;

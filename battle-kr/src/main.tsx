@@ -11,7 +11,7 @@ import { loadRecords, loadSettings, saveSettings, load, remove, loadReplays, del
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
 import { CUPS, NAMED } from './trainers';
-import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume, BGM_CHOICES } from './sound';
+import { unlockAudio, playMusic, stopMusic, sfx, setMusicVolume, setSfxVolume, setMoveSfxVolume } from './sound';
 import { PLAYER_SPRITES, SPRITE_URL } from './trainer-lines';
 
 const MODES = [
@@ -201,9 +201,6 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>기술 효과음</span><div class="seg">{([0, 1, 2, 3] as const).map(v => <button class={s.moveSfx === v ? 'on' : ''} onClick={() => { up({ moveSfx: v }); setMoveSfxVolume(v); }}>{['끔', '작게', '보통', '크게'][v]}</button>)}</div></div>
-		<h3 class="sec">배틀 음악</h3>
-		<div class="seg wrap">{BGM_CHOICES.map(([k, l]) => <button class={s.battleBgm === k ? 'on' : ''} onClick={() => { up({ battleBgm: k }); if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); } }}>{l}</button>)}</div>
-		<p class="muted small">무작위면 배틀마다 상황에 맞는 곡 중 하나가 흐릅니다. 고르면 미리 들을 수 있어요.</p>
 		<h3 class="sec">기록</h3>
 		<div class="seg"><button class="danger" onClick={async () => {
 			if (!(await confirmBox('전적 초기화', '연승 기록·대회 우승·네임드 승리·랭크 포인트·승패 기록을 모두 지웁니다.\n(팀·리플레이·설정은 그대로입니다) 정말 지울까요?', '모두 지우기', '취소'))) return;

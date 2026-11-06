@@ -51,8 +51,8 @@ function OptsBox({ opts, show, diff }: { opts: BattleOpts; show: OptKey[]; diff?
 	return <div class="opts-box">
 		{diff && <div class="set-row"><span>난이도</span><div class="seg">{(['easy', 'normal', 'hard'] as Diff[]).map(d =>
 			<button class={(opts.diff || 'normal') === d ? 'on' : ''} onClick={() => { opts.diff = d; force(x => x + 1); }}>{DIFF_LABEL[d]}</button>)}</div></div>}
-		{diff && <p class="muted small">{(opts.diff || 'normal') === 'easy' ? '쉬움: 처음 두 세트는 진화 전·중간 진화 포켓몬, 그 뒤도 보통보다 두 세트 늦게 강해지고 준전설도 늦게 나옵니다.'
-			: opts.diff === 'hard' ? '어려움: 처음부터 보통의 4세트 수준(준전설·기믹·강한 AI)으로 시작합니다.' : '보통: 세트(7연승)마다 차근차근 강해집니다.'} 난이도마다 기록과 도전이 따로 저장됩니다.</p>}
+		{diff && <p class="muted small">{(opts.diff || 'normal') === 'easy' ? '쉬움: 일반 포켓몬 게임의 배틀시설 정도 난이도입니다.'
+			: opts.diff === 'hard' ? '어려움: 처음부터 강한 상대가 나옵니다.' : '보통: 쉬움보다 강하고, 연승할수록 빠르게 강해집니다.'} 난이도마다 기록과 도전이 따로 저장됩니다.</p>}
 		{show.map(k => <label class="check opt">
 			<input type="checkbox" checked={!!opts[k]} onChange={() => { opts[k] = !opts[k]; force(x => x + 1); }} />
 			<span><b>{OPT_INFO[k].label}</b><small>{OPT_INFO[k].desc}</small></span>
@@ -74,7 +74,7 @@ function BgmRow() {
 	const [v, setV] = useState(loadSettings().battleBgm || 'random');
 	return <label class="sel-row"><span>배틀 음악</span><select value={v} onChange={e => {
 		const k = (e.target as HTMLSelectElement).value; saveSettings({ ...loadSettings(), battleBgm: k }); setV(k);
-		if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); }
+		if (k === 'none') stopMusic(); else if (k !== 'random' && k !== 'shuffle') { stopMusic(); setTimeout(() => playMusic(k), 0); }
 	}}>{BGM_CHOICES.map(([k, l]) => <option value={k}>{l}</option>)}</select></label>;
 }
 

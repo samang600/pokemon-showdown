@@ -332,4 +332,27 @@ export const EXTRA_NAMED: ExtraTrainer[] = [
 		line: "재능있는 자와의 승부는 몇 번을 해도 가슴이 두근거리는군... 자! 빨리 시작하자꾸나!", ace: "그야말로 절체절명의 위기로군! 하지만 여기에서 이겨야 제맛이지!", lose: "생각한 것 이상으로 흔들림 없이 강하구나!", win: "강함이란 끝없이 돌고 도는 것... 다시 수행하고 오거라!", src: "mixed" },
 	{ id: "peony", name: "피오니", title: "왕관설원 탐험대장 · 로즈의 동생", region: "가라르", role: "rival", team: ["perrserker", "scizor", "bronzong", "aggron", "steelix", "copperajah"], sprite: "peony",
 		line: "피오니 탐험대장 등장이다! 승부로 서로를 알아가자고!", ace: "대왕끼리동! 이 형님의 강철 근성 보여줘라!", lose: "크하~ 졌다 졌어! 형님보다 네가 훨씬 강하구먼!", win: "하하하! 탐험대장의 강철 파워, 어떠냐!", src: "written" },
+	// 배틀하우스(XY) 배틀샤틀레느 4자매 — 슈퍼 배틀 보스전의 준전설 3마리를 중심으로 구성
+	{ id: "morgan", name: "르마탱", title: "배틀하우스 배틀샤틀레느 · 장녀", region: "칼로스", role: "rival", team: ["cobalion", "terrakion", "virizion", "aegislash", "gardevoir", "talonflame"], sprite: "morgan",
+		line: "배틀하우스에 어서 오세요. 장녀 르마탱이 우아하게 상대해 드릴게요.", ace: "아침 햇살처럼 마지막까지 빛나 보이겠어요!", lose: "훌륭하세요… 동생들에게도 자랑해야겠네요.", win: "후후, 배틀하우스의 아침은 아직 당신 편이 아니었네요.", src: "written" },
+	{ id: "dana", name: "라쥬르네", title: "배틀하우스 배틀샤틀레느 · 차녀", region: "칼로스", role: "rival", team: ["articuno", "zapdos", "moltres", "lapras", "aerodactyl", "charizard"], sprite: "dana",
+		line: "차녀 라쥬르네예요! 한낮처럼 뜨거운 승부, 기대해도 좋아요!", ace: "아직 해는 지지 않았어요! 끝까지 가요!", lose: "와아, 졌다! 그래도 정말 즐거운 승부였어요!", win: "한낮의 승부는 제 차지네요!", src: "written" },
+	{ id: "evelyn", name: "르수아르", title: "배틀하우스 배틀샤틀레느 · 삼녀", region: "칼로스", role: "rival", team: ["entei", "raikou", "suicune", "arcanine", "milotic", "tyranitar"], sprite: "evelyn",
+		line: "삼녀 르수아르. …저녁 노을처럼 조용히, 그렇지만 확실하게 이길게요.", ace: "…아직이에요. 해가 지기 전까지는.", lose: "…졌네요. 언니들한테 혼나겠어요.", win: "…노을이 지면 승부도 끝. 오늘은 제 승리예요.", src: "written" },
+	{ id: "nita", name: "라뉴이", title: "배틀하우스 배틀샤틀레느 · 막내", region: "칼로스", role: "rival", team: ["gyarados", "staraptor", "heliolisk", "tornadus", "thundurus", "landorus"], sprite: "nita",
+		line: "막내 라뉴이야! 밤의 바람처럼 휘몰아쳐 줄 테니까 각오해!", ace: "랜드로스, 막내의 비장의 카드야!", lose: "으앙, 졌어! 다음엔 언니들보다 먼저 이길 거야!", win: "헤헤, 막내라고 얕보면 안 된다니까!", src: "written" },
+	// 알로라 타이틀 방어전 도전자
+	{ id: "ryuki", name: "용규", title: "록 스타 · 알로라 타이틀 방어전 도전자", region: "알로라", role: "rival", team: ["turtonator", "druddigon", "haxorus", "salamence", "kommoo", "garchomp"], sprite: "ryuki",
+		line: "챔피언 자리, 내 드래곤 사운드로 뒤흔들어 주지! 록 앤 롤!", ace: "피날레다! 한카리아스, 최고의 앙코르를 들려줘!", lose: "크으… 이게 챔피언의 울림인가. 최고의 라이브였다!", win: "들었냐! 이게 바로 드래곤 록이다!", src: "written" },
+	// 신오(플라티나·HGSS) 배틀프런티어 프런티어 브레인
+	{ id: "palmer", name: "종수", title: "배틀타워 타워 타이쿤 · 프런티어 브레인", region: "신오", role: "rival", team: ["dragonite", "cresselia", "heatran", "rhyperior", "milotic", "regigigas"], sprite: "palmer",
+		line: "나는 종수! 타워 타이쿤으로서 너와의 승부를 즐기겠다!", ace: "레지기가스, 이제 진짜 힘을 보여 줄 때다!", lose: "멋지다! 너와 포켓몬의 유대가 승리를 불렀구나!", win: "아직이다! 배틀타워의 정점은 더 높은 곳에 있어!", src: "written" },
+	{ id: "thorton", name: "수철", title: "배틀팩토리 팩토리 헤드 · 프런티어 브레인", region: "신오", role: "rival", team: ["bronzong", "porygonz", "magnezone", "shuckle", "gliscor", "metagross"], sprite: "thorton",
+		line: "네 팀은 이미 분석 끝났어. 승률 계산대로 가 볼까?", ace: "계산상으로는 여기서 역전이야!", lose: "…데이터에 없던 결과야. 흥미로운데.", win: "봐, 계산대로잖아.", src: "written" },
+	{ id: "dahlia", name: "달리아", title: "배틀룰렛 룰렛 고데스 · 프런티어 브레인", region: "신오", role: "rival", team: ["togekiss", "ludicolo", "blaziken", "dusknoir", "zapdos", "medicham"], sprite: "dahlia",
+		line: "룰렛은 돌아가기 시작했어! 운명도 실력도 전부 즐겨 보자!", ace: "마지막 한 바퀴! 행운의 여신은 누구 편일까?", lose: "아하하! 오늘의 행운은 네 거였네!", win: "운명의 룰렛, 오늘은 내 쪽에서 멈췄어!", src: "written" },
+	{ id: "darach", name: "코크런", title: "배틀캐슬 캐슬 버틀러 · 프런티어 브레인", region: "신오", role: "rival", team: ["gallade", "houndoom", "staraptor", "entei", "empoleon", "metagross"], sprite: "darach",
+		line: "배틀캐슬의 집사 코크런입니다. 성심성의껏 상대해 드리겠습니다.", ace: "마지막까지 품위를 지키며 싸우겠습니다!", lose: "훌륭하십니다. 아가씨께도 꼭 전해 드리지요.", win: "실례했습니다. 이것이 배틀캐슬의 대접입니다.", src: "written" },
+	{ id: "argenta", name: "맨드라", title: "배틀스테이지 스테이지 마돈나 · 프런티어 브레인", region: "신오", role: "rival", team: ["skarmory", "heatran", "snorlax", "umbreon", "blissey", "rhyperior"], sprite: "argenta",
+		line: "무대에 오른 걸 환영해. 관객 앞에서 부끄럽지 않은 승부를 보여 줘!", ace: "커튼콜은 아직이야! 마지막 무대를 장식하겠어!", lose: "브라보! 오늘 무대의 주인공은 너야.", win: "오늘의 박수갈채는 내 차지네.", src: "written" },
 ];

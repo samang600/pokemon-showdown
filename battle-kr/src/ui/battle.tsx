@@ -172,7 +172,9 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 
 	/** 메시지 길이에 맞춘 읽기 시간 (짧은 문장은 빨리 넘어감) */
 	const readMs = (m: string) => SPEED_MS[settings.speed] * (0.65 + Math.min(0.75, m.length / 45));
-	const wait = (ms: number) => new Promise<void>(resolve => {
+	/** 화면을 떠남(리플레이 그만 보기·뒤로): 진행 중인 재생 루프가 더는 효과음·연출을 내지 않게 */
+	const deadRef = useRef(false);
+	const wait = (ms: number) => deadRef.current ? new Promise<void>(() => {}) : new Promise<void>(resolve => {
 		const t = setTimeout(() => { skipRef.current = null; resolve(); }, ms);
 		skipRef.current = () => { clearTimeout(t); skipRef.current = null; resolve(); };
 	});
@@ -592,6 +594,7 @@ function typeTint(type: string) {
 		}
 		const kt = textRef.current!;
 		for (const line of lines) {
+			if (deadRef.current) return;
 			const p = parseLine(line);
 			if (!p) continue;
 			let prev: { ident: string; fainted: boolean } | null = null;
@@ -891,7 +894,7 @@ function typeTint(type: string) {
 			await wait(350);
 			await play(lines);
 		})();
-		return () => { skipRef.current?.(); stopMusic(); wakeRelease.current?.(); cancelAnims(); };
+		return () => { deadRef.current = true; skipRef.current?.(); stopMusic(); wakeRelease.current?.(); cancelAnims(); };
 	}, []);
 
 	const scene = sceneRef.current;
@@ -1166,7 +1169,7 @@ function typeTint(type: string) {
 		if (phase !== 'input' || !req) {
 			return <div class="controls waiting">
 				<button class="btn small" onClick={() => cycleSpeed()}>배속 {SPEED_LABEL[settings.speed]}</button>
-				{setup.replay && <button class="btn small ghost" onClick={() => { skipRef.current?.(); cancelAnims(); stopMusic(); onEnd({ win: false, forfeit: false, turns: 0, p1Left: 0, p2Left: 0, quit: true }); }}>■ 그만 보기</button>}
+				{setup.replay && <button class="btn small ghost" onClick={() => { deadRef.current = true; skipRef.current?.(); cancelAnims(); stopMusic(); onEnd({ win: false, forfeit: false, turns: 0, p1Left: 0, p2Left: 0, quit: true }); }}>■ 그만 보기</button>}
 				<p class="muted small">{setup.replay ? '🎬 리플레이 재생 중 · 화면을 누르면 메시지를 넘깁니다' : '화면을 누르면 메시지를 넘깁니다'}</p>
 			</div>;
 		}
