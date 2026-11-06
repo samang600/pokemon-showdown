@@ -1121,7 +1121,8 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .controls > .cmd-menu { flex: 1 1 0; min-height: 0; max-height: 360px; }
 .cmd-menu > .cmd-fight { flex: 1.6 1 0; min-height: 56px; }
 .cmd-menu > .cmd-row { flex: 1 1 0; min-height: 44px; }
-/* HP 상자: 더 둥근 계단(반지름 4칸) */
+/* HP 상자: 더 둥근 계단(반지름 4칸) — 상대 상자도 플레이어 상자와 같은 틀 (예전 토스트 그림 규칙이 상대 쪽에만 남아 있었음) */
+.info.foe { border-image-source: var(--ring-i4); }
 .info { border-style: solid; border-color: transparent; border-width: 8px 10px; border-image: var(--ring-i4) 5 / 10px stretch; clip-path: var(--clip3); padding: 0 1px; }
 /* pixelfx 볼 이펙트 캔버스: 도트 그대로 확대 */
 .fxp.pxfx { position: absolute; image-rendering: pixelated; pointer-events: none; background: none; }
@@ -1143,8 +1144,9 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 	background-image: linear-gradient(180deg, #c84a58 0 6px, #a8303e 6px 55%, #8a2232 55% 82%, #6c1624 82%); }
 .tcard.foe.on .tname, .tcard.foe.on small { color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.6); }
 
-/* HP 바 틀도 모서리를 한 칸 깎아 안쪽 막대와 틈이 없게 (틀은 바깥에 그려 크기는 그대로) */
-.hpbar { border-radius: 0 !important; box-shadow: none !important; border: 0 solid transparent; border-image: var(--ring-hp) 2 / 4px / 4px stretch; }
+/* HP 바: 틀(외곽선 1칸 + 흰 줄 1칸, 모서리 한 칸 깎음)은 바깥에 그리고, 막대 자체는 2칸(4px)으로 얇게 — 이름·숫자를 가리지 않게 */
+.hpbar { border-radius: 0 !important; box-shadow: none !important; border: 0 solid transparent; border-image: var(--ring-hp) 2 / 4px / 4px stretch;
+	height: 4px; margin: 4px 0 4px 20px; }
 .hpbar-fill { border-radius: 0 !important; }
 
 /* 조작 화면(명령·기술·교체·대상)은 스크롤 없이 한 화면에: 남은 높이를 버튼들이 나눠 가짐 */
