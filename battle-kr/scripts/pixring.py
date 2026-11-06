@@ -75,10 +75,13 @@ for k, (o, i) in {'p-stone': ('#0d1830', '#eef4ff'), 'p-silver': ('#2a0a0e', '#f
                   'hi': ('#0d1830', '#ffd84a'), 'red': ('#3a0a04', '#ffffff'), 'grey': ('#121a2a', '#f4f6fa')}.items():
     css.append(f'\t--ring4-{k}: {ring_svg(4, o, i, 5)};')
 css.append(f'\t--ring2-red: {ring_svg(2, "#3a0a04", "#ffffff", K2)};')
+css.append(f'\t--ring2-hi: {ring_svg(2, "#0d1830", "#ffd84a", K2)};')
+css.append(f'\t--ring2-input: {ring_svg(2, "#0d1830", "#8aa0c8", K2)};')
 css.append(f'\t--ring2-grey: {ring_svg(2, "#121a2a", "#f4f6fa", K2)};')
 css.append(f'\t--ring-hp: {ring_svg(1, "#0a0d12", "#f4f6fa", 2)};')  # HP 바 틀: 모서리 한 칸 깎음
 css.append(f'\t--clip4: {clip(6, P)};')
 css.append(f'\t--clip2: {clip(2, P)};')
+css.append("\t--clip1: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);")  # 작은 표: 모서리 한 칸
 css.append(f'\t--clip3: {clip(4, P)};')
 css.append(f'\t--clip3r: {clip_side(4, P, True)};')   # 오른쪽만 둥근 (왼쪽 가장자리에 붙는 띠)
 css.append(f'\t--clip3l: {clip_side(4, P, False)};')  # 왼쪽만 둥근
