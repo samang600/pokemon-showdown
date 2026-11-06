@@ -63,7 +63,7 @@ export function PickScreen({ title, team, gen, count, opponent, hint, onDone, on
 /** 트레이너 등장 / 결과 같은 안내 화면 */
 export function InfoScreen({ title, heading, lines, sprites, gen, actions, banner, children, trainer, sets }: {
 	title: string; heading?: string; lines?: string[]; sprites?: string[]; gen?: Gen; banner?: string; children?: ComponentChildren; trainer?: string; sets?: PSet[];
-	actions: { label: string; kind?: 'primary' | 'ghost' | 'danger'; onClick: () => void }[];
+	actions: { label: string; kind?: 'primary' | 'ghost' | 'danger' | 'yellow'; onClick: () => void }[];
 }) {
 	const [view, setView] = useState<number | null>(null);
 	return <Screen title={title}>

@@ -243,10 +243,13 @@ export async function runTower() {
 			save(TOWER_KEY(fmt, opts), state);
 			if (s % 7 === 0) {
 				// 7연승(세트 클리어)마다 팀을 바꿀 수 있음 — 연승은 그대로 이어짐
-				const next = await ask<'keep' | 'change'>(r => <InfoScreen title="배틀타워" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
+				const next = await ask<'keep' | 'change' | 'rest'>(r => <InfoScreen title="배틀타워" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
 					lines={['포켓몬들의 체력이 회복되었다.', '다음 세트에 들어가기 전에 팀을 바꿀 수 있습니다. (연승은 그대로 이어집니다)']}
 					sprites={state.team.map(x => x.species)} sets={state.team} gen={9}
-					actions={[{ label: '이 팀으로 계속', onClick: () => r('keep') }, { label: '팀 바꾸기', kind: 'ghost', onClick: () => r('change') }]} />);
+					actions={[{ label: '이 팀으로 계속', onClick: () => r('keep') }, { label: '팀 바꾸기', kind: 'yellow', onClick: () => r('change') },
+						{ label: '여기서 쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') }]} />);
+				// 쉬기: 연승·팀은 이미 저장됨 → 메뉴로 (도전 포기 아님, 다음에 이어서)
+				if (next === 'rest') return;
 				if (next === 'change') {
 					const n = teamSize(fmt);
 					const team = await chooseTeam(9, '배틀타워 · 다음 세트 팀', true, opts.cheat, lvl(opts));
