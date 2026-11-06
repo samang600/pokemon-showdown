@@ -40,11 +40,16 @@ if (!args.has('--test')) fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const lite = !args.has('--full'); // 기본은 저용량판(그림·울음소리·애니메이션은 인터넷 또는 설정에서 받은 오프라인 묶음), --full 이면 앱에 포함
 // 저용량판: 그림·울음소리·애니메이션을 앱에 넣지 않고 인터넷에서 받음 (애니메이션은 jsDelivr 의 저장소 파일)
-const animCommit = execSync('git log -1 --format=%H -- battle-kr/public/anims', { cwd: path.join(HERE, '..') }).toString().trim();
-const ANIM_BASE = `https://cdn.jsdelivr.net/gh/samang600/pokemon-showdown@${animCommit}/battle-kr/public/anims/`;
+// 저장소 주소: GH_REPO 환경변수(예: myname/battlesim-kr) → git origin 주소 → 기본값 순서로 정함 (새 저장소로 옮겨도 그대로 동작)
+const git = (cmd, fb) => { try { return execSync(cmd, { cwd: path.join(HERE, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || fb; } catch { return fb; } };
+const REPO = process.env.GH_REPO || (git('git remote get-url origin', '').match(/github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/) || [])[1] || 'samang600/pokemon-showdown';
+const APP_DIR = fs.existsSync(path.join(HERE, '..', 'sim')) && path.basename(HERE) === 'battle-kr' ? 'battle-kr/' : '';
+const animCommit = git(`git log -1 --format=%H -- ${APP_DIR}public/anims`, 'main');
+const ANIM_BASE = `https://cdn.jsdelivr.net/gh/${REPO}@${animCommit}/${APP_DIR}public/anims/`;
 // 오프라인 묶음 zip (battle-kr/offline/*.zip, 저장소의 현재 브랜치에서 받음)
-const branch = process.env.PACK_BRANCH || execSync('git rev-parse --abbrev-ref HEAD', { cwd: path.join(HERE, '..') }).toString().trim();
-const PACK_URLS = ['sprites', 'cries', 'anims'].map(n => `${n}=https://raw.githubusercontent.com/samang600/pokemon-showdown/${branch}/battle-kr/offline/${n}.zip`).join(';');
+const branch = process.env.PACK_BRANCH || git('git rev-parse --abbrev-ref HEAD', 'main');
+const PACK_URLS = ['sprites', 'cries', 'anims'].map(n => `${n}=https://raw.githubusercontent.com/${REPO}/${branch}/${APP_DIR}offline/${n}.zip`).join(';');
+console.log('저장소', REPO, '·', branch);
 // 직접 만든 그림 (src/sprites-custom/<id>[-shiny].png) — 서버 그림 대신 항상 이것을 씀
 const customDir = path.join(HERE, 'src/sprites-custom');
 const CUSTOM_SPRITES = Object.fromEntries(fs.existsSync(customDir) ? fs.readdirSync(customDir).filter(f => f.endsWith('.png')).map(f => [f.slice(0, -4), 'data:image/png;base64,' + fs.readFileSync(path.join(customDir, f)).toString('base64')]) : []);
