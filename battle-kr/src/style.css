@@ -1213,3 +1213,7 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .mvb-eff, .mvb-dmg { font-size: 10px; line-height: 12px; }
 .mvb-bottom { min-height: 12px; }
 .move-panel .mv-hint { font-size: 10px; line-height: 12px; }
+/* 배틀 끝: '계속'은 한 줄 전체, 배틀 기록·리플레이 저장은 그 아랫줄에 나란히 */
+.controls.end { flex-direction: row; flex-wrap: wrap; align-content: flex-start; align-items: stretch; gap: 8px; }
+.controls.end .btn.primary { flex: 1 1 100%; }
+.controls.end .btn.ghost { flex: 1 1 0; min-width: 0; }

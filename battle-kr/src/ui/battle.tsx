@@ -5,7 +5,7 @@ import { Session } from '../engine';
 import { KoreanText, parseLine, effectInfo, type ParsedLine } from '../text';
 import { moveData, moveKo, speciesData, speciesKo, toID, abilityKo, itemKo, natureKo, STAT_SHORT, STAT_KO, typeKo, abilityDesc,
 	itemDesc, RAW, type Gen } from '../data';
-import { toSimTeam, type PSet } from '../sets';
+import { toSimTeam, conceptBall, type PSet } from '../sets';
 import { loadSettings, updateRecords, saveReplay, newId } from '../store';
 import { Sprite, preloadSprite, HPBar, StatusBadge, TypeBadge, TYPE_COLOR, Modal, toast, confirmBox, CatIcon, ItemIcon } from './core';
 import { MonSheet, type LiveInfo } from './screens';
@@ -398,7 +398,12 @@ function typeTint(type: string) {
 				const from = { x: own ? -10 : layer.clientWidth + 10, y: to.y - 30 * scale };
 				mon.hidden = true;
 				sfx('ballThrow');
-				const ball = (own ? setup.p1.team : setup.p2.team).find(x => toID(x.species) === toID(d.species) || toID(x.species) === toID(mon.nick))?.pokeball || 'pokeball';
+				const bteam = own ? setup.p1.team : setup.p2.team;
+				const bi = bteam.findIndex(x => toID(x.species) === toID(d.species) || toID(x.species) === toID(mon.nick));
+				let ball = bteam[bi]?.pokeball || 'pokeball';
+				// 상대·멀티 파트너가 볼을 정하지 않은 포켓몬(기본 몬스터볼)은 컨셉에 맞거나 무작위인 볼로 (트레이너·포켓몬마다 늘 같은 볼)
+				const partnerMon = own && !!setup.partner?.theirs?.[bi];
+				if ((!own || partnerMon) && ball === 'pokeball') ball = conceptBall(d.species, own ? setup.partner?.name || 'partner' : setup.p2.name || '');
 				const t = FX.ballOut(layer, from, to, scale, ball) / FX.fxSpeed();
 				setTimeout(() => { mon.hidden = false; mon.anim = 'enter'; rerender(); sfx('ballOpen'); cry(toID(mon.species)); setTimeout(() => { if (mon.anim === 'enter') { mon.anim = ''; rerender(); } }, 500); }, t);
 				return t + 450 / FX.fxSpeed();
@@ -1155,7 +1160,7 @@ function typeTint(type: string) {
 			return <div class="controls end">
 				<button class="btn primary big" onClick={finish}>계속</button>
 				<button class="btn ghost" onClick={() => setShowLog(true)}>배틀 기록</button>
-				{!setup.replay && !replaySaved && <button class="btn ghost" onClick={saveThisReplay}>🎬 리플레이 저장</button>}
+				{!setup.replay && !replaySaved && <button class="btn ghost" onClick={saveThisReplay}>리플레이 저장</button>}
 			</div>;
 		}
 		if (phase !== 'input' || !req) {

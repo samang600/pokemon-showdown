@@ -294,7 +294,7 @@ export function randomTeam(o: PoolOptions & { size: number; level?: number; ivs?
 	const team = picked.map(id => {
 		const set = randomSetFor(id, o.gen, o.level ?? 50, !!o.doubles, quality);
 		if (speciesData(id, o.gen)?.gx && Math.random() < 0.6) set.gigantamax = true;
-		set.pokeball = rng.pick(['pokeball', 'pokeball', 'pokeball', 'greatball', 'ultraball', 'premierball', 'luxuryball', 'duskball', 'quickball', 'timerball', 'netball', 'diveball', 'nestball', 'repeatball', 'healball', 'friendball', 'loveball', 'moonball', 'dreamball', 'beastball']);
+		set.pokeball = conceptBall(id, String(Math.random()));
 		// 개체값이 없는 챔피언스 규칙: 초반 상대의 약함은 능력 포인트를 줄여서 표현
 		if (o.ivs !== undefined && o.ivs < 31) for (const k in set.evs) (set.evs as any)[k] = Math.floor((set.evs as any)[k] * Math.max(0, o.ivs) / 31);
 		return set;
@@ -438,4 +438,39 @@ export function toSimTeam(team: PSet[], cheat = false) {
 
 export function cloneSet(s: PSet): PSet {
 	return JSON.parse(JSON.stringify(s));
+}
+
+/* ───── 포켓몬에 어울리는 볼 ─────
+ * 컨셉(타입·전설·울트라비스트·무게·스피드·진화 전 등)에 맞는 볼 60%, 아무 볼 25%, 몬스터볼 15%.
+ * seed 가 같으면 항상 같은 볼 (같은 트레이너의 같은 포켓몬은 매번 같은 볼로 나옴) */
+const MOON_MONS = new Set(['clefairy', 'clefable', 'cleffa', 'jigglypuff', 'wigglytuff', 'lunatone', 'munna', 'musharna', 'lunala', 'cresselia', 'umbreon', 'nidoking', 'nidoqueen', 'skitty', 'delcatty', 'ursaluna', 'ursalunabloodmoon']);
+const TYPE_BALLS: { [t: string]: string[] } = {
+	Water: ['diveball', 'netball', 'lureball'], Bug: ['netball', 'netball'], Dark: ['duskball'], Ghost: ['duskball', 'duskball'],
+	Fairy: ['loveball', 'dreamball', 'healball'], Psychic: ['dreamball', 'moonball'], Grass: ['nestball', 'friendball'],
+	Fire: ['repeatball', 'fastball'], Electric: ['quickball', 'fastball'], Flying: ['quickball'], Ice: ['premierball'],
+	Dragon: ['ultraball', 'luxuryball'], Steel: ['heavyball', 'timerball'], Rock: ['heavyball'], Ground: ['heavyball'],
+	Fighting: ['sportball', 'ultraball'], Normal: ['greatball', 'friendball'], Poison: ['duskball', 'greatball'],
+};
+const ANY_BALLS = ['greatball', 'ultraball', 'premierball', 'luxuryball', 'timerball', 'repeatball', 'healball', 'quickball', 'duskball'];
+export function conceptBall(speciesId: string, seed = ''): string {
+	const id = toID(speciesId);
+	let h = 2166136261;
+	for (const c of seed + ':' + id) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+	const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489917) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+	const sd: any = speciesData(id, 9);
+	if (!sd) return 'pokeball';
+	const tags: string[] = sd.tags || [];
+	const pool: string[] = [];
+	if (tags.includes('Ultra Beast')) pool.push('beastball', 'beastball', 'beastball');
+	if (tags.includes('Restricted Legendary') || tags.includes('Mythical')) pool.push('masterball', 'cherishball', 'masterball');
+	if (tags.includes('Sub-Legendary')) pool.push('ultraball', 'luxuryball', 'masterball');
+	if (MOON_MONS.has(id)) pool.push('moonball', 'moonball');
+	for (const t of sd.t || []) pool.push(...(TYPE_BALLS[t] || []));
+	if ((sd.bs?.[5] || 0) >= 110) pool.push('quickball', 'fastball');
+	if ((sd.wt || 0) >= 200) pool.push('heavyball', 'heavyball');
+	if (!sd.fe) pool.push('nestball', 'levelball', 'friendball');
+	const r = rnd();
+	const from = (a: string[]) => a[Math.floor(rnd() * a.length)];
+	if (pool.length && r < 0.6) return from(pool);
+	return r < 0.85 ? from(ANY_BALLS) : 'pokeball';
 }

@@ -1937,6 +1937,9 @@ export class BattleActions {
 		if (megaEvolution && this.dex.species.get(megaEvolution).gen >= 9) return megaEvolution;
 		// a hacked-in Megazard X can mega evolve into Megazard Y, but not into Megazard X
 		// FIXME: Change to species.name when champions comes
+		// 기본 모습 이름으로 찾는 건 기본 모습·메가 모습일 때만: 가라르 야도란·알로라 라이츄 같은 리전 폼은 메가진화 불가
+		// (폼 고유의 메가진화는 위에서 species.name 으로 이미 찾음 — 플라엣테 영원의 꽃·냐오닉스 암컷·싸리용 폼 등)
+		if (species.forme && !species.isMega) return null;
 		megaEvolution = item.megaStone[species.baseSpecies];
 		return megaEvolution && megaEvolution !== species.name ? megaEvolution : null;
 	}
