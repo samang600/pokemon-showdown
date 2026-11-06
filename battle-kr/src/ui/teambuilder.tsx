@@ -302,7 +302,12 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 				{formes.length > 1 && <label class="sel-row"><span>모습</span>
 					<select value={toID(s.species)} onChange={e => {
 						const f = speciesData((e.target as HTMLSelectElement).value, gen)!;
-						up({ species: f.en, name: !s.name || s.name === nickKo(toID(s.species)) ? nickKo(toID(f.en)) : s.name, ability: f.ab.includes(s.ability) ? s.ability : f.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? f.t[0] : s.teraType) });
+						// 바꾼 모습이 배울 수 없는 기술은 뺌 (치트 팀은 그대로)
+						const legal = new Set(learnset(f.id, gen));
+						const moves = cheat ? s.moves : s.moves.filter(m => !m || legal.has(toID(m)));
+						const dropped = s.moves.filter(m => m && !moves.includes(m));
+						up({ species: f.en, name: !s.name || s.name === nickKo(toID(s.species)) ? nickKo(toID(f.en)) : s.name, ability: f.ab.includes(s.ability) ? s.ability : f.ab[0], teraType: s.teraType && (sd.t.includes(s.teraType) ? f.t[0] : s.teraType), moves });
+						if (dropped.length) toast(`${f.n} 모습이 배울 수 없는 기술을 뺐어요: ${dropped.map(m => moveData(toID(m), gen)?.name || m).join(', ')}`);
 					}}>{formes.map(f => <option value={f.id}>{f.n}{cheat && (f.req || f.bo) ? ' (배틀 중 모습)' : ''}</option>)}</select></label>}
 				<label class="sel-row"><span>성별</span>
 					{sd.gr ? <b class="muted">{sd.gr === 'M' ? '♂ 수컷' : sd.gr === 'F' ? '♀ 암컷' : '성별 없음'}</b> :
