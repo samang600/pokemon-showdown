@@ -7,7 +7,8 @@ import { PickScreen, InfoScreen, SwapScreen, ChoiceScreen, BracketView } from '.
 import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, fitSetToMega, FACTORY_TIERS, type PSet } from './sets';
 import { NAMED, CUPS, REGIONS, regionLabel, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, namedTitle, type NamedTrainer } from './trainers';
 import { SPRITE_URL, trainerImgError } from './trainer-lines';
-import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
+import { loadTeams, loadSettings, saveSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
+import { BGM_CHOICES, playMusic, stopMusic } from './sound';
 import { ruleById } from './rules';
 import { rosterForRule } from './legends';
 import { aiPickEntry } from './smogon';
@@ -23,14 +24,20 @@ const fmtLabel = (f: Fmt) => ({ singles: '싱글 3vs3', doubles: '더블 4vs4', 
 const BACK = Symbol('back');
 
 /** 모드마다 고르는 추가 옵션 (체크박스) */
-export interface BattleOpts { cheat: boolean; level100: boolean; inverse: boolean; mono?: boolean }
-type OptKey = keyof BattleOpts;
+export interface BattleOpts { cheat: boolean; level100: boolean; inverse: boolean; mono?: boolean; /** 타워·팩토리 난이도 (없으면 보통) */ diff?: Diff }
+export type Diff = 'easy' | 'normal' | 'hard';
+const DIFF_LABEL: { [k in Diff]: string } = { easy: '쉬움', normal: '보통', hard: '어려움' };
+/** 난이도만큼 세트(7연승)를 당기거나 미룸: 쉬움 -2세트, 어려움 +3세트 */
+const diffShift = (o: BattleOpts) => o.diff === 'easy' ? -2 : o.diff === 'hard' ? 3 : 0;
+type OptKey = Exclude<keyof BattleOpts, 'diff'>;
 const defaultOpts = (): BattleOpts => ({ cheat: false, level100: false, inverse: false, mono: false });
 const lvl = (o: BattleOpts) => o.level100 ? 100 : 50;
 /** 치트·거꾸로 배틀은 전적·연승에 반영하지 않음 */
 const noRec = (o: BattleOpts) => o.cheat || o.inverse;
-const optsTag = (o: BattleOpts) => (o.cheat ? '-cheat' : '') + (o.level100 ? '-100' : '') + (o.inverse ? '-inv' : '') + (o.mono ? '-mono' : '');
-const optsLabel = (o: BattleOpts) => [o.cheat && '🃏 치트', o.level100 && '레벨 100', o.inverse && '🔄 거꾸로 배틀', o.mono && '🎨 타입 구애 도전'].filter(Boolean).join(' · ');
+const optsTag = (o: BattleOpts) => (o.cheat ? '-cheat' : '') + (o.level100 ? '-100' : '') + (o.inverse ? '-inv' : '') + (o.mono ? '-mono' : '') + (o.diff && o.diff !== 'normal' ? '-' + o.diff : '');
+/** 전적(최고 연승) 이름표: 난이도마다 따로 */
+const diffTag = (o: BattleOpts) => o.diff && o.diff !== 'normal' ? '-' + o.diff : '';
+const optsLabel = (o: BattleOpts) => [o.diff && o.diff !== 'normal' && `난이도 ${DIFF_LABEL[o.diff]}`, o.cheat && '🃏 치트', o.level100 && '레벨 100', o.inverse && '🔄 거꾸로 배틀', o.mono && '🎨 타입 구애 도전'].filter(Boolean).join(' · ');
 /** 안내 화면에 넣을 옵션 줄 (없으면 빈 배열) */
 const optsLines = (o: BattleOpts) => optsLabel(o) ? [`※ ${optsLabel(o)}${noRec(o) ? ' — 전적·연승에 반영되지 않습니다' : ''}`] : [];
 const OPT_INFO: { [k in OptKey]: { label: string; desc: string } } = {
@@ -39,9 +46,13 @@ const OPT_INFO: { [k in OptKey]: { label: string; desc: string } } = {
 	inverse: { label: '🔄 거꾸로 배틀', desc: '타입 상성이 반대로: 약점은 반감, 반감·무효는 2배. 전적·연승에 반영되지 않습니다.' },
 	mono: { label: '🎨 타입 구애 도전', desc: '특별 상대(네임드·타이쿤·헤드)를 뺀 모든 상대가 한 타입으로만 짠 팀(타입 구애팟)으로 나옵니다.' },
 };
-function OptsBox({ opts, show }: { opts: BattleOpts; show: OptKey[] }) {
+function OptsBox({ opts, show, diff }: { opts: BattleOpts; show: OptKey[]; diff?: boolean }) {
 	const [, force] = useState(0);
 	return <div class="opts-box">
+		{diff && <div class="set-row"><span>난이도</span><div class="seg">{(['easy', 'normal', 'hard'] as Diff[]).map(d =>
+			<button class={(opts.diff || 'normal') === d ? 'on' : ''} onClick={() => { opts.diff = d; force(x => x + 1); }}>{DIFF_LABEL[d]}</button>)}</div></div>}
+		{diff && <p class="muted small">{(opts.diff || 'normal') === 'easy' ? '쉬움: 처음 두 세트는 진화 전·중간 진화 포켓몬, 그 뒤도 보통보다 두 세트 늦게 강해지고 준전설도 늦게 나옵니다.'
+			: opts.diff === 'hard' ? '어려움: 처음부터 보통의 4세트 수준(준전설·기믹·강한 AI)으로 시작합니다.' : '보통: 세트(7연승)마다 차근차근 강해집니다.'} 난이도마다 기록과 도전이 따로 저장됩니다.</p>}
 		{show.map(k => <label class="check opt">
 			<input type="checkbox" checked={!!opts[k]} onChange={() => { opts[k] = !opts[k]; force(x => x + 1); }} />
 			<span><b>{OPT_INFO[k].label}</b><small>{OPT_INFO[k].desc}</small></span>
@@ -58,6 +69,15 @@ async function confirmQuit<T>(show: () => Promise<T>, quitValue: T, msg: string)
 	}
 }
 
+/** 배틀 음악 고르기 (설정의 배틀 음악과 같음) — 바꾸면 미리 들려줌 */
+function BgmRow() {
+	const [v, setV] = useState(loadSettings().battleBgm || 'random');
+	return <label class="sel-row"><span>배틀 음악</span><select value={v} onChange={e => {
+		const k = (e.target as HTMLSelectElement).value; saveSettings({ ...loadSettings(), battleBgm: k }); setV(k);
+		if (k !== 'random') { stopMusic(); setTimeout(() => playMusic(k), 0); }
+	}}>{BGM_CHOICES.map(([k, l]) => <option value={k}>{l}</option>)}</select></label>;
+}
+
 function battle(setup: BattleSetup): Promise<BattleResult> {
 	return ask<BattleResult>(resolve => <BattleView key={Math.random()} setup={setup} onEnd={r => { if (r.quit) abortMode(); resolve(r); }} />);
 }
@@ -65,9 +85,9 @@ function playerName() { return loadSettings().playerName || '플레이어'; }
 function playerSprite() { return loadSettings().playerSprite || 'lucas'; }
 function withLevel(team: PSet[], level: number) { return team.map(s => ({ ...cloneSet(s), level })); }
 
-async function chooseFormat(title: string, desc?: string, extended = false, opts?: BattleOpts, show: OptKey[] = ALL_OPTS, multi = false): Promise<Fmt | typeof BACK> {
+async function chooseFormat(title: string, desc?: string, extended = false, opts?: BattleOpts, show: OptKey[] = ALL_OPTS, multi = false, diff = false): Promise<Fmt | typeof BACK> {
 	return ask<Fmt | typeof BACK>(r => <ChoiceScreen title={title} onBack={() => r(BACK)}
-		intro={desc ? <p class="hint">{desc}</p> : undefined} footer={opts && <OptsBox opts={opts} show={show} />}
+		intro={desc ? <p class="hint">{desc}</p> : undefined} footer={opts && <><OptsBox opts={opts} show={show} diff={diff} /><BgmRow /></>}
 		options={[
 			{ value: 'singles' as Fmt, label: extended ? '싱글 3vs3' : '싱글배틀', desc: '1대1로 싸웁니다 · 3마리', icon: '①' },
 			{ value: 'doubles' as Fmt, label: extended ? '더블 4vs4' : '더블배틀', desc: '2마리씩 동시에 싸웁니다 · 4마리', icon: '②' },
@@ -127,10 +147,13 @@ function multiTeam(mine: PSet[], theirs: PSet[]) {
 
 // ───────────── 배틀타워 ─────────────
 const TOWER_KEY = (fmt: Fmt, o: BattleOpts) => `tower-${fmt}${optsTag(o)}`;
-interface TowerState { fmt: Fmt; team: PSet[]; streak: number; opts?: BattleOpts; partner?: { id: string; team: PSet[] } }
+interface TowerState { fmt: Fmt; team: PSet[]; streak: number; opts?: BattleOpts; partner?: { id: string; team: PSet[] }; /** 다음 승부 상대 (쉬었다 와도 같게) */ next?: { streak: number; opp: any } }
 
-function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = [], mono = false) {
-	const tier = Math.floor(streak / 7);
+function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = [], mono = false, diff: Diff = 'normal') {
+	const realTier = Math.floor(streak / 7);
+	// 난이도: 쉬움은 두 세트 늦게(처음 두 세트는 진화 전·중간 진화), 어려움은 세 세트 앞서서 시작
+	const tier = Math.max(0, realTier + (diff === 'easy' ? -2 : diff === 'hard' ? 3 : 0));
+	const early = diff === 'easy' && realTier < 2;
 	const n = teamSize(fmt);
 	const battleNo = streak + 1;
 	// 타이쿤: 21번째, 49번째
@@ -157,10 +180,14 @@ function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = [], mono =
 	const quality = Math.min(1, 0.2 + tier * 0.15); // 7연승마다 Smogon 상위 세트·동료 조합에 가까워짐
 	// 타입 구애 도전: 한 타입으로만 짠 팀 (그 타입에 종족값 범위 안 포켓몬이 모자라면 범위를 넓힘)
 	const mt = mono ? monoTypeFor(tr.types) : undefined;
-	let team = randomTeam({ gen: 9, size: n, minBst, maxBst, allowSubLegend: tier >= 3, ivs, doubles: isDoubles(fmt), types: mt ? [mt] : Math.random() < 0.6 ? tr.types : undefined, gimmicks: false, quality });
+	// 쉬움 초반: 세트 1 은 진화 전·중간 진화만(종족값 250~420), 세트 2 는 중간 진화 위주(330~480)
+	const nfe = early ? { stage: 'nfe' as const, minBst: realTier === 0 ? 250 : 330, maxBst: realTier === 0 ? 420 : 480 } : null;
+	let team = nfe ? randomTeam({ gen: 9, size: n, ...nfe, ivs: realTier === 0 ? 8 : 13, doubles: isDoubles(fmt), types: mt ? [mt] : Math.random() < 0.6 ? tr.types : undefined, gimmicks: false, quality: 0.1 })
+		: randomTeam({ gen: 9, size: n, minBst, maxBst, allowSubLegend: tier >= 3, ivs, doubles: isDoubles(fmt), types: mt ? [mt] : Math.random() < 0.6 ? tr.types : undefined, gimmicks: false, quality });
+	if (nfe && team.length < n) team = randomTeam({ gen: 9, size: n, ...nfe, ivs: 10, doubles: isDoubles(fmt), gimmicks: false, quality: 0.1 });
 	if (team.length < n) team = randomTeam({ gen: 9, size: n, ...(mt ? { minBst: minBst - 80 } : { minBst, maxBst }), allowSubLegend: tier >= 3, ivs, doubles: isDoubles(fmt), types: mt ? [mt] : undefined, gimmicks: false, quality });
-	team = dedupeItems(assignGimmicks(team, { mega: Math.min(1, 0.3 + tier * 0.15), z: Math.min(0.8, 0.2 + tier * 0.12) }));
-	const skill = Math.min(0.97, 0.55 + tier * 0.08);
+	team = dedupeItems(assignGimmicks(team, early ? { mega: 0, z: 0 } : { mega: Math.min(1, 0.3 + tier * 0.15), z: Math.min(0.8, 0.2 + tier * 0.12) }));
+	const skill = early ? 0.45 + realTier * 0.05 : Math.min(0.97, 0.55 + tier * 0.08);
 	// 5세트(28연승)부터 가끔 실제 랭크배틀 상위 트레이너의 팀(PokéDB)이 나옴
 	if (!mt && tier >= 4 && Math.random() < (tier >= 6 ? 0.5 : 0.3)) {
 		const rk = rankerTeam(isDoubles(fmt), 50, Math.min(1, 0.6 + tier * 0.05));
@@ -173,10 +200,10 @@ function towerOpponent(streak: number, fmt: Fmt, playerTeam: PSet[] = [], mono =
 }
 
 /** 멀티배틀 상대: 트레이너 두 명 (각 2마리) */
-function towerPair(streak: number, mono: boolean) {
-	const a: any = towerOpponent(streak, 'multi', [], mono);
-	let b: any = towerOpponent(streak, 'multi', [], mono);
-	for (let i = 0; i < 5 && b.name === a.name; i++) b = towerOpponent(streak, 'multi', [], mono);
+function towerPair(streak: number, mono: boolean, diff: Diff = 'normal') {
+	const a: any = towerOpponent(streak, 'multi', [], mono, diff);
+	let b: any = towerOpponent(streak, 'multi', [], mono, diff);
+	for (let i = 0; i < 5 && b.name === a.name; i++) b = towerOpponent(streak, 'multi', [], mono, diff);
 	const monoTypes = [a.mono, b.mono].filter(Boolean);
 	return { ...a, name: `${whoOf(a)} & ${whoOf(b)}`, title: '', team: [...a.team, ...b.team], skill: Math.max(a.skill, b.skill), special: a.special || b.special,
 		music: a.music || b.music, ranker: undefined, mono: monoTypes.length ? monoTypes.join('/') : undefined, monoLabel: monoTypes.length ? ` (${monoTypes.map(t => typeKo(t)).join('·')}타입 구애)` : '' };
@@ -184,7 +211,7 @@ function towerPair(streak: number, mono: boolean) {
 
 export async function runTower() {
 	const opts = defaultOpts();
-	const fmt = await chooseFormat('배틀타워', '레벨 50 · 7연승마다 1세트 · 기믹은 설정의 배틀 규칙을 따름', true, opts, [...ALL_OPTS, 'mono'], true);
+	const fmt = await chooseFormat('배틀타워', '레벨 50 · 7연승마다 1세트 · 기믹은 설정의 배틀 규칙을 따름', true, opts, [...ALL_OPTS, 'mono'], true, true);
 	if (fmt === BACK) return;
 	let state = load<TowerState | null>(TOWER_KEY(fmt, opts), null);
 	if (state) {
@@ -212,13 +239,16 @@ export async function runTower() {
 		state = { fmt, team: dedupeItems(picked.map(cloneSet)), streak: 0, opts, partner };
 		save(TOWER_KEY(fmt, opts), state);
 	}
-	const key = `tower-${fmt}`;
+	const key = `tower-${fmt}${diffTag(opts)}`;
 	while (true) {
-		const opp: any = fmt === 'multi' ? towerPair(state.streak, !!opts.mono) : towerOpponent(state.streak, fmt, state.team, !!opts.mono);
+		// 같은 승부의 상대는 저장해 둠: 쉬었다 와도(앱을 껐다 켜도) 같은 트레이너·팀
+		const opp: any = state.next?.streak === state.streak ? state.next.opp
+			: fmt === 'multi' ? towerPair(state.streak, !!opts.mono, opts.diff) : towerOpponent(state.streak, fmt, state.team, !!opts.mono, opts.diff);
+		if (state.next?.streak !== state.streak) { state.next = { streak: state.streak, opp }; save(TOWER_KEY(fmt, opts), state); }
 		const partnerT = state.partner ? namedById(state.partner.id) : null;
 		opp.team = withLevel(opp.team, lvl(opts));
 		const go = await confirmQuit(() => ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title={`배틀타워 · ${fmtLabel(fmt)}`}
-			banner={`${state!.streak + 1}번째 승부`}
+			banner={`${state!.streak + 1}번째 승부`} children={<BgmRow />}
 			heading={opp.boss ? `⚠ 타워 타이쿤 등장! (${opp.boss}의 심볼)` : (opp as any).special ? `★ 특별 트레이너! ${whoOf(opp)}${josa(opp.name)} 나타났다!` : `${whoOf(opp)}${josa(opp.name)} 승부를 걸어왔다!${opp.monoLabel ?? monoTag(opp.mono)}`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 세트 ${Math.floor(state!.streak / 7) + 1} - ${state!.streak % 7 + 1}번째`, ...(partnerT ? [`파트너: ${partnerT.title} ${partnerT.name}`] : []), ...(opp.ranker ? [`★ 상위 랭커 (${opp.ranker})`] : []), ...optsLines(opts)]}
 			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
@@ -236,6 +266,7 @@ export async function runTower() {
 			p1: { name: playerName(), team: state.partner ? multiTeam(myEntry, state.partner.team).team : myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 			partner: partnerT && state.partner ? { name: partnerT.name, theirs: multiTeam(myEntry, state.partner.team).flags, skill: 0.9 } : undefined,
 		});
+		state.next = undefined;
 		if (res.win) {
 			state.streak++;
 			const s = state.streak;
@@ -273,7 +304,7 @@ export async function runTower() {
 }
 
 // ───────────── 배틀팩토리 ─────────────
-interface FactoryState { fmt: Fmt; level: 50 | 100; team: PSet[]; streak: number }
+interface FactoryState { fmt: Fmt; level: 50 | 100; team: PSet[]; streak: number; /** 다음 승부 상대 (쉬었다 와도 같게) */ next?: { streak: number; tr: any; mt?: string; oppTeam: PSet[]; hint: string } }
 const FACTORY_KEY = (fmt: Fmt, lv: number, o: BattleOpts) => `factory-${fmt}-${lv}${optsTag(o)}`;
 
 /** 세트(7연승)마다 렌탈 등급: PU → NU → RU → UU → OU → OU+Uber 절반 → Uber 위주 */
@@ -298,7 +329,9 @@ function factoryPool(streak: number, level: number, size: number, exclude?: Set<
 
 export async function runFactory() {
 	const opts = defaultOpts();
-	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈', true, opts, ['inverse', 'mono']);
+	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈', true, opts, ['inverse', 'mono'], false, true);
+	/** 난이도에 따라 렌탈·상대의 세트 수준을 당기거나 미룸 */
+	const es = (s: number) => Math.max(0, s + diffShift(opts) * 7);
 	if (fmt === BACK) return;
 	const level = await ask<50 | 100 | typeof BACK>(r => <ChoiceScreen title="배틀팩토리 · 레벨" onBack={() => r(BACK)} options={[
 		{ value: 50 as const, label: '레벨 50', desc: '모든 포켓몬 레벨 50', icon: '50' },
@@ -306,7 +339,7 @@ export async function runFactory() {
 	]} onPick={r} />);
 	if (level === BACK) return;
 	const n = teamSize(fmt);
-	const key = `factory-${fmt}-${level}`;
+	const key = `factory-${fmt}-${level}${diffTag(opts)}`;
 	let state = load<FactoryState | null>(FACTORY_KEY(fmt, level, opts), null);
 	if (state) {
 		const v = await ask<'resume' | 'new'>(r => <InfoScreen title="배틀팩토리" heading={`${state!.streak}연승 중인 도전이 있습니다`}
@@ -315,8 +348,8 @@ export async function runFactory() {
 		if (v === 'new') state = null;
 	}
 	const rentalRound = async (streak: number) => {
-		const rentals = factoryPool(streak, level, n === 6 ? 8 : 6);
-		return ask<PSet[]>(r => <PickScreen title={`렌탈 포켓몬 선택 · ${factoryGrade(streak)} 등급`} team={rentals} gen={9} count={n}
+		const rentals = factoryPool(es(streak), level, n === 6 ? 8 : 6);
+		return ask<PSet[]>(r => <PickScreen title={`렌탈 포켓몬 선택 · ${factoryGrade(es(streak))} 등급`} team={rentals} gen={9} count={n}
 			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다. (세트가 오를수록 더 강한 등급에서 빌려 줍니다)`} onDone={r} />);
 	};
 	if (!state) {
@@ -340,16 +373,19 @@ export async function runFactory() {
 	while (true) {
 		const no = state.streak + 1;
 		const isHead = head(no);
-		const tr = randomTrainer();
+		// 같은 승부의 상대는 저장해 둠: 쉬었다 와도 같은 트레이너·팀·직원 힌트
+		const saved = state.next?.streak === state.streak ? state.next : null;
+		const tr = saved ? saved.tr : randomTrainer();
 		// 타입 구애 도전: 일반 상대는 한 타입 팀
-		const mt = opts.mono && !isHead ? monoTypeFor(tr.types) : undefined;
-		const oppTeam = isHead ? factoryTeam(no === 49 ? 'Uber' : 'OU', n, level) : factoryPool(state.streak, level, n, undefined, mt);
-		const hint = staffHint(state.streak, oppTeam);
-		const skill = Math.min(0.92, 0.5 + Math.floor(state.streak / 7) * 0.1);
+		const mt = saved ? saved.mt : opts.mono && !isHead ? monoTypeFor(tr.types) : undefined;
+		const oppTeam: PSet[] = saved ? saved.oppTeam : isHead ? factoryTeam(no === 49 ? 'Uber' : 'OU', n, level) : factoryPool(es(state.streak), level, n, undefined, mt);
+		const hint: string = saved ? saved.hint : staffHint(state.streak, oppTeam);
+		if (!saved) { state.next = { streak: state.streak, tr, mt, oppTeam, hint }; save(FACTORY_KEY(fmt, level, opts), state); }
+		const skill = Math.min(0.92, 0.5 + Math.floor(es(state.streak) / 7) * 0.1);
 		const opp = isHead ? { name: '팩토리 헤드', title: '', skill: 0.97, line: '지식과 운, 둘 다 시험해 보자고!', sprite: 'thorton', lines: { ace: '계산대로라면 여기서 역전이야!', lose: '내 계산이 틀렸다니… 대단한데!', win: '데이터는 거짓말을 안 하거든.' } } :
 			{ name: tr.name, title: tr.className, skill, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines };
 		const monoLabel = monoTag(mt);
-		const go = await confirmQuit(() => ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title="배틀팩토리" banner={`${no}번째 승부`}
+		const go = await confirmQuit(() => ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title="배틀팩토리" banner={`${no}번째 승부`} children={<BgmRow />}
 			heading={isHead ? '⚠ 팩토리 헤드 등장!' : `${whoOf(opp)}${josa(opp.name)} 승부를 걸어왔다!${monoLabel}`} trainer={opp.sprite}
 			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, hint, ...optsLines(opts)]}
 			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
@@ -365,6 +401,7 @@ export async function runFactory() {
 			gen: 9, doubles: isDoubles(fmt), aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`, noRecord: noRec(opts), inverse: opts.inverse,
 			p1: { name: playerName(), team: myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
+		state.next = undefined;
 		if (!res.win) {
 			const s = state.streak;
 			remove(FACTORY_KEY(fmt, level, opts));
@@ -378,7 +415,7 @@ export async function runFactory() {
 		if (!noRec(opts)) updateRecords(r => { r.current[key] = s; r.best[key] = Math.max(r.best[key] || 0, s); });
 		if (s % 7 === 0) {
 			await ask<void>(r => <InfoScreen title="배틀팩토리" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
-				lines={['빌린 포켓몬을 모두 반납하고, 새 렌탈 포켓몬을 처음부터 다시 고릅니다.', `다음 세트 렌탈 등급: ${factoryGrade(s)}${factoryGrade(s) !== factoryGrade(s - 1) ? ' (등급 상승!)' : ''}`]} actions={[{ label: '새로 빌리기', onClick: () => r() }]} />);
+				lines={['빌린 포켓몬을 모두 반납하고, 새 렌탈 포켓몬을 처음부터 다시 고릅니다.', `다음 세트 렌탈 등급: ${factoryGrade(es(s))}${factoryGrade(es(s)) !== factoryGrade(es(s - 1)) ? ' (등급 상승!)' : ''}`]} actions={[{ label: '새로 빌리기', onClick: () => r() }]} />);
 			state.team = await rentalRound(s);
 		} else {
 			const swap = await ask<{ give: number; take: number } | null>(r => <SwapScreen mine={state!.team} theirs={oppTeam} gen={9} onDone={r} />);
@@ -547,7 +584,7 @@ export async function runNamed() {
 			if (t === BACK) break;
 			const opts = defaultOpts();
 			const mode = await ask<'s3' | 's6' | 'd4' | 'd6' | typeof BACK>(r => <ChoiceScreen title={`${t.name} · 규칙`} onBack={() => r(BACK)}
-				intro={<p class="hint">“{t.line}”</p>} footer={<OptsBox opts={opts} show={ALL_OPTS} />}
+				intro={<p class="hint">“{t.line}”</p>} footer={<><OptsBox opts={opts} show={ALL_OPTS} /><BgmRow /></>}
 				options={[
 					{ value: 's3' as const, label: '싱글 3vs3', desc: '6마리 중 3마리 선택', icon: '①' },
 					{ value: 's6' as const, label: '싱글 6vs6 (풀배틀)', desc: '전원 참가', icon: '⑥' },

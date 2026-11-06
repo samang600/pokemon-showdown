@@ -253,7 +253,7 @@ export function randomSetFor(speciesId: string, gen: Gen, level = 50, doubles = 
 }
 
 export interface PoolOptions {
-	gen: Gen; minBst?: number; maxBst?: number; allowSubLegend?: boolean; types?: string[]; exclude?: Set<string>;
+	gen: Gen; minBst?: number; maxBst?: number; allowSubLegend?: boolean; types?: string[]; exclude?: Set<string>; /** nfe: 진화 전·중간 진화만 */ stage?: 'nfe';
 	/** 전설·환상(restricted/mythical)도 포함 (규칙이 허용할 때만) / legendOnly: 전설·환상만 */
 	allowLegend?: boolean; legendOnly?: boolean;
 }
@@ -272,7 +272,8 @@ export function speciesPool(o: PoolOptions): string[] {
 	for (const id in RAW.species) {
 		const s = speciesData(id, o.gen);
 		if (!s || !RAW.species[id].g[o.gen]) continue;
-		if (!s.fe || s.bo || BANNED_POOL.has(id) || o.exclude?.has(id)) continue;
+		// stage 'nfe': 진화 전·중간 진화만 (쉬움 난이도 초반), 아니면 최종 진화만
+		if ((o.stage === 'nfe' ? s.fe : !s.fe) || s.bo || BANNED_POOL.has(id) || o.exclude?.has(id)) continue;
 		const legend = !!s.tags?.some(t => t === 'Restricted Legendary' || t === 'Mythical');
 		if (o.legendOnly ? !legend : (legend && !o.allowLegend && !rule.legendTeams)) continue;
 		if (!speciesAllowed(rule, id)) continue;
