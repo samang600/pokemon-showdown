@@ -5,7 +5,7 @@ import sys, urllib.parse
 
 def profile(r):
     # 위에서부터 줄마다 왼쪽에서 비우는 픽셀 수 (원에 가까운 계단)
-    return {6: [6, 4, 3, 2, 1, 1], 4: [4, 2, 1, 1], 3: [3, 1, 1], 2: [2, 1]}[r]
+    return {6: [6, 4, 3, 2, 1, 1], 4: [4, 2, 1, 1], 3: [3, 1, 1], 2: [2, 1], 1: [1]}[r]
 
 def ring_svg(r, outer, inner, K):
     n = 2 * K + 1
@@ -40,6 +40,22 @@ def clip(r, P):
     out += [pt(dx, dy, False, True) for dx, dy in reversed(tl)]           # 왼쪽 아래
     return 'polygon(' + ', '.join(out) + ')'
 
+def clip_side(r, P, round_right):
+    """한쪽 변만 계단 모서리, 반대쪽(화면 가장자리에 붙는 쪽)은 직각으로 열린 다각형"""
+    prof = profile(r); L = len(prof)
+    tl = [(0, L)]
+    for k in reversed(range(L)):
+        tl += [(prof[k], k + 1), (prof[k], k)]
+    def pt(dx, dy, right, bottom):
+        X = f'calc(100% - {dx * P}px)' if right else f'{dx * P}px'
+        Y = f'calc(100% - {dy * P}px)' if bottom else f'{dy * P}px'
+        return f'{X} {Y}'
+    if round_right:
+        out = ['0px 0px'] + [pt(dx, dy, True, False) for dx, dy in reversed(tl)] + [pt(dx, dy, True, True) for dx, dy in tl] + ['0px 100%']
+    else:
+        out = [pt(dx, dy, False, False) for dx, dy in tl] + ['100% 0px', '100% 100%'] + [pt(dx, dy, False, True) for dx, dy in reversed(tl)]
+    return 'polygon(' + ', '.join(out) + ')'
+
 P = 2  # 도트 한 칸 = 2px
 css = []
 css.append('/* ═════ 도트 계단식 둥근 테두리 (scripts/pixring.py 로 생성): 진한 외곽선 1칸 + 흰 테두리 1칸, 모서리는 픽셀 계단 ═════ */')
@@ -54,8 +70,11 @@ for k, (o, i) in rings.items():
 css.append(f'\t--ring-s: {ring_svg(2, "#000000", "#9aa6bc", K2)};')
 css.append(f'\t--ring-i2: {ring_svg(2, "#0a0d12", "#f4f6fa", K2)};')
 css.append(f'\t--ring-i4: {ring_svg(4, "#0a0d12", "#f4f6fa", 5)};')  # HP 상자: 반지름 4칸
+css.append(f'\t--ring-hp: {ring_svg(1, "#0a0d12", "#f4f6fa", 2)};')  # HP 바 틀: 모서리 한 칸 깎음
 css.append(f'\t--clip4: {clip(6, P)};')
 css.append(f'\t--clip2: {clip(2, P)};')
 css.append(f'\t--clip3: {clip(4, P)};')
+css.append(f'\t--clip3r: {clip_side(4, P, True)};')   # 오른쪽만 둥근 (왼쪽 가장자리에 붙는 띠)
+css.append(f'\t--clip3l: {clip_side(4, P, False)};')  # 왼쪽만 둥근
 css.append('}')
 print('\n'.join(css))

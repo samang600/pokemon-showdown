@@ -1,6 +1,6 @@
 /** 공용 UI 조각과 화면 전환 도우미 */
 import { h, render, type ComponentChildren, type VNode } from 'preact';
-import { useState } from 'preact/hooks';
+import { useState, useRef, useLayoutEffect } from 'preact/hooks';
 import { spriteId, typeKo, speciesData, toID, RAW, type Gen } from '../data';
 import { loadSettings } from '../store';
 import { partBase } from '../offline';
@@ -182,7 +182,19 @@ export function StatusBadge({ status }: { status?: string }) {
 }
 
 export function Modal({ onClose, children, title }: { onClose: () => void; children: ComponentChildren; title?: string }) {
-	return <div class="modal-bg" onClick={onClose}>
+	// 닫힐 때도 열릴 때처럼 짧게 줄어들며 사라지게: 어디서 닫든(닫기 버튼·바깥 누름·상태 변경) 사라지기 직전 모습을 복사해 남겨 둠
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const el = ref.current, parent = el?.parentNode;
+		return () => {
+			if (!el || !parent || !(parent as Node).isConnected) return;
+			const ghost = el.cloneNode(true) as HTMLElement;
+			ghost.classList.add('closing');
+			parent.appendChild(ghost);
+			setTimeout(() => ghost.remove(), 120);
+		};
+	}, []);
+	return <div class="modal-bg" ref={ref} onClick={onClose}>
 		<div class="modal" onClick={e => e.stopPropagation()}>
 			{title && <div class="modal-title"><b>{title}</b><button class="icon-btn" onClick={onClose} aria-label="닫기">×</button></div>}
 			<div class="modal-body">{children}</div>

@@ -4,7 +4,7 @@
  * 연출 원형(primitive): beam · bolt · projectile · stream · slash · punch · quake · wave · rain · vortex · ring ·
  *   powder · notes · shield · drain · bite · crescent · throw · sparkle
  * pickAnim() 이 기술 id·타입·분류·플래그를 보고 원형을 조합한다.
- * 볼 등장 효과만 pixelfx(MIT, src/vendor/pixelfx)의 코드로 그린 도트 효과를 쓴다.
+ * 러브러브볼 등장의 하트만 pixelfx(MIT, src/vendor/pixelfx) 효과를 쓴다.
  */
 import { TYPE_COLOR } from './ui/core';
 import * as PX from './vendor/pixelfx/balls.js';
@@ -452,41 +452,70 @@ export function ballOut(layer: HTMLElement, from: Pt, to: Pt, s: number, ballId 
 	return dur;
 }
 
-/* ───── 볼이 열릴 때의 도트 이펙트 (pixelfx, MIT — src/vendor/pixelfx) ─────
- * 모든 볼: 볼 색으로 칠한 '빛 터짐'(collect-burst) + 볼 컨셉별 덧붙임 효과.
- * 기존 기술 연출처럼 50ms(20fps) 한 칸씩, 도트 크기 = 배틀 화면 배율 × 0.85. */
-type BallFx = { fx: string; back?: boolean; pal?: string | string[]; t0?: number; len: number; dy: number; delay?: number; opts?: { [k: string]: any } };
+/* ───── 볼이 열릴 때의 도트 이펙트 ─────
+ * 가운데서 번쩍 → 고리 하나와 입자들이 가장자리로 퍼지며 사라짐 (볼 색). 50ms(20fps) 한 칸씩, 도트 크기 = 배율 × 0.85.
+ * 상징이 뚜렷한 볼만 모양을 바꿈: 러브러브볼=하트(pixelfx 하트 + 하트 입자), 문볼=별 입자. */
+const SHAPES: { [k: string]: string[] } = {
+	sq: ['11', '11'],
+	heart: ['0101', '1111', '1111', '0110'],
+	star: ['010', '111', '010'],
+};
+const BALL_SHAPE: { [id: string]: string } = { loveball: 'heart', moonball: 'star' };
+export function ballBurst(layer: HTMLElement, at: Pt, s: number, ballId = 'pokeball') {
+	const st = BALL_STYLE[ballId] || BALL_STYLE.pokeball;
+	const base = st[0] === '#f8f8f8' || st[0] === '#1a1a1a' ? st[3] : st[0];
+	ballPop(layer, at, s, base, st[2], st[3], SHAPES[BALL_SHAPE[ballId] || 'sq']);
+	if (ballId === 'loveball') pixelFx(layer, at, s, { fx: 'heartPickup', len: .5, dy: 20 });
+}
+function ballPop(layer: HTMLElement, at: Pt, s: number, base: string, light: string, part: string, shape: string[]) {
+	const W = 96, C = W / 2, k = s * 0.85, FR = 11;
+	const cv = document.createElement('canvas');
+	cv.width = W; cv.height = W; cv.className = 'fxp pxfx';
+	cv.style.cssText = `left:${Math.round(at.x - C * k)}px;top:${Math.round(at.y - C * k)}px;width:${Math.round(W * k)}px;height:${Math.round(W * k)}px;`;
+	const g = cv.getContext('2d'); if (!g) return;
+	const dot = (x: number, y: number, w: number, col: string) => { g.fillStyle = col; g.fillRect(Math.round(x - w / 2), Math.round(y - w / 2), w, w); };
+	const stamp = (x: number, y: number, col: string) => {
+		g.fillStyle = col; const h = shape.length, w = shape[0].length, x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2);
+		shape.forEach((row, j) => { for (let i = 0; i < w; i++) if (row[i] === '1') g.fillRect(x0 + i, y0 + j, 1, 1); });
+	};
+	const N = 10, out = (u: number) => 1 - (1 - u) * (1 - u);
+	let f = 0, timer = 0;
+	const tick = () => {
+		if (f > FR) { clearInterval(timer); cv.remove(); return; }
+		const u = f / FR;
+		g.clearRect(0, 0, W, W);
+		// 가운데 번쩍 (처음 두 칸)
+		if (f === 0) { dot(C, C, 8, '#fff'); dot(C, C, 2, light); g.fillStyle = '#fff'; g.fillRect(C - 12, C - 1, 24, 2); g.fillRect(C - 1, C - 12, 2, 24); }
+		else if (f === 1) dot(C, C, 4, light);
+		// 고리: 점선 원이 퍼지며 옅어짐
+		if (f >= 1 && f <= 8) {
+			const r = 6 + 30 * out(u), n = 28;
+			g.globalAlpha = f > 5 ? 0.5 : 1;
+			for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; if (f > 5 && i % 2) continue; dot(C + Math.cos(a) * r, C + Math.sin(a) * r, 2, f < 4 ? light : base); }
+			g.globalAlpha = 1;
+		}
+		// 입자: 가장자리로 날아가며 작아지고 사라짐
+		if (f >= 1 && f <= 10) {
+			const d = 4 + 40 * out(u);
+			for (let i = 0; i < N; i++) {
+				const a = (i / N) * Math.PI * 2 + 0.3, x = C + Math.cos(a) * d, y = C + Math.sin(a) * d, col = i % 2 ? part : base;
+				if (u > 0.75 && (i + f) % 2) continue;
+				if (u < 0.6) stamp(x, y, col); else dot(x, y, 1, col);
+			}
+		}
+		f++;
+	};
+	later(() => { layer.appendChild(cv); tick(); timer = window.setInterval(tick, 50 / SPEED); }, 0);
+}
+type BallFx = { fx: string; pal?: string | string[]; t0?: number; len: number; dy: number; delay?: number; opts?: { [k: string]: any } };
 const shade = (hex: string, k: number, to: number) => {
 	const n = parseInt(hex.slice(1).replace(/^(.)(.)(.)$/, '$1$1$2$2$3$3'), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v + (to - v) * k));
 	return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
 };
 /** 한 색에서 어둠→색→흰색 8단 색 띠 */
 const rampOf = (hex: string) => [shade(hex, .85, 0), shade(hex, .7, 0), shade(hex, .5, 0), shade(hex, .3, 0), shade(hex, .12, 0), hex, shade(hex, .5, 255), '#ffffff'];
-const BALL_FX: { [id: string]: BallFx[] } = {
-	masterball: [{ fx: 'manaBurst', pal: '#b050ff', t0: .12, len: .9, dy: 26 }],
-	ultraball: [{ fx: 'powerStar', len: .7, dy: 34, delay: .05 }], levelball: [{ fx: 'powerStar', len: .7, dy: 34, delay: .05 }],
-	moonball: [{ fx: 'starFall', pal: '#f8d030', t0: .3, len: 1, dy: 30 }],
-	timerball: [{ fx: 'timeStop', pal: '#ff5050', t0: .35, len: .9, dy: 50, back: true }],
-	luxuryball: [{ fx: 'sunburst', len: .8, dy: 0 }],
-	duskball: [{ fx: 'eclipse', pal: '#50d060', len: .8, dy: 0, back: true }],
-	beastball: [{ fx: 'voidOrb', pal: '#4070ff', len: .9, dy: 70, back: true }], strangeball: [{ fx: 'voidOrb', pal: '#ff70ff', len: .9, dy: 70, back: true }],
-	diveball: [{ fx: 'splash', t0: .15, len: .9, dy: 30, opts: { stone: false } }], lureball: [{ fx: 'splash', t0: .15, len: .9, dy: 30, opts: { stone: false } }],
-	netball: [{ fx: 'splash', t0: .15, len: .7, dy: 30, opts: { stone: false } }],
-	quickball: [{ fx: 'zapHit', pal: '#f8e040', len: .6, dy: 0 }], fastball: [{ fx: 'zapHit', pal: '#ffa030', len: .6, dy: 0 }],
-	loveball: [{ fx: 'heartPickup', len: .8, dy: 20 }],
-	healball: [{ fx: 'healingBloom', t0: .7, len: 1, dy: 30 }], friendball: [{ fx: 'healingBloom', t0: .5, len: .9, dy: 30 }], nestball: [{ fx: 'healingBloom', t0: .5, len: .9, dy: 30 }],
-	premierball: [{ fx: 'confetti', t0: .2, len: 1.1, dy: 30 }], cherishball: [{ fx: 'confetti', t0: .2, len: 1.1, dy: 30 }],
-	dreamball: [{ fx: 'poof', pal: '#ff9ae0', len: .9, dy: 30 }], heavyball: [{ fx: 'poof', pal: '#9aa8c8', len: .9, dy: 30 }],
-};
-export function ballBurst(layer: HTMLElement, at: Pt, s: number, ballId = 'pokeball') {
-	const st = BALL_STYLE[ballId] || BALL_STYLE.pokeball;
-	const base = st[0] === '#f8f8f8' || st[0] === '#1a1a1a' ? st[3] : st[0];
-	pixelFx(layer, at, s, { fx: 'collectBurst', pal: rampOf(base), len: 1, dy: 30 });
-	// 가운데가 어두운 효과(일식·블랙홀·시계)는 포켓몬 뒤(기술 배경 층)에 그려 포켓몬을 가리지 않게
-	const back = (layer.parentElement?.querySelector('.anim-bg-layer') as HTMLElement | null) || layer;
-	for (const f of BALL_FX[ballId] || []) pixelFx(f.back ? back : layer, at, s, f);
-}
 const STEP = 0.05;
+/** pixelfx 효과 하나를 캔버스에 50ms 한 칸씩 그림 */
 function pixelFx(layer: HTMLElement, at: Pt, s: number, f: BallFx) {
 	const mod = PX.EFFECTS[f.fx]; if (!mod) return;
 	const [w, h] = mod.meta.size, [ox, oy] = mod.meta.origin, k = s * 0.85;
@@ -501,7 +530,6 @@ function pixelFx(layer: HTMLElement, at: Pt, s: number, f: BallFx) {
 	const img = ctx.createImageData(w, h);
 	let played = 0, timer = 0;
 	const tick = () => {
-		if (!cv.isConnected && played > 0) { clearInterval(timer); return; }
 		fx.update(STEP); played += STEP;
 		if (played >= f.len) fx.stop();
 		if (fx.done() || played > f.len + 0.6) { clearInterval(timer); cv.remove(); return; }

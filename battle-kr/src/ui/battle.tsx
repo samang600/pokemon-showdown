@@ -125,6 +125,29 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 	const [gimmick, setGimmick] = useState('');
 	const arenaRef = useRef<HTMLDivElement | null>(null);
 	const [scale, setScale] = useState(1.5);
+	// PC 키보드: 숫자 1~6 = 버튼 고르기(기술·교체·대상), Enter/Space = 싸운다·메시지 넘기기, Esc/Backspace = 뒤로·창 닫기
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement)?.closest?.('input, textarea, select')) return;
+			const modal = document.querySelector('.modal-bg:not(.closing)') as HTMLElement | null;
+			if (modal) { if (e.key === 'Escape') { modal.click(); e.preventDefault(); } return; }
+			const ctl = document.querySelector('.battle .controls') as HTMLElement | null;
+			const pick = (sel: string, n: number) => { const el = ctl?.querySelectorAll<HTMLButtonElement>(sel)[n]; if (el && !el.disabled) { el.click(); return true; } return false; };
+			let done = false;
+			if (/^[1-6]$/.test(e.key) && ctl) {
+				const n = +e.key - 1;
+				done = pick('.move-grid .mvb', n) || pick('.switch-list .switch-btn', n) || pick('.target-grid2 .tcard.on', n) || (n === 0 && pick('.cmd-fight', 0));
+			} else if (e.key === 'Enter' || e.key === ' ') {
+				done = pick('.cmd-fight', 0);
+				if (!done && skipRef.current) { skipRef.current(); done = true; }
+			} else if (e.key === 'Escape' || e.key === 'Backspace') {
+				done = pick('.ctl-back', 0);
+			}
+			if (done) e.preventDefault();
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, []);
 	useEffect(() => {
 		const el = arenaRef.current;
 		if (!el) return;
