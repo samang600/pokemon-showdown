@@ -6,6 +6,7 @@ import { BattleView } from './ui/battle';
 import { TeamList, TeamEditor } from './ui/teambuilder';
 import { CalcScreen } from './ui/calc';
 import { runTower, runFactory, runPWT, runNamed, runFree, runRank, rankTier } from './modes';
+import { exportBackup, inspectBackup, importBackup } from './store';
 import { loadRecords, loadSettings, saveSettings, load, remove, loadReplays, deleteReplay, type Settings, type SavedReplay } from './store';
 import { RULES, ruleById } from './rules';
 import { packStatus, refreshPack, onPackProgress, startPackDownload, deletePack, hasNative, fmtBytes, BUNDLED, type PackProgress } from './offline';
@@ -138,6 +139,48 @@ function OfflinePack() {
 	</div>;
 }
 
+// ── 데이터 백업: 안드로이드 앱은 시스템 파일 저장·열기 화면, 브라우저는 내려받기·파일 고르기 ──
+const backupName = () => `battle-kr-backup-${new Date().toISOString().slice(0, 10)}.json`;
+function backupSave() {
+	const text = exportBackup();
+	const nat = (window as any).BattleSimNative;
+	if (nat?.saveBackup) {
+		(window as any).__backupSaved = (r: string) => toast(r === 'ok' ? '백업 파일을 저장했습니다.' : r === 'cancel' ? '저장을 취소했습니다.' : '저장하지 못했습니다.');
+		nat.saveBackup(backupName(), text);
+		return;
+	}
+	try {
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+		a.download = backupName();
+		document.body.appendChild(a); a.click(); a.remove();
+		setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+		toast('백업 파일을 내려받았습니다.');
+	} catch { toast('저장하지 못했습니다.'); }
+}
+async function restoreFrom(text: string) {
+	if (!text) return;
+	const info = inspectBackup(text);
+	if (!info) { toast('이 앱의 백업 파일이 아닙니다.'); return; }
+	const when = info.at ? new Date(info.at).toLocaleString('ko-KR') : '알 수 없음';
+	if (!(await confirmBox('백업 불러오기', `${when}에 만든 백업입니다 (팀 ${info.teams}개 · 리플레이 ${info.replays}개).\n지금 데이터는 모두 이 백업으로 바뀝니다. 불러올까요?`, '불러오기', '취소'))) return;
+	if (!importBackup(text)) { toast('불러오지 못했습니다.'); return; }
+	toast('불러왔습니다. 다시 시작합니다…');
+	setTimeout(() => location.reload(), 600);
+}
+function backupLoad() {
+	const nat = (window as any).BattleSimNative;
+	if (nat?.openBackup) {
+		(window as any).__backupLoaded = (text: string) => { void restoreFrom(text); };
+		nat.openBackup();
+		return;
+	}
+	const inp = document.createElement('input');
+	inp.type = 'file'; inp.accept = '.json,application/json';
+	inp.onchange = async () => { const f = inp.files?.[0]; if (f) void restoreFrom(await f.text()); };
+	inp.click();
+}
+
 function SettingsScreen({ onBack }: { onBack: () => void }) {
 	const [s, setS] = useState<Settings>(loadSettings());
 	const up = (p: Partial<Settings>) => { const n = { ...s, ...p }; setS(n); saveSettings(n); };
@@ -167,6 +210,12 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 			if (!(await confirmBox('전적 초기화', '연승 기록·대회 우승·네임드 승리·랭크 포인트·승패 기록을 모두 지웁니다.\n(팀·리플레이·설정은 그대로입니다) 정말 지울까요?', '모두 지우기', '취소'))) return;
 			remove('records'); toast('전적을 초기화했습니다.');
 		}}>전적 초기화</button></div>
+		<h3 class="sec">데이터 백업</h3>
+		<div class="seg">
+			<button onClick={() => backupSave()}>파일로 내보내기</button>
+			<button onClick={() => backupLoad()}>파일에서 불러오기</button>
+		</div>
+		<p class="muted small">팀·전적·리플레이·설정·진행 중인 연승 도전을 파일 하나로 저장합니다. 앱을 지우거나 폰을 바꿀 때 내보내 두었다가 불러오세요. (오프라인 그림 데이터는 다시 받으면 됩니다)</p>
 		<h3 class="sec">창틀 디자인</h3>
 		<div class="seg">{([['stone', '블루'], ['silver', '레드'], ['dark', '블랙']] as const).map(([k, l]) => <button class={s.frame === k ? 'on' : ''} onClick={() => { up({ frame: k }); applyTheme({ ...s, frame: k }); }}>{l}</button>)}</div>
 		<h3 class="sec">메뉴 배경</h3>

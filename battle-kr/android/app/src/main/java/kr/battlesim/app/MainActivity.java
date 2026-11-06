@@ -1,6 +1,8 @@
 package kr.battlesim.app;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowInsets;
@@ -26,8 +28,66 @@ public class MainActivity extends Activity {
     private WebView web;
     private volatile boolean downloading = false;
 
+    // ── 데이터 백업: 시스템의 파일 저장·열기 화면(저장소 접근 프레임워크, 권한 불필요) ──
+    private static final int REQ_SAVE = 41, REQ_OPEN = 42;
+    private String pendingBackup = null;
+
+    private void backupCallback(String fn, String arg) {
+        final String js = "window." + fn + " && window." + fn + "(" + org.json.JSONObject.quote(arg) + ")";
+        runOnUiThread(() -> web.evaluateJavascript(js, null));
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_SAVE && requestCode != REQ_OPEN) return;
+        Uri uri = data != null ? data.getData() : null;
+        if (resultCode != RESULT_OK || uri == null) { backupCallback(requestCode == REQ_SAVE ? "__backupSaved" : "__backupLoaded", requestCode == REQ_SAVE ? "cancel" : ""); return; }
+        if (requestCode == REQ_SAVE) {
+            final String text = pendingBackup; pendingBackup = null;
+            new Thread(() -> {
+                try (java.io.OutputStream out = getContentResolver().openOutputStream(uri, "wt")) {
+                    out.write((text == null ? "" : text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    backupCallback("__backupSaved", "ok");
+                } catch (Exception e) { backupCallback("__backupSaved", "error"); }
+            }).start();
+        } else {
+            new Thread(() -> {
+                try (InputStream in = getContentResolver().openInputStream(uri)) {
+                    java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                    byte[] b = new byte[16384]; int n;
+                    while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                    backupCallback("__backupLoaded", buf.toString("UTF-8"));
+                } catch (Exception e) { backupCallback("__backupLoaded", ""); }
+            }).start();
+        }
+    }
+
     /** 웹앱에서 쓰는 네이티브 기능 (window.BattleSimNative) */
     public class Native {
+        /** 백업 파일 저장: 파일 이름을 고르는 시스템 화면을 띄움 → 결과는 window.__backupSaved('ok'|'cancel'|'error') */
+        @JavascriptInterface
+        public void saveBackup(String name, String text) {
+            pendingBackup = text;
+            runOnUiThread(() -> {
+                Intent it = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                it.addCategory(Intent.CATEGORY_OPENABLE);
+                it.setType("application/json");
+                it.putExtra(Intent.EXTRA_TITLE, name);
+                try { startActivityForResult(it, REQ_SAVE); } catch (Exception e) { backupCallback("__backupSaved", "error"); }
+            });
+        }
+        /** 백업 파일 열기 → 내용은 window.__backupLoaded(text) (취소·실패면 빈 문자열) */
+        @JavascriptInterface
+        public void openBackup() {
+            runOnUiThread(() -> {
+                Intent it = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                it.addCategory(Intent.CATEGORY_OPENABLE);
+                it.setType("*/*");
+                try { startActivityForResult(it, REQ_OPEN); } catch (Exception e) { backupCallback("__backupLoaded", ""); }
+            });
+        }
+
         /** 오프라인 데이터 상태: {"installed":true,"path":"/data/.../offline","bytes":12345,"parts":"sprites,cries,anims"} */
         @JavascriptInterface
         public String packStatus() {

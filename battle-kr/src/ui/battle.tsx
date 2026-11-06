@@ -233,6 +233,17 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		if (!arena || !/^p\d[a-c]/.test(ident)) return null;
 		return arena.querySelector(`.slot.${ident.startsWith('p1') ? 'own' : 'foe'}.s${slotOf(ident)}`) as HTMLElement | null;
 	}
+	/** 효과 그림을 그 타입 색으로 칠하는 CSS 필터 (세피아로 색을 없앤 뒤 타입 색의 색상각으로 돌림) */
+function typeTint(type: string) {
+	const hex = (TYPE_COLOR[type] || '#888888').replace('#', '');
+	const [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+	const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+	let h = 0;
+	if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+	h = Math.round(h * 60 + 360) % 360;
+	return `sepia(1) saturate(4) hue-rotate(${h - 38}deg) brightness(1.05)`;
+}
+
 	/** PokéRogue(Pokémon Reborn) 애니메이션 재생. 없으면 false */
 	async function tryRebornAnim(p: ParsedLine): Promise<boolean> {
 		if (settings.effects === false || p.kw.still || p.kw.notarget) return false;
@@ -254,7 +265,14 @@ export function BattleView({ setup, onEnd }: { setup: BattleSetup; onEnd: (r: Ba
 		}
 		const targetPt = slotPoint(tgt) || userPt;
 		animUsedRef.current = p;
+		// 빌려 쓰는 그림을 타입 색으로: 테라버스트 = 테라스탈 타입, 비밀의힘·자연의힘 = 필드(일렉트릭·그래스·미스트·사이코)
+		const mid = toID(moveName);
+		const b = sessionRef.current?.battle;
+		const simUser: any = b?.[user.slice(0, 2) as 'p1' | 'p2']?.active[slotOf(user)];
+		const terrainType = ({ electricterrain: 'Electric', grassyterrain: 'Grass', mistyterrain: 'Fairy', psychicterrain: 'Psychic' } as any)[b?.field.terrain || ''] || 'Normal';
+		const tintType = mid === 'terablast' ? (simUser?.terastallized || 'Normal') : (mid === 'secretpower' || mid === 'naturepower') ? terrainType : '';
 		await playAnim(anim, {
+			filter: tintType && tintType !== 'Normal' ? typeTint(tintType) : '',
 			front: frontRef.current, back: backRef.current, bgLayer: animBgRef.current,
 			userPt, targetPt, userEl: slotEl(user), targetEl: slotEl(tgt), k: scale * 0.85, userIsFoe: user.startsWith('p2'),
 			sfxVolume: animSfxVolume(), speed: FX.fxSpeed(),

@@ -15,11 +15,14 @@ for (const id in RAW.species) {
 	if (base) out.add('cry ' + base);
 }
 // 네임드 트레이너 id (trainers.ts 는 시뮬레이터를 불러오므로 글자로 읽음)
+// (관장·사천왕·챔피언 목록 BASE_NAMED 는 'export const NAMED' 보다 앞에 있으므로 파일 전체에서 찾음)
 const src = fs.readFileSync(path.join(process.argv[2], 'trainers.ts'), 'utf8');
-const named = src.slice(src.indexOf('export const NAMED'), src.indexOf('export const REGIONS'));
-for (const m of named.matchAll(/\bT\('([a-z0-9-]+)'/g)) out.add('trainer ' + (NAMED_SPRITE[m[1]] || m[1]));
-for (const e of EXTRA_NAMED) out.add('trainer ' + e.sprite);
+for (const m of src.matchAll(/\bT\('([a-z0-9-]+)'/g)) out.add('trainer ' + (NAMED_SPRITE[m[1]] || m[1]));
+for (const e of EXTRA_NAMED) if (e.sprite) out.add('trainer ' + e.sprite);
 for (const list of Object.values(CLASS_SPRITES)) for (const s of list) out.add('trainer ' + s);
+// 일반 트레이너 종류 117가지 (남/여·세대별 그림)
+const TC = JSON.parse(fs.readFileSync(path.join(process.argv[2], 'gen/trainer-classes.json'), 'utf8'));
+for (const c of TC.classes) for (const s of [...c.sprites_m, ...c.sprites_f]) out.add('trainer ' + s);
 for (const p of PLAYER_SPRITES) out.add('trainer ' + p.id);
 for (const s of ['palmer', 'thorton']) out.add('trainer ' + s);
 console.log([...out].join('\n'));

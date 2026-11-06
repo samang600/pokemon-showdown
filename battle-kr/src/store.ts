@@ -100,3 +100,39 @@ export function updateRecords(fn: (r: Records) => void) {
 	saveRecords(r);
 	return r;
 }
+
+// ── 데이터 백업·복원: 이 앱이 저장한 모든 값(팀·전적·리플레이·설정·진행 중 도전)을 한 JSON 으로 ──
+const BACKUP_TAG = 'battle-kr-backup';
+export function exportBackup(): string {
+	const data: { [k: string]: string } = {};
+	try {
+		for (let i = 0; i < localStorage.length; i++) {
+			const k = localStorage.key(i)!;
+			if (k.startsWith(PREFIX)) data[k.slice(PREFIX.length)] = localStorage.getItem(k)!;
+		}
+	} catch {}
+	for (const k in mem) if (!(k in data)) data[k] = mem[k];
+	return JSON.stringify({ app: BACKUP_TAG, v: 1, at: new Date().toISOString(), data });
+}
+/** 백업 내용 확인 (덮어쓰기 전에 보여 줄 요약). 올바른 백업이 아니면 null */
+export function inspectBackup(text: string): { at: string; teams: number; replays: number; keys: number } | null {
+	try {
+		const b = JSON.parse(text);
+		if (b?.app !== BACKUP_TAG || typeof b.data !== 'object') return null;
+		const arr = (k: string) => { try { const v = JSON.parse(b.data[k] || '[]'); return Array.isArray(v) ? v.length : 0; } catch { return 0; } };
+		return { at: b.at || '', teams: arr('teams'), replays: arr('replays'), keys: Object.keys(b.data).length };
+	} catch { return null; }
+}
+/** 백업으로 지금 데이터를 모두 바꿈 (백업에 없는 값은 지워짐) */
+export function importBackup(text: string): boolean {
+	if (!inspectBackup(text)) return false;
+	const data: { [k: string]: string } = JSON.parse(text).data;
+	try {
+		const old: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith(PREFIX)) old.push(k); }
+		for (const k of old) localStorage.removeItem(k);
+	} catch {}
+	for (const k of Object.keys(mem)) delete mem[k];
+	for (const [k, v] of Object.entries(data)) if (typeof v === 'string') set(k, v);
+	return true;
+}

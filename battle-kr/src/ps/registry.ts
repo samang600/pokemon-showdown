@@ -20,12 +20,31 @@ import * as rb_gen9 from '../../../data/random-battles/gen9/teams';
 import * as formats from './formats';
 import CHAMP from './champions-moves.json';
 import { Conditions as CHAMP_CONDITIONS } from '../../../data/mods/champions/conditions';
+import { Moves as CHAMP_MOD_MOVES } from '../../../data/mods/champions/moves';
+import { Abilities as CHAMP_MOD_ABILITIES } from '../../../data/mods/champions/abilities';
 
 /** 포켓몬 챔피언스 PP: 5→8, 10→12, 15→16, 20 이상→20 (1 같은 특수값은 그대로) */
 export function championsPP(pp: number) { return pp >= 20 ? 20 : pp >= 15 ? 16 : pp >= 10 ? 12 : pp >= 5 ? 8 : pp; }
 
+/** Showdown 의 champions 모드 데이터(inherit 방식)를 기본 데이터에 덮어씀. isNonstandard(챔피언스에 없는 것 표시)는 내셔널 도감 규칙이라 무시,
+ *  값이 undefined 인 키는 그 동작을 없앰(예: 트림의 '나무열매를 먹어야 함' 제한), condition 은 inherit 이면 합침 */
+export function applyChampionsMod(table: { [id: string]: any }, mod: { [id: string]: any }) {
+	for (const [id, patch] of Object.entries(mod)) {
+		const t = table[id];
+		if (!t) continue;
+		for (const [k, v] of Object.entries(patch)) {
+			if (k === 'inherit' || k === 'isNonstandard') continue;
+			if (k === 'condition' && (v as any)?.inherit && t.condition) { const { inherit, ...rest } = v as any; t.condition = { ...t.condition, ...rest }; }
+			else t[k] = v;
+		}
+	}
+}
+
 /** 포켓몬 챔피언스 기술 사양 적용 (basePower·accuracy·type·secondary·self·boosts·flags·target·critRatio·ignoreAbility) */
 export function applyChampionsMoves(Moves: { [id: string]: any }) {
+	// 1) Showdown champions 모드의 기술 변경 (위력·명중·PP·앙코르·사슬묶기·저주·배수의진·속이다 첫 턴 제한 등)
+	applyChampionsMod(Moves, CHAMP_MOD_MOVES as any);
+	// 2) 앱 자체 목록 (Serebii 'Updated Attacks' — 겹치는 기술은 값이 같음)
 	for (const [id, patch] of Object.entries(CHAMP as { [id: string]: any })) {
 		if (id.startsWith('_')) continue;
 		const m = Moves[id];
@@ -65,6 +84,8 @@ export function applyChampionsConditions(Conditions: { [id: string]: any }) {
 	}
 }
 applyChampionsConditions((base_conditions as any).Conditions);
+/** 포켓몬 챔피언스 특성 (재생력·자연회복·치유의마음·보이지않는주먹·도주·분노의껍질·발끈·위기회피·도망태세) */
+applyChampionsMod((base_abilities as any).Abilities, CHAMP_MOD_ABILITIES as any);
 
 export const MODS: string[] = [];
 

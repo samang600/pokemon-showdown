@@ -19,6 +19,8 @@ export interface PlayCtx {
 	sfxVolume: number;
 	/** 재생 배속 (1 = 50ms/프레임) */
 	speed?: number;
+	/** 효과 그림에 씌울 CSS 필터 (테라버스트·비밀의힘처럼 다른 기술 그림을 타입 색으로 바꿀 때) */
+	filter?: string;
 	onFrame?: (i: number) => void;
 }
 
@@ -105,6 +107,7 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 	const sheet = variant.g ? images[variant.g] : null;
 	const cols = sheet ? Math.max(1, Math.floor(sheet.width / 96)) : 1;
 	const fc = ctx.front.getContext('2d')!, bc = ctx.back.getContext('2d')!;
+	ctx.front.style.filter = ctx.back.style.filter = ctx.filter || '';
 	const dpr = window.devicePixelRatio || 1;
 	const W = ctx.front.width / dpr, H = ctx.front.height / dpr;
 	let bgEl: HTMLElement | null = null;
@@ -211,7 +214,10 @@ export function playAnim(anim: AnimData[], ctx: PlayCtx): Promise<void> {
 }
 
 /** 쇼다운 기술 id → 애니메이션 id (파일명은 하이픈 제거) */
+/** 전용 애니메이션이 없는 기술: 비슷한 기술의 그림을 씀 (테라버스트·비밀의힘·자연의힘은 타입 색으로 칠함 — battle.tsx) */
+export const ANIM_BORROW: { [id: string]: string } = { snowscape: 'hail', terablast: 'technoblast', secretpower: 'hiddenpower', naturepower: 'growth', rest: 'sleeptalk' };
 export function animIdFor(moveId: string) {
+	if (ANIM_BORROW[moveId]) return ANIM_BORROW[moveId];
 	if (/^hiddenpower/.test(moveId)) return 'hiddenpower';
 	if (/^return\d+/.test(moveId)) return 'return';
 	if (/^frustration\d+/.test(moveId)) return 'frustration';
