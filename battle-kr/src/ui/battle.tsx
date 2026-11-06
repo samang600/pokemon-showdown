@@ -1182,7 +1182,7 @@ function typeTint(type: string) {
 			}
 			if (activeReq.canZMove && !/ zmove/.test(usedG)) g.push(['zmove', 'Z파워', '#f0c020']);
 			if (activeReq.canDynamax && !/ dynamax/.test(usedG)) g.push(['dynamax', '다이맥스', '#e83050']);
-			if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라스탈 · ${typeKo(activeReq.canTerastallize)}`, TYPE_COLOR[activeReq.canTerastallize] || '#60c0e0']);
+			if (activeReq.canTerastallize && !/ terastallize/.test(usedG)) g.push(['terastallize', `테라 · ${typeKo(activeReq.canTerastallize)}`, TYPE_COLOR[activeReq.canTerastallize] || '#60c0e0']);
 		}
 		const title = req.forceSwitch ? '교체할 포켓몬을 고르세요' : menu === 'target' ? '누구에게 쓸까요?' : curMon ? `${curMon.nick}${setup.doubles ? ` (${slotIdx + 1}번째)` : ''}` : '';
 		return <div class="controls">

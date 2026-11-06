@@ -1197,3 +1197,19 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 	.move-panel .mv-hint::after { content: ' · 숫자 키 1~4로 고르기, Esc 뒤로'; }
 	.cmd-fight > span::after { content: ' (Enter)'; font-size: .5em; opacity: .8; }
 }
+
+/* ═════ v2.20.2: 휴대폰 배틀 화면 공간 확보 ═════ */
+/* 앱(안드로이드)에서는 시스템 바 여백을 네이티브가 이미 비우므로 웹 쪽 safe-area 여백은 0 (위아래 검은 띠 제거) */
+:root.native { --safe-top: 0px; --safe-bottom: 0px; }
+/* 대화창·머리줄·기믹·기술 칸 글자를 조금씩 작게 */
+.battle .msgbox, .battle .msgbox.win-dark { min-height: 60px; font-size: 14px; line-height: 1.35; margin: 4px 4px 2px; }
+.battle .ctl-head { min-height: 24px; font-size: 13px; }
+.battle .ctl-head .btn { font-size: 13px; }
+.controls > .gm-bar { gap: 6px; }
+.controls > .gm-bar .gmb { flex: 1 1 0; min-width: 0; min-height: 34px; font-size: 13px; gap: 4px; white-space: nowrap; overflow: hidden; padding-left: 0; padding-right: 0; }
+.move-panel .mvb { justify-content: center; gap: 1px; }
+.mvb-name { font-size: 16px; line-height: 19px; } .mvb-name.l { font-size: 14px; } .mvb-name.xl { font-size: 12px; }
+.mvb-pp { font-size: 10px; } .mvb-pp b { font-size: 12px; }
+.mvb-eff, .mvb-dmg { font-size: 10px; line-height: 12px; }
+.mvb-bottom { min-height: 12px; }
+.move-panel .mv-hint { font-size: 10px; line-height: 12px; }

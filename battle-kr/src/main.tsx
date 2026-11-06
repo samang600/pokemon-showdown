@@ -327,4 +327,6 @@ document.addEventListener('pointerdown', e => {
 	sfx(b.getAttribute('aria-label') === '뒤로' || b.textContent?.includes('뒤로') ? 'back' : 'select');
 }, true);
 
+// 안드로이드 앱: 상태 표시줄·내비게이션 바 여백은 앱(네이티브)이 이미 비워 둠 → 웹에서 safe-area 를 또 비우면 위아래가 검게 남음
+if ((window as any).BattleSimNative) document.documentElement.classList.add('native');
 render(<App />, document.getElementById('app')!);
