@@ -1193,7 +1193,7 @@ function typeTint(type: string) {
 		return <div class="controls">
 			<div class="ctl-head">
 				<span class="ctl-title">{title}</span>
-				{menu === 'main' && <button class="btn small" onClick={() => setShowLog(true)}>기록</button>}
+				<button class="btn small ctl-log" onClick={() => setShowLog(true)}>기록</button>
 				{back}
 			</div>
 			{menu === 'main' && <div class="cmd-menu">
@@ -1205,7 +1205,7 @@ function typeTint(type: string) {
 				</div>
 			</div>}
 			{g.length > 0 && <div class="gm-bar">{g.map(([k, label, col]) => <button class={'gmb' + (gimmick === k ? ' on' : '')} style={{ '--gc': col } as any}
-				onClick={() => setGimmick(gimmick === k ? '' : k)}><span class="gmb-dot" />{label}{gimmick === k ? ' ON' : ''}</button>)}</div>}
+				onClick={() => setGimmick(gimmick === k ? '' : k)}><span class="gmb-dot" />{label}</button>)}</div>}
 			{menu === 'moves' && renderMoves()}
 			{menu === 'target' && renderTargets()}
 			{menu === 'switch' && renderSwitch()}
@@ -1348,7 +1348,9 @@ function typeTint(type: string) {
 		{fieldOpen && <FieldModal session={sessionRef.current!} onClose={() => setFieldOpen(false)} />}
 		{showLog && <Modal title="배틀 기록" onClose={() => setShowLog(false)}>
 			<button class="btn small" onClick={() => { navigator.clipboard?.writeText(log.join('\n')).then(() => toast('배틀 기록을 복사했습니다'), () => toast('복사하지 못했습니다')); }}>기록 복사</button>
-			<div class="log">{log.map((l, i) => <div key={i} class={l.startsWith('──') ? 'log-turn' : ''}>{l}</div>)}</div>
+			{/* 최근 턴이 위로 (턴 안의 순서는 그대로) */}
+			<div class="log">{(() => { const blocks: string[][] = []; for (const l of log) { if (l.startsWith('──') || !blocks.length) blocks.push([]); blocks[blocks.length - 1].push(l); } return blocks.reverse().flat(); })()
+				.map((l, i) => <div key={i} class={l.startsWith('──') ? 'log-turn' : ''}>{l}</div>)}</div>
 		</Modal>}
 		{sheet && (() => {
 			const d = liveOf(sheet.idx);
