@@ -217,6 +217,11 @@ b, strong { font-weight: normal; }
 .bg-factory .arena-bg { background-image: url(__IMG_arena_factory__); }
 .bg-pwt .arena-bg { background-image: url(__IMG_arena_pwt__); }
 .bg-champion .arena-bg { background-image: url(__IMG_arena_champion__); }
+.bg-cave .arena-bg { background-image: url(__IMG_arena_cave__); }
+.bg-beach .arena-bg { background-image: url(__IMG_arena_beach__); }
+.bg-snow .arena-bg { background-image: url(__IMG_arena_snow__); }
+.bg-volcano .arena-bg { background-image: url(__IMG_arena_volcano__); }
+.bg-gym .arena-bg { background-image: url(__IMG_arena_gym__); }
 
 /* 포켓몬 위치: 배경의 발판(상대 196,132 / 내 62,182 of 256x192)에 맞춤 */
 .slot { position: absolute; display: flex; align-items: flex-end; justify-content: center; width: 0; z-index: 1; }

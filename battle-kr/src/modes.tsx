@@ -393,6 +393,16 @@ export async function runFactory() {
 }
 
 // ───────────── PWT ─────────────
+/** 팀의 주력 타입에 어울리는 배틀 배경 (물 → 바닷가, 얼음 → 설원, 불꽃 → 화산, 땅·바위·강철 → 동굴, 그 밖 → 체육관) */
+function bgForTeam(team: PSet[]): 'beach' | 'snow' | 'volcano' | 'cave' | 'gym' {
+	const c: { [t: string]: number } = {};
+	for (const s of team) for (const t of speciesData(toID(s.species), 9)?.t || []) c[t] = (c[t] || 0) + 1;
+	const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+	return top === 'Water' ? 'beach' : top === 'Ice' ? 'snow' : top === 'Fire' ? 'volcano' : ['Ground', 'Rock', 'Steel'].includes(top) ? 'cave' : 'gym';
+}
+/** 프리 배틀 등: 바깥 배경 중 무작위 */
+const OUTDOOR_BGS = ['field', 'beach', 'snow', 'cave', 'volcano', 'gym'] as const;
+
 function namedTeam(t: NamedTrainer, size: number, gen: Gen = 9): PSet[] {
 	// 배틀 규칙에 맞춘 엔트리(전설·환상 허용이면 설정상 어울리는 전설을 넣어 강하게). 에이스는 항상 포함, 나머지 무작위
 	const roster = rosterForRule(t, ruleById(loadSettings().battleRule));
@@ -555,7 +565,7 @@ export async function runNamed() {
 				opponent={{ name: t.name, team: oppTeam }} onDone={r} />);
 			const oppPick = size < 6 ? aiPickEntry(oppTeam, myTeam, size, doubles, ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, true) : oppTeam;
 			const res = await battle({
-				gen: 9, doubles, aiSkill: ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, bg: ['champion', 'boss', 'hero'].includes(t.role) ? 'champion' : 'pwt',
+				gen: 9, doubles, aiSkill: ['champion', 'boss', 'hero'].includes(t.role) ? 0.95 : 0.85, bg: ['champion', 'boss', 'hero'].includes(t.role) ? 'champion' : bgForTeam(oppTeam),
 				label: `${t.title}`, noRecord: noRec(opts), cheat: opts.cheat, inverse: opts.inverse, music: namedMusic(t), p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: t.name, title: namedTitle(t), team: oppPick, line: t.line, sprite: namedSprite(t), lines: namedLines(t) },
 			});
 			if (res.win && !noRec(opts)) updateRecords(r => { r.named[t.id] = (r.named[t.id] || 0) + 1; });
@@ -709,7 +719,7 @@ export async function runFree() {
 			opponent={{ name: oppName, team: oppTeam }} onDone={r} />);
 		const oppSel = size < oppTeam.length ? aiPickEntry(oppTeam, myTeam, size, isDoubles(fmt), skill) : oppTeam;
 		const res = await battle({
-			gen: 9, doubles: isDoubles(fmt), aiSkill: skill, bg: 'field', label: modeName, noRecord: true, cheat, inverse: opts.inverse,
+			gen: 9, doubles: isDoubles(fmt), aiSkill: skill, bg: rng.pick([...OUTDOOR_BGS]), label: modeName, noRecord: true, cheat, inverse: opts.inverse,
 			p1: { name: playerName(), team: picked, sprite: playerSprite() }, p2: { name: oppName, title: oppTitle, team: oppSel, sprite: oppSprite, lines: oppLines },
 		});
 		const again = await ask<'same' | 'new' | 'quit'>(r => <InfoScreen title={modeName} heading={res.win ? '승리!' : '패배…'}

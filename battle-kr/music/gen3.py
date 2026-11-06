@@ -31,7 +31,9 @@ def chord(name):
     root = PC[name[0].lower()]; i = 1
     if i < len(name) and name[i] in '#b': root += 1 if name[i] == '#' else -1; i += 1
     q = name[i:]
-    if q == 'm': iv = [0, 3, 7]
+    if q == 'maj7': iv = [0, 4, 7, 11]
+    elif q == 'm7b5': iv = [0, 3, 6, 10]
+    elif q == 'm': iv = [0, 3, 7]
     elif q == 'm7': iv = [0, 3, 7, 10]
     elif q == '7': iv = [0, 4, 7, 10]
     else: iv = [0, 4, 7]
@@ -44,6 +46,9 @@ def bass_bar(name, style):
     elif style == 'drive':   # 16분 근음 연타 + 박마다 5도
         seq = []
         for b in range(4): seq += [lo, lo, lo + 12 if b % 2 else lo + iv[2], lo]
+    elif style == 'quarter':  # 4분 워킹: 근음·3도·5도·(7도/옥타브) — 로비 곡
+        top = lo + (iv[3] if len(iv) > 3 else 12)
+        seq = [lo, -1, -1, -1, lo + iv[1], -1, -1, -1, lo + iv[2], -1, -1, -1, top, -1, -1, -1]
     else:                    # 'walk': 근음·5도·옥타브·5도
         seq = [lo, -1, lo + iv[2], -1, lo + 12, -1, lo + iv[2], -1] * 2
     return seq
@@ -58,10 +63,10 @@ def arp_bar(name, on=True):
     if not on: return [None] * 16
     r, iv = chord(name); base = 72 + r % 12
     if base > 78: base -= 12
-    pat = [base + iv[0], base + iv[1], base + iv[2], base + 12]
+    pat = [base + iv[0], base + iv[1], base + iv[2], base + (iv[3] if len(iv) > 3 else 12)]
     return [pat[i % 4] for i in range(16)]
 
-def song(bpm, lead_type, sections, bass_style, drums_main, drums_b, drums_intro):
+def song(bpm, lead_type, sections, bass_style, drums_main, drums_b, drums_intro, arp_in=('B',)):
     lead, harm, bass, arp, drums = [], [], [], [], ''
     intro_len = 0
     for kind, chords, mel in sections:
@@ -70,14 +75,25 @@ def song(bpm, lead_type, sections, bass_style, drums_main, drums_b, drums_intro)
         lead += m
         for ch in chords:
             harm += harm_bar(ch)
-            bass += bass_bar(ch, 'drive' if kind == 'intro' else bass_style)
-            arp += arp_bar(ch, kind == 'B')
+            bass += bass_bar(ch, bass_style if bass_style == 'quarter' else 'drive' if kind == 'intro' else bass_style)
+            arp += arp_bar(ch, kind in arp_in)
             drums += drums_intro if kind == 'intro' else drums_b if kind == 'B' else drums_main
         if kind == 'intro': intro_len = len(lead)
     enc = lambda a: ''.join(' ' if x is None else '!' if x == -1 else chr(x + 14) for x in a)
     return {'bpm': bpm, 'intro': intro_len, 'leadType': lead_type, 'lead': enc(lead), 'harm': enc(harm), 'bass': enc(bass), 'arp': enc(arp), 'drums': drums}
 
 SONGS = {
+    # 로비(타이틀·메인 화면): 배틀 시설 로비처럼 차분하고 세련된 G장조 116, 메이저7·도미넌트7 화음, 4분 워킹 베이스, 살짝 스치는 하이햇
+    'lobby': song(116, 'pulse25', [
+        ('intro', ['Gmaj7', 'D7'],
+         'g5.4 b5.4 d6.4 f#6.4  a5.8 r.8'),
+        ('A', ['Gmaj7', 'Em7', 'Am7', 'D7', 'Bm7', 'E7', 'Am7', 'D7'],
+         'b5.6 a5.2 g5.4 d5.4  e5.6 f#5.2 g5.4 b5.4  c6.6 b5.2 a5.4 e5.4  f#5.8 a5.4 c6.4 '
+         'd6.6 c#6.2 b5.4 f#5.4  g#5.6 a5.2 b5.4 d6.4  c6.4 b5.4 a5.4 g5.4  f#5.8 e5.4 d5.4'),
+        ('B', ['Cmaj7', 'Bm7', 'Am7', 'Gmaj7', 'Em7', 'A7', 'Am7', 'D7'],
+         'e6.6 d6.2 b5.8  d6.6 c6.2 a5.8  c6.4 b5.2 a5.2 g5.4 e5.4  f#5.6 g5.2 b5.8 '
+         'g5.4 b5.4 e6.4 d6.4  c#6.6 b5.2 a5.4 g5.4  e6.4 d6.4 c6.4 a5.4  d6.2 c6.2 a5.2 f#5.2 d5.8'),
+    ], 'quarter', '....h.......h...', '..h...h...h...h.', '................', arp_in=('A', 'B')),
     'g3battle': song(156, 'pulse25', [
         ('intro', ['A', 'A'],
          'a4.1 bb4.1 b4.1 c5.1 c#5.1 d5.1 d#5.1 e5.1 f5.1 f#5.1 g5.1 g#5.1 a5.4  a5.2 r.2 a5.2 r.2 a5.2 r.2 a5.4'),

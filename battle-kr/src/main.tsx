@@ -196,7 +196,7 @@ function SettingsScreen({ onBack }: { onBack: () => void }) {
 		<h3 class="sec">소리</h3>
 		<div class="seg">
 			<button class={s.sound ? 'on' : ''} onClick={() => { up({ sound: !s.sound }); }}>효과음 {s.sound ? '켜짐' : '꺼짐'}</button>
-			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('title'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
+			<button class={s.music ? 'on' : ''} onClick={() => { const m = !s.music; up({ music: m }); if (m) setTimeout(() => playMusic('lobby'), 0); else stopMusic(); }}>배경음악 {s.music ? '켜짐' : '꺼짐'}</button>
 		</div>
 		<div class="set-row"><span>배경음악</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.musicVolume === v ? 'on' : ''} onClick={() => { up({ musicVolume: v }); setMusicVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
 		<div class="set-row"><span>울음·효과음</span><div class="seg">{([1, 2, 3] as const).map(v => <button class={s.sfxVolume === v ? 'on' : ''} onClick={() => { up({ sfxVolume: v }); setSfxVolume(v); }}>{['작게', '보통', '크게'][v - 1]}</button>)}</div></div>
@@ -265,7 +265,7 @@ function App() {
 			resetAbort();
 			setModeView(null);
 			setRoute('home');
-			playMusic('title');
+			playMusic('lobby');
 			return;
 		}
 		setRoute(r);
@@ -281,7 +281,7 @@ function App() {
 		resetAbort();
 		setModeView(null);
 		setRoute('records');
-		playMusic('title');
+		playMusic('lobby');
 	};
 
 	// 안드로이드 뒤로가기
@@ -301,7 +301,7 @@ function App() {
 		};
 	});
 
-	if (route === 'title') return <TitleScreen onStart={() => { unlockAudio(); playMusic('title'); sfx('select'); setRoute('home'); }} />;
+	if (route === 'title') return <TitleScreen onStart={() => { unlockAudio(); playMusic('lobby'); sfx('select'); setRoute('home'); }} />;
 	if (route === 'mode') return modeView || <div class="loading">불러오는 중…</div>;
 	if (route === 'teams') {
 		if (editTeam) return <TeamEditor team={editTeam} onBack={() => setEditTeam(null)} />;

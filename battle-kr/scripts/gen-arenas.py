@@ -187,7 +187,156 @@ def title():
     return im
 
 
-def extend_top(im, extra):
+def cave():
+    """동굴: 바위 벽·종유석·빛나는 결정, 자갈 바닥"""
+    im = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(im)
+    bands(d, 0, 74, ['#221c18', '#2a231e', '#322a24', '#3a3129', '#42382e', '#4a3f33'])
+    rnd = random.Random(21)
+    for _ in range(40):  # 벽 결
+        x, y = rnd.randint(0, W), rnd.randint(4, 66)
+        d.line([(x, y), (x + rnd.randint(4, 12), y + rnd.randint(-2, 2))], fill='#1c1714')
+    for x in range(-6, W, 14):  # 종유석
+        h = 8 + (x * 13) % 16
+        d.polygon([(x, 0), (x + 10, 0), (x + 5, h)], fill='#1a1512')
+        d.line([(x + 3, 0), (x + 5, h - 2)], fill='#4e4236')
+    for _ in range(9):  # 결정
+        x, y = rnd.randint(8, W - 8), rnd.randint(20, 62)
+        c = rnd.choice(['#7ad8f0', '#b890f0', '#90f0c0'])
+        d.polygon([(x, y - 4), (x + 3, y), (x, y + 4), (x - 3, y)], fill=c)
+        d.point((x - 1, y - 2), fill='#ffffff')
+    pts = [(0, 74)]
+    for x in range(0, W + 8, 8):
+        pts.append((x, 62 + 6 * abs(math.sin(x / 23)) + (x % 24 == 0) * 2))
+    pts.append((W, 74))
+    d.polygon(pts, fill='#54473a')
+    bands(d, 74, H, ['#6a5844', '#64523e', '#5e4c38', '#584632', '#52402c', '#4c3a26'])
+    for y in range(76, H, 4):
+        for x in range((y * 7) % 11, W, 11):
+            d.point((x, y), fill='#7c6850' if (x + y) % 3 else '#3e3020')
+    ellipse_platform(d, 196, 82, 46, 9, '#8a7458', '#6a5640', '#3e3020')
+    ellipse_platform(d, 62, 132, 62, 11, '#8a7458', '#6a5640', '#3e3020')
+    return im
+
+
+def beach():
+    """바닷가: 맑은 하늘·수평선의 섬·파도, 모래사장"""
+    im = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(im)
+    bands(d, 0, 48, ['#3e9ae8', '#4ea6ec', '#60b2f0', '#74bef2', '#8acaf4', '#a2d6f6'])
+    rnd = random.Random(8)
+    for _ in range(3):
+        cx, cy = rnd.randint(0, W), rnd.randint(8, 30)
+        for k in range(3):
+            d.ellipse([cx + k * 8 - 10, cy - 4 + (k % 2) * 2, cx + k * 8 + 6, cy + 5], fill='#f8fcff')
+    d.ellipse([214, 8, 230, 24], fill='#fff2a8'); d.ellipse([217, 11, 227, 21], fill='#fffbe0')
+    d.polygon([(30, 48), (44, 40), (58, 42), (70, 48)], fill='#4a8a6a')  # 먼 섬
+    bands(d, 48, 74, ['#2a78c8', '#3082cc', '#368cd2', '#3e98d8', '#46a2dc', '#4eaee2'])
+    for y in range(50, 74, 4):
+        for x in range((y * 9) % 13, W, 13):
+            d.line([(x, y), (x + 3, y)], fill='#a8dcf8')
+    d.rectangle([0, 72, W, 75], fill='#e8f6ff')
+    for x in range(0, W, 6):
+        d.point((x + 2, 76), fill='#e8f6ff')
+    bands(d, 76, H, ['#f0d890', '#ead088', '#e4c880', '#dec078', '#d8b870', '#d2b068'])
+    for y in range(80, H, 5):
+        for x in range((y * 5) % 9, W, 9):
+            d.point((x, y), fill='#c4a060')
+    for _ in range(6):  # 조개
+        x, y = rnd.randint(4, W - 4), rnd.randint(92, H - 6)
+        d.rectangle([x, y, x + 2, y + 1], fill=rnd.choice(['#f8b8c8', '#ffffff', '#f0a070']))
+    ellipse_platform(d, 196, 82, 46, 9, '#f8e8b0', '#e0c880', '#b89858')
+    ellipse_platform(d, 62, 132, 62, 11, '#f8e8b0', '#e0c880', '#b89858')
+    return im
+
+
+def snow():
+    """설원: 흐린 하늘·눈 덮인 산·전나무, 눈밭과 얼음 발판"""
+    im = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(im)
+    bands(d, 0, 62, ['#9ab6d6', '#a6c0dc', '#b2cae2', '#bed4e8', '#cadeee', '#d6e8f4'])
+    for i, (col, base, amp, per) in enumerate([('#8aa0c0', 58, 26, 29), ('#7890b4', 64, 16, 19)]):
+        pts = [(0, H)]
+        for x in range(0, W + 8, 8):
+            pts.append((x, base - amp * abs(math.sin(x / per + i))))
+        pts.append((W, H))
+        d.polygon(pts, fill=col)
+        for x in range(0, W, 8):  # 눈 덮인 봉우리
+            y = base - amp * abs(math.sin(x / per + i))
+            if y < base - amp * 0.6:
+                d.polygon([(x - 6, y + 6), (x, y), (x + 6, y + 6)], fill='#f4f8ff')
+    for x in range(-4, W, 9):  # 전나무
+        h = 10 + (x * 5) % 6
+        d.polygon([(x, 76), (x + 4, 76 - h), (x + 8, 76)], fill='#2e5a50')
+        d.point((x + 4, 76 - h), fill='#ffffff'); d.line([(x + 2, 76 - h // 2), (x + 6, 76 - h // 2)], fill='#e8f0f8')
+    bands(d, 76, H, ['#f4f8ff', '#eef4fc', '#e8f0fa', '#e2ecf8', '#dce8f6', '#d6e4f4'])
+    for y in range(80, H, 4):
+        for x in range((y * 7) % 13, W, 13):
+            d.point((x, y), fill='#b8cce4')
+    rnd = random.Random(4)
+    for _ in range(50):  # 눈송이
+        d.point((rnd.randint(0, W - 1), rnd.randint(0, 70)), fill='#ffffff')
+    ellipse_platform(d, 196, 82, 46, 9, '#ffffff', '#c8dcf0', '#90acd0')
+    ellipse_platform(d, 62, 132, 62, 11, '#ffffff', '#c8dcf0', '#90acd0')
+    return im
+
+
+def volcano():
+    """화산: 붉은 하늘·용암이 흐르는 화산, 갈라진 현무암 바닥"""
+    im = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(im)
+    bands(d, 0, 66, ['#24080a', '#320c0c', '#40120e', '#4e1810', '#5c1e12', '#6c2614'])
+    rnd = random.Random(13)
+    d.polygon([(70, 74), (112, 22), (144, 22), (190, 74)], fill='#2a1612')  # 화산
+    d.polygon([(112, 22), (144, 22), (138, 28), (118, 28)], fill='#ff8a2a')
+    for (x0, x1) in [(122, 104), (132, 150), (128, 120)]:  # 용암 줄기
+        d.line([(x0, 26), (x1, 72)], fill='#f05a1a', width=2)
+        d.line([(x0, 26), (x1, 72)], fill='#ffb040', width=1)
+    for _ in range(4):  # 연기
+        cx, cy = 128 + rnd.randint(-10, 10), rnd.randint(4, 16)
+        d.ellipse([cx - 8, cy - 5, cx + 8, cy + 5], fill='#4a2a26')
+    for _ in range(40):  # 불티
+        d.point((rnd.randint(0, W - 1), rnd.randint(0, 66)), fill=rnd.choice(['#ffb040', '#f06a1a', '#ffe080']))
+    bands(d, 74, H, ['#3a2420', '#34201c', '#2e1c18', '#281814', '#221410', '#1c100c'])
+    for _ in range(12):  # 용암 틈
+        x, y = rnd.randint(0, W - 20), rnd.randint(86, H - 4)
+        pts = [(x, y)]
+        for k in range(4):
+            x += rnd.randint(4, 8); y += rnd.randint(-2, 2); pts.append((x, y))
+        d.line(pts, fill='#f06a1a'); d.line([(p[0], p[1] - 1) for p in pts], fill='#ffb030')
+    ellipse_platform(d, 196, 82, 46, 9, '#6a4438', '#4a2c24', '#1a0c08')
+    ellipse_platform(d, 62, 132, 62, 11, '#6a4438', '#4a2c24', '#1a0c08')
+    return im
+
+
+def gym():
+    """체육관 안: 휘장이 걸린 벽·조명, 반들반들한 경기장 바닥"""
+    im = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(im)
+    bands(d, 0, 70, ['#26304a', '#2c3854', '#32405e', '#384868', '#3e5072', '#44587c'])
+    for x in range(0, W, 64):  # 기둥
+        d.rectangle([x, 0, x + 6, 70], fill='#1e2840'); d.rectangle([x + 1, 0, x + 2, 70], fill='#56688c')
+    for x in range(20, W, 64):  # 휘장과 문장
+        d.polygon([(x, 6), (x + 24, 6), (x + 24, 44), (x + 12, 52), (x, 44)], fill='#b02a3a')
+        d.rectangle([x, 6, x + 24, 8], fill='#f0c040')
+        d.ellipse([x + 6, 18, x + 18, 30], fill='#f0c040'); d.ellipse([x + 9, 21, x + 15, 27], fill='#b02a3a')
+    for x in range(0, W, 16):  # 위쪽 조명
+        d.rectangle([x + 6, 0, x + 10, 2], fill='#fff4c0')
+    d.rectangle([0, 66, W, 72], fill='#1a2238')
+    bands(d, 72, H, ['#d8c8a0', '#d2c298', '#ccbc90', '#c6b688', '#c0b080', '#baaa78'])
+    for y in range(76, H, 10):  # 마루 이음매
+        d.line([(0, y), (W, y)], fill='#a8986a')
+    for x in range(0, W, 24):
+        for y in range(76, H, 20):
+            d.line([(x + (y // 10 % 2) * 12, y), (x + (y // 10 % 2) * 12, y + 10)], fill='#a8986a')
+    d.line([(0, 104), (W, 104)], fill='#f8f4e8')  # 경기장 선
+    d.ellipse([98, 94, 158, 114], outline='#f8f4e8')
+    ellipse_platform(d, 196, 82, 46, 9, '#f0e6cc', '#c0b088', '#7a6a48')
+    ellipse_platform(d, 62, 132, 62, 11, '#f0e6cc', '#c0b088', '#7a6a48')
+    return im
+
+
+def extend_top(im, extra, stars=True):
     w, h = im.size
     out = Image.new('RGB', (w, h + extra))
     out.paste(im, (0, extra))
@@ -197,7 +346,7 @@ def extend_top(im, extra):
         k = 0.55 + 0.45 * (y // 6 * 6) / extra  # 6px 단위 계단식 그라데이션
         d.line([(0, y), (w, y)], fill=tuple(int(c * k) for c in top))
     rnd = random.Random(1)
-    if sum(top) < 200:  # 어두운 배경엔 별
+    if stars and sum(top) < 200:  # 어두운 하늘엔 별 (동굴 천장·체육관 벽은 빼고)
         for _ in range(25):
             d.point((rnd.randint(0, w - 1), rnd.randint(0, extra - 1)), fill='#c8d0ff')
     return out
@@ -205,9 +354,10 @@ def extend_top(im, extra):
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [('field', field), ('tower', tower), ('factory', factory), ('pwt', stadium), ('champion', champion), ('title', title)]:
+    for name, fn in [('field', field), ('tower', tower), ('factory', factory), ('pwt', stadium), ('champion', champion), ('title', title),
+                     ('cave', cave), ('beach', beach), ('snow', snow), ('volcano', volcano), ('gym', gym)]:
         im = fn()
         if name != 'title':
-            im = extend_top(im, 48)  # 4:3 (256x192) — 세로 화면용으로 위쪽 하늘/벽을 늘림
+            im = extend_top(im, 48, stars=name not in ('cave', 'gym'))  # 4:3 (256x192) — 세로 화면용으로 위쪽 하늘/벽을 늘림
         im.save(os.path.join(OUT, f'arena_{name}.png'), optimize=True)
         print('arena_' + name)
