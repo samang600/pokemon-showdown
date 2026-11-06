@@ -934,61 +934,75 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 .fx-zglyph { background: none; color: #ffe040; font-weight: bold; text-align: center; font-family: inherit;
 	text-shadow: 0 0 6px #ff9000, 0 0 14px #ffd000, 2px 2px 0 #7a3a00; }
 
-/* ═════ 배틀 버튼: 하트골드·소울실버풍 (배경·HP 상자·메시지 창은 그대로, 버튼만) ═════
-   진한 테두리 + 살짝 둥근 모서리 + 위아래 두 톤(가운데에서 딱 나뉨) + 위쪽 밝은 줄·아래쪽 어두운 줄 + 아래 그림자.
-   누르면 그림자만큼 내려감 */
-.cmd-fight, .cmd-sub, .gmb, .tcard, .mvb,
-.controls .ctl-head .btn, .controls.end .btn, .controls.waiting .btn,
+/* ═════ 배틀 화면 도트화: 기존 디자인(색·배치·흰 테두리)은 그대로, 표현만 도트로 ═════
+   - 테두리: 바깥 그림자를 한 칸(--u) 단위로 쌓아 '흰 안쪽 테두리 + 진한 외곽선'을 그리고 모서리는 계단으로 깎음 (NES.css 방식)
+   - 색: 부드러운 그라데이션 → 3~4단 띠, 위 한 칸 밝은 줄·아래 한 칸 어두운 줄
+   - 그림자: 한 칸 아래로 딱 떨어지는 그림자, 누르면 한 칸 내려감 */
+.cmd-fight, .cmd-sub, .gmb, .mvb, .tcard, .info, .msgbox, .msgbox.win-dark, .hud-top .badge,
 .controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn {
-	--hg-hi: rgba(255,255,255,.5); --hg-lo: rgba(0,0,0,.2);
-	border: 3px solid #1c2028; border-image: none; border-radius: 10px; image-rendering: auto;
-	box-shadow: inset 0 3px 0 var(--hg-hi), inset 0 -3px 0 var(--hg-lo), 0 3px 0 #0a0d14;
-	transition: transform .05s;
+	--u: 3px; --pi: #fff; --po: #0a0f18; --ps: rgba(0,0,0,.5);
+	--nu: calc(var(--u) * -1); --u2: calc(var(--u) * 2); --nu2: calc(var(--u) * -2);
+	border: 0; border-image: none; border-radius: 0;
+	box-shadow:
+		0 var(--nu) 0 0 var(--pi), 0 var(--u) 0 0 var(--pi), var(--nu) 0 0 0 var(--pi), var(--u) 0 0 0 var(--pi),
+		0 var(--nu2) 0 0 var(--po), 0 var(--u2) 0 0 var(--po), var(--nu2) 0 0 0 var(--po), var(--u2) 0 0 0 var(--po),
+		var(--nu) var(--nu) 0 0 var(--po), var(--u) var(--nu) 0 0 var(--po), var(--nu) var(--u) 0 0 var(--po), var(--u) var(--u) 0 0 var(--po),
+		0 calc(var(--u) * 3) 0 0 var(--ps), var(--nu) var(--u2) 0 0 var(--ps), var(--u) var(--u2) 0 0 var(--ps),
+		inset 0 var(--u) 0 0 rgba(255,255,255,.28), inset 0 var(--nu) 0 0 rgba(0,0,0,.22);
+	image-rendering: pixelated;
 }
-.cmd-fight:active, .cmd-sub:active, .gmb:active, .tcard.on:active, .mvb:active:not(.off),
-.controls .ctl-head .btn:active, .controls.end .btn:active, .controls.waiting .btn:active, .controls .switch-list .switch-btn:active:not(.off) {
-	transform: translateY(3px); box-shadow: inset 0 3px 0 var(--hg-hi), inset 0 -3px 0 var(--hg-lo); filter: none;
+.cmd-fight:active, .cmd-sub:active, .gmb:active, .mvb:active:not(.off), .tcard.on:active, .controls .switch-list .switch-btn:active:not(.off) {
+	transform: translateY(var(--u)); --ps: transparent; filter: none;
 }
-/* 명령: 큰 빨간 '싸운다' + 필드(주황)·기권(파랑)·포켓몬(초록) */
-.cmd-fight { border-radius: 14px; color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.45); background: linear-gradient(180deg, #f86868 0 50%, #d83c3c 50%); }
-.cmd-sub { color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.45); }
-.cmd-sub.yellow { background: linear-gradient(180deg, #f8c058 0 50%, #e09420 50%); }
-.cmd-sub.blue { background: linear-gradient(180deg, #68acf8 0 50%, #2c74d8 50%); }
-.cmd-sub.green { background: linear-gradient(180deg, #7cd874 0 50%, #40a838 50%); }
-/* 기술: 타입 색 테두리 안에 아이보리 판 (위 밝게·아래 베이지), 어두운 글자에 밝은 그림자 */
-.mvb { color: #383838; text-shadow: none; padding: 8px 11px 7px;
-	background: linear-gradient(180deg, #fcfcf4 0 52%, #ece4cc 52%);
-	box-shadow: inset 0 0 0 5px var(--tc), inset 0 0 0 7px rgba(0,0,0,.22), 0 3px 0 #0a0d14; }
-.mvb:active:not(.off) { box-shadow: inset 0 0 0 5px var(--tc), inset 0 0 0 7px rgba(0,0,0,.22); }
-.mvb-name { color: #383838; text-shadow: 2px 2px 0 #d4d0c4; }
-.mvb-pp { color: #485058; } .mvb-pp b { color: #383838; } .mvb-pp.low, .mvb-pp.low b { color: #d04818; }
-.mvb-eff.good { background: #d83c3c; color: #fff; } .mvb-eff.bad { background: #6a7484; color: #fff; } .mvb-eff.none { background: #383838; color: #ccc; }
-.mvb-dmg { background: #2c5a38; color: #d8ffd8; }
-.mvb.off { filter: grayscale(.9) brightness(.82); }
-/* 기믹 토글 (메가·Z·다이맥스·테라): 그 기믹 색의 두 톤 버튼, 켜면 노란 테두리 */
-.gmb { color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,.5); background: linear-gradient(180deg, rgba(255,255,255,.28) 0 50%, transparent 50%), var(--gc); }
-.gmb-dot { border-color: #fff; }
-.gmb.on { background: linear-gradient(180deg, rgba(255,255,255,.28) 0 50%, transparent 50%), var(--gc);
-	box-shadow: 0 0 0 3px #f8e840, inset 0 3px 0 var(--hg-hi), inset 0 -3px 0 var(--hg-lo), 0 3px 0 #0a0d14; }
-/* 교체 (파티): 초록 칸, 싸우는 중은 파랑, 고를 수 없으면 흐리게 */
-.controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn { padding: 6px 8px; color: #1e2c1c;
-	background: linear-gradient(180deg, #b4ecac 0 50%, #80cc78 50%); }
-.controls .switch-list .switch-btn b, .controls .switch-list .switch-btn small { color: #1e2c1c; text-shadow: 1px 1px 0 rgba(255,255,255,.55); }
-.controls .switch-list .switch-btn.active, :root[data-frame] .controls .switch-list .switch-btn.active { background: linear-gradient(180deg, #b4d8fa 0 50%, #80acea 50%); }
-.controls .switch-list .switch-btn.active .sw-info b { color: #10284c; }
-.controls .switch-list .switch-btn.off { filter: grayscale(.75) brightness(.85); }
-/* 더블 대상: 상대 분홍·내 편 파랑, 범위에 드는 칸은 연두 */
-.tcard { color: #2a1a24; }
-.tcard.foe { background: linear-gradient(180deg, #f6b0cc 0 50%, #dc78a4 50%); }
-.tcard.ally { background: linear-gradient(180deg, #b4d0fa 0 50%, #78a2e6 50%); color: #10203c; }
-.tcard.on, .tcard.ally.on { background-image: linear-gradient(180deg, #ecfa84 0 50%, #bcd840 50%); color: #1e2a08;
-	box-shadow: 0 0 0 3px #f8e840, inset 0 3px 0 var(--hg-hi), inset 0 -3px 0 var(--hg-lo), 0 3px 0 #0a0d14; }
-/* 뒤로·기록, 배틀 끝 버튼 */
-.controls .ctl-head .btn { padding: 2px 12px; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,.45); background: linear-gradient(180deg, #68acf8 0 50%, #2c74d8 50%); }
-.controls.end .btn, .controls.waiting .btn { color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.45); background: linear-gradient(180deg, #68acf8 0 50%, #2c74d8 50%); }
-.controls.end .btn.primary, .controls.waiting .btn.primary { background: linear-gradient(180deg, #f86868 0 50%, #d83c3c 50%); }
-/* 흰 글자에 진한 외곽선 (밝은 윗부분에서도 또렷하게) */
-.cmd-fight, .cmd-sub, .gmb, .controls .ctl-head .btn, .controls.end .btn, .controls.waiting .btn {
-	text-shadow: -1px -1px 0 #1c2028, 1px -1px 0 #1c2028, -1px 1px 0 #1c2028, 1px 1px 0 #1c2028, 2px 3px 0 rgba(0,0,0,.45); }
-/* 싸우는 중인 포켓몬은 고를 수 없어도 파란 칸 그대로 */
-.controls .switch-list .switch-btn.active.off { filter: none; opacity: 1; }
+/* 바깥 테두리 두 칸 + 그림자 한 칸이 겹치지 않게 간격을 넓힘 */
+.cmd-menu { gap: 18px; padding: 8px 8px 10px; }
+.cmd-row { gap: 14px; }
+.move-grid, .move-grid.win-dark { gap: 16px 14px; padding: 8px 8px 10px; }
+.gm-bar { gap: 14px; padding: 6px 8px 8px; }
+.switch-list { gap: 16px 14px; padding: 8px 8px 10px; }
+.target-grid2 { gap: 18px 14px; padding: 8px 6px 10px; }
+
+/* 명령 버튼 */
+.cmd-fight { --po: #3a0804; background: linear-gradient(180deg, #ff9a80 0 9px, #f2583e 9px 38%, #e8402c 38% 70%, #c82c1a 70% 88%, #b02010 88%); }
+.cmd-sub.green { background: linear-gradient(180deg, #98ec84 0 6px, #6cc85c 6px 50%, #4aa83c 50% 80%, #3a9a30 80%); }
+.cmd-sub.yellow { background: linear-gradient(180deg, #fce078 0 6px, #f4c440 6px 50%, #dca81c 50% 80%, #c89a10 80%); }
+.cmd-sub.blue { background: linear-gradient(180deg, #8cc0fc 0 6px, #5c9cf0 6px 50%, #3c78d8 50% 80%, #2a64c8 80%); }
+/* 기술: 타입 색 4단 띠 */
+.mvb { padding: 6px 9px; background: linear-gradient(180deg,
+	color-mix(in srgb, var(--tc) 60%, #fff) 0 6px, color-mix(in srgb, var(--tc) 82%, #fff) 6px 30%, var(--tc) 30% 66%,
+	color-mix(in srgb, var(--tc) 82%, #000) 66% 86%, color-mix(in srgb, var(--tc) 68%, #000) 86%); }
+.mvb-eff, .mvb-dmg { border-radius: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+/* 기믹 토글: 꺼지면 어두운 칸에 기믹 색 테두리, 켜면 기믹 색 띠에 흰 테두리 */
+.gmb { --pi: var(--gc); --po: #000; background: rgba(10,14,24,.85); }
+.gmb-dot { border-radius: 0; }
+.gmb.on { --pi: #fff; background: linear-gradient(180deg, rgba(255,255,255,.3) 0 6px, transparent 6px 60%, rgba(0,0,0,.18) 60%), var(--gc); }
+/* 교체 */
+.controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn { --pi: #d8ecdc; padding: 5px 7px;
+	background: linear-gradient(180deg, #58a878 0 6px, #3a8a5a 6px 55%, #2c7248 55% 82%, #24603a 82%); }
+.controls .switch-list .switch-btn.active, :root[data-frame] .controls .switch-list .switch-btn.active { --pi: #d8e8fc;
+	background: linear-gradient(180deg, #6aa4ec 0 6px, #4a8ad8 6px 55%, #3a72c0 55% 82%, #2a5aa8 82%); }
+.controls .switch-list .switch-btn.active.off { filter: none; }
+/* 더블 대상 */
+.tcard { --pi: #e8e8f0; }
+.tcard.foe { background: linear-gradient(180deg, #d070a8 0 6px, #b84a8a 6px 55%, #9a3672 55% 82%, #7a2458 82%); }
+.tcard.ally { background: linear-gradient(180deg, #7c8ce8 0 6px, #5a6ad8 6px 55%, #4250b8 55% 82%, #2e3a98 82%); }
+.tcard.on { --pi: #fff; --po: #3a4a08; background-image: linear-gradient(180deg, #ecfc98 0 6px, #d8f070 6px 55%, #b8d84c 55% 82%, #9ac028 82%); }
+.tcard.ally.on { --po: #08203a; background-image: linear-gradient(180deg, #ccf4ff 0 6px, #a8e8ff 6px 55%, #80c8f4 55% 82%, #5aa8e8 82%); }
+.teff { border-radius: 0; box-shadow: 0 0 0 2px #0a0f18; }
+/* HP 상자·메시지 창·위쪽 표시 (한 칸 2px) */
+.info { --u: 2px; --pi: #f4f6fa; --po: #0a0d12; --ps: rgba(0,0,0,.35); padding: 3px 8px 4px;
+	background: linear-gradient(180deg, rgba(78,86,104,.95) 0 4px, rgba(60,66,80,.95) 4px 50%, rgba(44,48,60,.95) 50% 85%, rgba(34,38,48,.95) 85%); }
+.info.foe, .info.own { border-radius: 0; }
+.msgbox, .msgbox.win-dark { --pi: #f0f4fa; --po: #0a0d12; --ps: transparent; margin: 6px 6px 4px;
+	background: linear-gradient(180deg, #34405a 0 6px, #283248 6px 70%, #1e2638 70%); }
+.hud-top .badge { --u: 2px; --pi: #9aa6bc; --po: #000; --ps: transparent; border-radius: 0; margin: 4px 3px; }
+.hpbar, .hp-bar { border-radius: 0; }
+/* 도트 한 칸을 4px 로 (모서리 계단이 또렷하게), 간격도 그만큼 */
+.cmd-fight, .cmd-sub, .mvb, .tcard, .controls .switch-list .switch-btn, :root[data-frame] .controls .switch-list .switch-btn { --u: 4px; }
+.cmd-menu { gap: 22px; padding: 10px 10px 12px; } .cmd-row { gap: 18px; }
+.move-grid, .move-grid.win-dark { gap: 20px 18px; padding: 10px 10px 12px; }
+.switch-list { gap: 20px 18px; padding: 10px 10px 12px; }
+.target-grid2 { gap: 22px 18px; padding: 10px 8px 12px; }
+/* 버튼 안 작은 표(타입·분류·상성)도 각지게 */
+.mvb .type, .mvb-top .type, .tcard .teff { border-radius: 0; box-shadow: 0 0 0 2px rgba(0,0,0,.55); }
+.mvb .cat-icon { border-radius: 0; box-shadow: 0 0 0 2px rgba(0,0,0,.55); border: 0; }
