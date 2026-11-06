@@ -1,5 +1,7 @@
 /** 빌드 시 만든 dex.json 을 감싸는 도우미 */
 import DEX from './gen/dex.json';
+import { loadSettings } from './store';
+const champRule = () => { try { return /^champ/.test(loadSettings().battleRule || ''); } catch { return false; } };
 
 /** 배틀 규칙 세대 — 9세대 내셔널 도감 고정 */
 export type Gen = 9;
@@ -96,9 +98,11 @@ export function allSpecies(gen: Gen) {
 	}
 	return out.sort((a, b) => a!.num - b!.num || a!.id.length - b!.id.length);
 }
+/** 기술 배우기 목록. 포켓몬 챔피언스 규칙(설정의 챔피언스 레귤레이션)에서는 챔피언스 목록(cls)이 있으면 그것을 씀 */
 export function learnset(id: string, gen: Gen): string[] {
-	const s = speciesData(id, gen);
+	const s: any = speciesData(id, gen);
 	if (!s) return [];
+	if (s.cls && champRule()) return s.cls.map((i: number) => D.moveIds[i]);
 	let ls = s.ls;
 	if (!ls && s.base) ls = speciesData(s.base, gen)?.ls;
 	return (ls || []).map(i => D.moveIds[i]);

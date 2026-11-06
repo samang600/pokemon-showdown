@@ -141,6 +141,8 @@ const BAD_NONSTD = new Set(['CAP', 'LGPE', 'Custom', 'Gigantamax']);
 const CHAMP = require(path.resolve(__dirname, '../src/ps/champions-moves.json'));
 // Showdown champions 모드(위력·명중·PP·타입·대상)도 같은 순서로: 모드 → 앱 목록
 const CHAMP_MOD = require(path.join(DIST, 'data/mods/champions/moves')).Moves;
+// Showdown champions 모드의 기술 배우기 목록 (포켓몬 챔피언스 기준, 폼마다 전부 적혀 있음) — 챔피언스 규칙에서 이 목록을 씀
+const CHAMP_LS = require(path.join(DIST, 'data/mods/champions/learnsets')).Learnsets;
 const champ = id => {
 	const m = {};
 	for (const k of ['type', 'basePower', 'accuracy', 'pp', 'target']) if (CHAMP_MOD[id] && CHAMP_MOD[id][k] !== undefined) m[k] = CHAMP_MOD[id][k];
@@ -220,7 +222,8 @@ function learnable(dex, species, gen) {
 	while (s && s.exists && !seen.has(s.id)) {
 		seen.add(s.id);
 		let ls = dex.species.getLearnsetData(s.id).learnset;
-		if (!ls && s.changesFrom) ls = dex.species.getLearnsetData(dex.species.get(s.changesFrom).id).learnset;
+		// 폼 체인지 폼(로토무 세탁·히트 등)은 자기 기술(전용기)만 따로 적혀 있으므로 원래 모습의 기술을 항상 합침
+		if (s.changesFrom) ls = { ...(dex.species.getLearnsetData(dex.species.get(s.changesFrom).id).learnset || {}), ...(ls || {}) };
 		if (!ls && s.baseSpecies !== s.name) ls = dex.species.getLearnsetData(dex.species.get(s.baseSpecies).id).learnset;
 		if (ls) {
 			for (const moveid in ls) {
@@ -266,6 +269,7 @@ for (const s of dex9.species.all()) {
 			req: s.requiredItem ? dex9.items.get(s.requiredItem).id : (s.requiredItems ? dex9.items.get(s.requiredItems[0]).id : undefined),
 			wt: s.weightkg,
 			ls: isBattleOnly ? undefined : learnable(dex9, s, GEN),
+			cls: isBattleOnly || !CHAMP_LS[s.id]?.learnset ? undefined : Object.keys(CHAMP_LS[s.id].learnset).filter(id => moveIndex[id] !== undefined).map(id => moveIndex[id]),
 		} },
 	};
 }
