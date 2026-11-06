@@ -823,8 +823,10 @@ function simulateTurn(ser: any, battle: Battle, me: 'p1' | 'p2', myChoice: strin
 		// 복제본의 로그는 원본과 같은 배열을 가리키므로 떼어 낸다 (원본 로그 오염·'Infinite loop' 방지)
 		c.log = []; c.sentLogPos = 0; c.inputLog = [];
 		const startTurn = c.turn;
+		// 상대가 이미 골랐으면(플레이어가 먼저 고른 실제 선택) 내 수만 넣으면 그 턴이 진행됨 — 상대 쪽은 건드리지 않음
+		const foeDone = !!c[foeSide].isChoiceDone?.();
 		if (!c.choose(me, myChoice)) return null;
-		if (!c.choose(foeSide, foeChoice)) c.choose(foeSide, 'default');
+		if (!foeDone && !c.choose(foeSide, foeChoice)) c.choose(foeSide, 'default');
 		let guard = 0;
 		while (!c.ended && c.turn === startTurn && guard++ < 3) { c.choose(me, 'default'); c.choose(foeSide, 'default'); }
 		const v = evalState(c, me);
@@ -845,14 +847,15 @@ function lookaheadDoubles(battle: Battle, side: any, parts: string[], slotCands:
 	// 상대 예상 선택
 	const foeReq = { active: foeSide.active.map((p: Pokemon) => p && !p.fainted ? p.getMoveRequestData() : null), side: foeSide.getRequestData() };
 	const foeChoices: { choice: string; w: number }[] = [];
-	inLookahead = true;
+	if (foeSide.isChoiceDone?.()) foeChoices.push({ choice: 'default', w: 1 }); // 상대가 이미 고름 → 그대로
+	else { inLookahead = true;
 	try {
 		for (let k = 0; k < 3; k++) {
 			const c = chooseAI(battle, foeReq, foeSide.id, 0.9);
 			const f = foeChoices.find(x => x.choice === c);
 			if (f) f.w += 1 / 3; else foeChoices.push({ choice: c, w: 1 / 3 });
 		}
-	} catch { foeChoices.push({ choice: 'default', w: 1 }); } finally { inLookahead = false; }
+	} catch { foeChoices.push({ choice: 'default', w: 1 }); } finally { inLookahead = false; } }
 	if (!foeChoices.length) return null;
 	// 내 후보 조합
 	const combos: string[] = [];
@@ -992,10 +995,13 @@ function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], req
 		for (const o of fo.slice(2)) foeMoves.push({ choice: o.choice, w: 0 });
 	} catch {}
 	if (!foeMoves.length) foeMoves.push({ choice: 'default', w: 1 });
+	// 상대(플레이어)가 이미 골랐으면 복제본에 그 선택이 들어 있어 내 수만 넣으면 실제 대결 그대로 → 상대 후보를 하나로
+	const foePicked = (() => { try { return !!battle[foeSide].isChoiceDone(); } catch { return false; } })();
+	if (foePicked) foeMoves = [{ choice: 'default', w: 1 }];
 	const depth = searchDepth(me, skill);
 	const v2 = aiVer(me) >= 3;
 	// (v3) 이 배틀에서 상대가 실제로 한 행동(자진 교체·방어 빈도)으로 예상 가중을 맞춤
-	const habit = v2 ? playerHabits(battle, foeSide) : null;
+	const habit = v2 && !foePicked ? playerHabits(battle, foeSide) : null;
 	if (habit && habit.protectRate > 0 && !['protect', 'detect', 'spikyshield', 'kingsshield', 'banefulbunker', 'silktrap', 'obstruct', 'burningbulwark'].includes(foe.lastMove?.id)) {
 		const pi = foe.moveSlots.findIndex((m: any) => ['protect', 'detect', 'spikyshield', 'kingsshield', 'banefulbunker', 'silktrap', 'obstruct', 'burningbulwark'].includes(m.id) && m.pp > 0);
 		if (pi >= 0) {
@@ -1006,7 +1012,7 @@ function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], req
 		}
 	}
 	// 상대가 교체할 가능성: v1 은 깊은 탐색에서만, v2 는 늘 (대면이 불리할수록 + 상대가 자주 바꿀수록 가중 ↑)
-	if (depth >= 2 || v2) {
+	if ((depth >= 2 || v2) && !foePicked) {
 		try {
 			const fs = battle[foeSide];
 			const fsw = bestSwitchIn(battle, fs, [user], new Set());
