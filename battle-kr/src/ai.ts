@@ -882,8 +882,8 @@ function lookaheadDoubles(battle: Battle, side: any, parts: string[], slotCands:
 	return best?.choice || null;
 }
 
-/** AI 버전: 1 = 이전, 2 = + 장 상황 평가, 3 = + 상대 습관·교체 예상. 자체 대전 비교용으로 globalThis.__aiVer = { p1: 1, p2: 3 } 처럼 진영별 지정 */
-/** 장 상황 평가 항목별 가중 (자체 대전으로 맞춤) */
+/** AI 버전: 1 = 이전, 2 = + 장 상황 평가, 3 = + 상대 습관·교체 예상 (v3 vs v2 싱글 6마리 53.8%(800판), 3마리 50.4%(1200판)). 자체 대전 비교용으로 globalThis.__aiVer = { p1: 1, p2: 3 } 처럼 진영별 지정 */
+/** 장 상황 평가 항목별 가중. 자체 대전(진영 바꿔 두 판씩, 깊이 1·숙고 200ms): v2 vs v1 싱글 6마리 54.9%(1200판), 3마리 49.2%(1200판) */
 const AI_FEAT = { haz: 1, scr: 1, sub: 1, item: 1 };
 function aiVer(me: 'p1' | 'p2'): number { return (globalThis as any).__aiVer?.[me] ?? 3; }
 
