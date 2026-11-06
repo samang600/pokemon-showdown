@@ -1297,3 +1297,14 @@ input:focus, textarea:focus { border-color: var(--p-hi); }
 /* 노란 버튼 (예: 세트 클리어의 '팀 바꾸기') */
 :root[data-frame] .btn.yellow { border-image-source: var(--ring4-grey); color: #3a2600; text-shadow: none;
 	background: linear-gradient(180deg, #ffe88a 0 4px, #f8c838 4px 55%, #e8b020 55% 80%, #d89a10 80%); background-origin: border-box; }
+
+/* 공중에 떠 있는 포켓몬(부유·박쥐·나방·고스트 등, data.ts floats): 땅에서 띄우고 천천히 오르내림 + 땅에 도트 그림자 */
+.slot.float { --fy: calc(var(--s) * 16px); }
+.slot.foe.float { --fy: calc(var(--s) * 13px); }
+.slot.float .sprite, .slot.float .sprite-fallback { bottom: var(--fy); }
+.slot.float:not(.enter):not(.leave):not(.faint):not(.hit):not(.evolve) .sprite { animation: floatBob 1.2s steps(2) infinite alternate; }
+@keyframes floatBob { to { bottom: calc(var(--fy) + var(--s) * 3px); } }
+.slot.float::before { content: ''; position: absolute; bottom: calc(var(--s) * -1px); left: 50%; transform: translateX(-50%); width: calc(var(--s) * 30px); height: calc(var(--s) * 6px);
+	background: rgba(20, 10, 30, .32); clip-path: polygon(20% 0, 80% 0, 80% 20%, 100% 20%, 100% 80%, 80% 80%, 80% 100%, 20% 100%, 20% 80%, 0 80%, 0 20%, 20% 20%); pointer-events: none; }
+.slot.foe.float::before { width: calc(var(--s) * 24px); height: calc(var(--s) * 5px); }
+.slot.float.faint::before, .slot.float.leave::before { display: none; }

@@ -96,6 +96,25 @@ export function allSpecies(gen: Gen) {
 	}
 	return out.sort((a, b) => a!.num - b!.num || a!.id.length - b!.id.length);
 }
+/** 공중에 떠 있는 포켓몬 (배틀 그림을 땅에서 띄움): 부유 특성을 가질 수 있는 포켓몬 + 날개·몸으로 떠 있는 포켓몬 */
+const FLOATERS = new Set([
+	// 박쥐·나방·나비·벌·잠자리
+	'zubat', 'golbat', 'crobat', 'woobat', 'swoobat', 'noibat', 'butterfree', 'beautifly', 'dustox', 'venomoth', 'masquerain', 'ninjask', 'yanma', 'yanmega',
+	'mothim', 'vivillon', 'volcarona', 'frosmoth', 'cutiefly', 'ribombee', 'combee', 'vespiquen', 'beedrill', 'togekiss',
+	// 떠 있는 고스트·에스퍼·환상
+	'haunter', 'dusknoir', 'shuppet', 'banette', 'drifloon', 'drifblim', 'froslass', 'lampent', 'chandelure', 'frillish', 'jellicent', 'dreepy', 'drakloak', 'dragapult',
+	'shedinja', 'mew', 'celebi', 'jirachi', 'hoopa', 'cosmog', 'cosmoem', 'nihilego', 'pecharunt', 'castform', 'klefki', 'comfey', 'minior', 'magearna',
+	// 기계·광물
+	'magnemite', 'magneton', 'magnezone', 'beldum', 'metang', 'porygonz', 'carbink',
+]);
+export function floats(speciesId: string): boolean {
+	const s: any = speciesData(speciesId, 9);
+	if (!s) return false;
+	const base = s.base || s.id;
+	if (FLOATERS.has(s.id) || FLOATERS.has(base)) return true;
+	const b: any = s.base ? speciesData(s.base, 9) : s;
+	return !!(s.ab?.includes('levitate') || b?.ab?.includes('levitate'));
+}
 /** 기술 배우기 목록: 본가 전 세대 목록(ls) + 포켓몬 챔피언스 목록(cls, 예: 아쿠스타 아쿠아제트)을 합침 — 모든 규칙에서 같음.
  * 배틀 중 모습(메가 등)은 기본 모습의 목록 */
 export function learnset(id: string, gen: Gen): string[] {
