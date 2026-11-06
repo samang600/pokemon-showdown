@@ -4,7 +4,7 @@ import { useState } from 'preact/hooks';
 import { ask, abortMode, gen5Icon, confirmBox } from './ui/core';
 import { BattleView, type BattleSetup, type BattleResult } from './ui/battle';
 import { PickScreen, InfoScreen, SwapScreen, ChoiceScreen, BracketView } from './ui/screens';
-import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, FACTORY_TIERS, type PSet } from './sets';
+import { randomTeam, randomSetFor, cloneSet, dedupeItems, rng, factoryTeam, assignGimmicks, fitSetToMega, FACTORY_TIERS, type PSet } from './sets';
 import { NAMED, CUPS, REGIONS, regionLabel, ROLE_KO, randomTrainer, namedById, namedSprite, namedLines, namedTitle, type NamedTrainer } from './trainers';
 import { SPRITE_URL, trainerImgError } from './trainer-lines';
 import { loadTeams, loadSettings, load, save, remove, updateRecords, loadRecords, type SavedTeam } from './store';
@@ -408,7 +408,7 @@ function namedTeam(t: NamedTrainer, size: number, gen: Gen = 9): PSet[] {
 	// 에이스에게 메가스톤이 있으면 우선 메가진화 담당
 	const ace = team[team.length - 1];
 	const stones = megaStonesFor(ace.species);
-	if (stones.length) ace.item = rng.pick(stones);
+	if (stones.length) fitSetToMega(ace, rng.pick(stones), gen);
 	return dedupeItems(assignGimmicks(team, { mega: ['leader', 'admin'].includes(t.role) ? 0.5 : 0.9, z: 0.6 }));
 }
 

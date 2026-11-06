@@ -130,9 +130,6 @@ export class Session {
 		for (let guard = 0; guard < 8 && !this.ended; guard++) {
 			const req = this.p2Request;
 			if (!req || req.wait || req === this.p2Answered) return;
-			// 플레이어가 고를 차례면 플레이어가 먼저 고른 뒤에 AI 가 고름 → 강한 AI(시뮬레이션 탐색)는 플레이어의 실제 선택을 보고 대응
-			const p1 = this.p1Request;
-			if (p1 && !p1.wait && !this.battle.p1.isChoiceDone()) return;
 			this.p2Answered = req;
 			let choice = 'default';
 			if (this.cfg.replayP2 && this.replayIdx < this.cfg.replayP2.length) choice = this.cfg.replayP2[this.replayIdx++];

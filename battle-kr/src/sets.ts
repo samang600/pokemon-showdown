@@ -69,12 +69,13 @@ function effectivePower(id: string, gen: Gen) {
 }
 
 /** 랜덤배틀 세트 데이터가 없는 포켓몬용 자동 세트 */
-export function buildSet(speciesId: string, gen: Gen): PSet {
+export function buildSet(speciesId: string, gen: Gen, style?: 'P' | 'S'): PSet {
 	const s = speciesData(speciesId, gen)!;
 	const moves = learnset(speciesId, gen).filter(id => moveData(id, gen));
 	const [hp, atk, , spa, , spe] = s.bs;
 	void hp;
-	const physical = atk >= spa;
+	// style: 특성까지 따진 공격 성향(메가 등)으로 물리/특수를 정할 때
+	const physical = style ? style === 'P' : atk >= spa;
 	const scored = moves.map(id => {
 		const m = moveData(id, gen)!;
 		if (m.category === 'Status' || !m.basePower && !['seismictoss', 'nightshade', 'lowkick', 'grassknot', 'gyroball', 'heavyslam', 'return'].includes(id)) return null;
@@ -82,7 +83,7 @@ export function buildSet(speciesId: string, gen: Gen): PSet {
 		let v = effectivePower(id, gen);
 		if (s.t.includes(m.type)) v *= 1.5;
 		const catOk = (m.category === 'Physical') === physical;
-		if (!catOk) v *= Math.min(atk, spa) / Math.max(atk, spa) * 0.9;
+		if (!catOk) v *= style ? 0.35 : Math.min(atk, spa) / Math.max(atk, spa) * 0.9;
 		return { id, type: m.type, v };
 	}).filter(Boolean) as { id: string; type: string; v: number }[];
 	scored.sort((a, b) => b.v - a.v);
@@ -98,7 +99,9 @@ export function buildSet(speciesId: string, gen: Gen): PSet {
 		if (types.has(x.type)) continue;
 		chosen.push(x.id); types.add(x.type);
 	}
-	const status = moves.filter(id => (physical || spe >= 90 ? GOOD_STATUS_OFF : []).includes(id));
+	// 랭크업 기술은 공격 성향에 맞는 것만 (물리형에 명상·나쁜음모, 특수형에 칼춤·벌크업이 들어가지 않게)
+	const SPEC_ONLY = ['nastyplot', 'calmmind', 'quiverdance'], PHYS_ONLY = ['swordsdance', 'dragondance', 'bulkup', 'coil', 'shiftgear'];
+	const status = moves.filter(id => (physical || spe >= 90 ? GOOD_STATUS_OFF : []).includes(id) && !(physical ? SPEC_ONLY : PHYS_ONLY).includes(id));
 	const status2 = moves.filter(id => GOOD_STATUS_DEF.includes(id));
 	const util = status.length ? rng.pick(status) : status2.length ? rng.pick(status2) : null;
 	if (util && chosen.length >= 3) chosen.splice(3, 0, util);
@@ -189,11 +192,37 @@ function sanitizeMoves(moves: string[], gen: Gen) {
 }
 
 /** 랜덤배틀 세트(있으면) 또는 자동 세트 */
+/** 공격 성향: 'P' 물리 · 'S' 특수 · 'M' 둘 다 — 특성(천하장사·순수한힘 ×2, 단단한발톱·옹골찬턱·철주먹 ×1.3, 메가런처 ×1.3)까지 반영 */
+function offenseStyle(bs: number[], ab: string[] = []): 'P' | 'S' | 'M' {
+	let a = bs[1], c = bs[3];
+	if (ab.some(x => x === 'hugepower' || x === 'purepower')) a *= 2;
+	if (ab.some(x => x === 'toughclaws' || x === 'strongjaw' || x === 'ironfist')) a *= 1.3;
+	if (ab.includes('megalauncher')) c *= 1.3;
+	return a > c * 1.15 ? 'P' : c > a * 1.15 ? 'S' : 'M';
+}
+/** 메가스톤을 쥐여 줄 때: 메가진화 뒤 공격 성향이 세트와 다르면(예: 메가아쿠스타 = 천하장사 물리형) 메가 모습 기준으로 기술·성격·노력치를 다시 짬 */
+export function fitSetToMega(set: PSet, stone: string, gen: Gen): PSet {
+	set.item = stone;
+	const megaName = (RAW.items as any)[toID(stone)]?.mega;
+	const mega = megaName ? speciesData(toID(megaName), gen) : null;
+	if (!mega) return set;
+	const want = offenseStyle(mega.bs, mega.ab);
+	let phys = 0, spec = 0;
+	for (const id of set.moves) { const m = moveData(id, gen); if (m?.category === 'Physical') phys++; else if (m?.category === 'Special') spec++; }
+	const have = phys > spec ? 'P' : spec > phys ? 'S' : 'M';
+	if (want === 'M' || want === have) return set;
+	const b = buildSet(toID(megaName), gen, want); // 기술은 기본 모습의 배울 수 있는 기술에서, 능력치·타입·특성은 메가 모습 기준
+	set.moves = b.moves.filter(id => moveData(id, gen));
+	const tmp: PSet = { ...set, species: mega.en, evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 } };
+	applySpread(tmp, gen);
+	set.evs = tmp.evs; set.nature = tmp.nature;
+	return set;
+}
 export function randomSetFor(speciesId: string, gen: Gen, level = 50, doubles = false, quality = 0.5): PSet {
 	const id = toID(speciesId);
 	// Smogon 사용률 통계가 있으면 실전형 세트 (quality 가 높을수록 자주 쓰는 구성)
 	const sm = smogonSet(id, gen, level, doubles, quality);
-	if (sm) { sm.name = nickKo(id); return sm; }
+	if (sm) { sm.name = nickKo(id); if ((RAW.items as any)[sm.item]?.mega) fitSetToMega(sm, sm.item, gen); return sm; }
 	const g = generator(gen);
 	let set: PSet;
 	const table = doubles ? g.randomDoublesSets : g.randomSets;
@@ -326,7 +355,7 @@ export function assignGimmicks(team: PSet[], opts: { mega?: number; z?: number }
 		const cands = team.filter(s => megaStonesFor(s.species).some(st => megaStoneAllowed(rule, st)) && !speciesData(s.species, 9)?.req);
 		if (cands.length) {
 			const set = rng.pick(cands);
-			set.item = rng.pick(megaStonesFor(set.species).filter(st => megaStoneAllowed(rule, st)));
+			fitSetToMega(set, rng.pick(megaStonesFor(set.species).filter(st => megaStoneAllowed(rule, st))), 9);
 		}
 	}
 	if (!hasZ && Math.random() < zProb) {
