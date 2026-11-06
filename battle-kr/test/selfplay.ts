@@ -1,7 +1,7 @@
 import '../src/ps/registry';
 import { Battle } from '../../sim/battle';
 import { chooseAI } from '../src/ai';
-import { filterGimmicks, gimmickOfLine } from '../src/engine';
+import { filterGimmicks, gimmickOfLine, Session } from '../src/engine';
 import { loadSettings } from '../src/store';
 import { ruleById } from '../src/rules';
 import { randomTeam, toSimTeam } from '../src/sets';
@@ -87,3 +87,4 @@ import { KoreanText, parseLine } from '../src/text';
 	return res;
 };
 (window as any).__Battle = Battle; // 테스트용: 상태이상 확률 측정 등
+(window as any).__Session = Session; // 테스트용: 멀티배틀 기믹 등

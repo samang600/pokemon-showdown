@@ -826,6 +826,7 @@ function typeTint(type: string) {
 		const s = new Session({
 			gen: setup.gen, doubles: setup.doubles, aiSkill: setup.aiSkill, inverse: !!setup.inverse,
 			...(setup.replay ? { seed: setup.replay.seed, ruleId: setup.replay.ruleId, replayP2: setup.replay.p2 } : {}),
+			partnerFlags: setup.partner?.theirs,
 			p1: { name: setup.p1.name, team: toSimTeam(setup.p1.team, !!setup.cheat) as any },
 			p2: { name: setup.p2.name, team: toSimTeam(setup.p2.team, !!setup.cheat) as any },
 		});
@@ -837,7 +838,6 @@ function typeTint(type: string) {
 		});
 		// 내 팀은 미리 등록 (교체 화면용)
 		const lines = s.start();
-		if (setup.partner) (s.battle.p1.pokemon as any[]).forEach((p, i) => { p.kPartner = !!setup.partner!.theirs[i]; });
 		let wake: any = null;
 		(navigator as any).wakeLock?.request?.('screen').then((w: any) => { wake = w; }).catch(() => {});
 		wakeRelease.current = () => { try { wake?.release(); } catch {} };

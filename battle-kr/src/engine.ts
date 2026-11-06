@@ -19,6 +19,8 @@ export interface SessionConfig {
 	inverse?: boolean;
 	/** 리플레이 재생: 기록된 상대(AI) 선택을 순서대로 씀 */
 	replayP2?: string[];
+	/** 멀티배틀: p1 팀 중 파트너 포켓몬 표시 (팀 순서대로). 기믹 사용 횟수를 나와 파트너가 따로 셈 */
+	partnerFlags?: boolean[];
 }
 
 export class Session {
@@ -29,6 +31,10 @@ export class Session {
 	private p2Answered: any = null;
 	/** 각 진영이 이번 배틀에 쓴 기믹 종류 */
 	gimmickUsed: { p1: Set<GimmickKind>; p2: Set<GimmickKind> } = { p1: new Set(), p2: new Set() };
+	/** 멀티배틀: 내 쪽(p1)의 기믹 사용을 포켓몬 주인별로 (나 / 파트너) */
+	private ownerUsed = { me: new Set<GimmickKind>(), partner: new Set<GimmickKind>() };
+	private get multi() { return !!this.cfg.partnerFlags; }
+	private ownerOf(p: any): 'me' | 'partner' { return p?.kPartner ? 'partner' : 'me'; }
 	/** 포켓몬(시뮬레이터 객체)마다 쓴 기믹 — 한 포켓몬은 기믹을 하나만 (울트라버스트+Z기술은 예외) */
 	private usedBy = new WeakMap<any, Set<GimmickKind>>();
 	/** 규칙상 추가로 허용한 다이맥스 (시뮬레이터 요청에 넣어 줄 것) */
@@ -72,6 +78,7 @@ export class Session {
 					const ident = line.split('|')[2] || '';
 					const pk = this.battle[gm[0]]?.active?.['abc'.indexOf(ident.charAt(2))];
 					if (pk) { const set = this.usedBy.get(pk) || new Set<GimmickKind>(); set.add(gm[1]); this.usedBy.set(pk, set); }
+					if (this.multi && gm[0] === 'p1' && pk) this.ownerUsed[this.ownerOf(pk)].add(gm[1]);
 				}
 				if (line.startsWith('|win|')) { this.ended = true; this.winner = line.slice(5); }
 				if (line === '|tie') { this.ended = true; this.winner = ''; }
@@ -97,6 +104,12 @@ export class Session {
 	/** 기믹 규칙 적용 (설정의 '기믹 규칙')
 	 *  one: 한 배틀에 한 종류(처음 쓴 종류만, 1회) / free: 종류마다 1회 / mega·zmove·dynamax·tera: 그 기믹만 / none: 사용 불가 */
 	private applyGimmickRule(req: any, side: 'p1' | 'p2') {
+		if (this.multi && side === 'p1') {
+			// 멀티배틀: 슬롯마다 그 포켓몬 주인의 사용 기록으로 판단, 상대 주인이 메가진화해도 내 메가진화는 다시 열어 줌
+			const act = this.battle.p1.active;
+			this.extraDmax[side] = filterGimmicks(req, this.rule, (i: number) => this.ownerUsed[this.ownerOf(act[i])], this.battle[side], this.usedBy, true);
+			return;
+		}
 		this.extraDmax[side] = filterGimmicks(req, this.rule, this.gimmickUsed[side], this.battle[side], this.usedBy);
 	}
 	/** 규칙으로 추가 허용한 다이맥스를 시뮬레이터 쪽 요청에도 넣는다 (선택 직전) */
@@ -137,6 +150,33 @@ export class Session {
 	start(): string[] {
 		this.battle.setPlayer('p1', { name: this.cfg.p1.name, team: this.cfg.p1.team } as any);
 		this.battle.setPlayer('p2', { name: this.cfg.p2.name, team: this.cfg.p2.team } as any);
+		if (this.cfg.partnerFlags) {
+			const side: any = this.battle.p1;
+			side.pokemon.forEach((p: any, i: number) => { p.kPartner = !!this.cfg.partnerFlags![i]; });
+			// Z기술·다이맥스의 '편 단위 1회' 표시는 끄고, 주인별 판단(filterGimmicks)에 맡김
+			for (const k of ['zMoveUsed', 'dynamaxUsed']) Object.defineProperty(side, k, { get: () => false, set: () => {}, configurable: true });
+			// 메가진화·테라스탈은 시뮬레이터가 같은 편 전원을 막으므로, 다른 주인의 포켓몬은 원래대로 되돌림 (같은 턴에 둘 다 써도 되게)
+			const acts: any = this.battle.actions;
+			const keepOthers = (fn: string, keys: string[]) => {
+				const orig = acts[fn].bind(acts);
+				acts[fn] = (pk: any, ...rest: any[]) => {
+					const others = pk?.side === side ? side.pokemon.filter((x: any) => x !== pk && this.ownerOf(x) !== this.ownerOf(pk)) : [];
+					const saved = others.map((x: any) => keys.map(k => x[k]));
+					const r = orig(pk, ...rest);
+					others.forEach((x: any, j: number) => keys.forEach((k, n) => { x[k] = saved[j][n]; }));
+					return r;
+				};
+			};
+			keepOthers('runMegaEvo', ['canMegaEvo', 'canMegaEvoX', 'canMegaEvoY', 'canUltraBurst']);
+			keepOthers('terastallize', ['canTerastallize']);
+			// 선택 검사: 한 턴에 같은 편이 같은 기믹을 두 번 못 쓰게 하는 표시를 슬롯마다 지움 (나·파트너가 같은 턴에 각자 쓸 수 있게.
+			// 같은 주인이 두 번 쓰는 것은 기믹 규칙(filterGimmicks)과 선택 화면·AI 가 막음)
+			const origChoose = side.chooseMove.bind(side);
+			side.chooseMove = (...a: any[]) => {
+				for (const k of ['mega', 'ultra', 'zMove', 'dynamax', 'terastallize']) if (side.choice) side.choice[k] = false;
+				return origChoose(...a);
+			};
+		}
 		this.battle.sendUpdates();
 		this.runAI();
 		return this.flush();
@@ -168,16 +208,24 @@ export class Session {
 
 /** 요청(request)을 배틀 규칙에 맞춘다. 규칙상 안 되는 기믹은 지우고, 쇼다운이 막아 둔 것(메가스톤 소지 포켓몬의 테라스탈·다이맥스 등)은 열어 준다.
  *  반환: 추가로 허용한 다이맥스 {슬롯: maxMoves} (시뮬레이터 요청에 넣어 줄 것) */
-export function filterGimmicks(req: any, rule: BattleRule, used: Set<GimmickKind>, simSide: any, usedBy?: WeakMap<any, Set<GimmickKind>>): { [i: number]: any } {
+export function filterGimmicks(req: any, rule: BattleRule, usedArg: Set<GimmickKind> | ((slot: number) => Set<GimmickKind>), simSide: any, usedBy?: WeakMap<any, Set<GimmickKind>>,
+	reopenMega = false): { [i: number]: any } {
 	const extra: { [i: number]: any } = {};
 	if (!req?.active) return extra;
-	// 울트라버스트('ultra')는 메가진화 계열로 취급하되, 원작처럼 그 뒤 Z기술은 쓸 수 있게 '한 종류' 계산에서 뺌
-	const counted = new Set([...used].filter(k => k !== 'ultra'));
-	const allow = (k: GimmickKind) => rule.kinds.includes(k) && !used.has(k) && !(rule.oneKind && counted.size > 0 && !(k === 'zmove' && used.has('ultra')));
 	const dmaxNow = simSide?.active?.some((p: any) => p?.volatiles['dynamax']);
 	req.active.forEach((a: any, i: number) => {
 		if (!a) return;
+		// 사용 기록: 보통은 진영 전체, 멀티배틀은 슬롯의 포켓몬 주인별
+		const used = typeof usedArg === 'function' ? usedArg(i) : usedArg;
+		// 울트라버스트('ultra')는 메가진화 계열로 취급하되, 원작처럼 그 뒤 Z기술은 쓸 수 있게 '한 종류' 계산에서 뺌
+		const counted = new Set([...used].filter(k => k !== 'ultra'));
+		const allow = (k: GimmickKind) => rule.kinds.includes(k) && !used.has(k) && !(rule.oneKind && counted.size > 0 && !(k === 'zmove' && used.has('ultra')));
 		const p = simSide?.active?.[i];
+		// 멀티배틀: 다른 주인이 메가진화하면 시뮬레이터가 같은 편 전원의 메가진화를 막으므로, 아직 안 쓴 주인의 포켓몬은 다시 열어 줌
+		if (reopenMega && p && allow('mega') && !a.canMegaEvo && !p.species.isMega && p.canMegaEvo === false) {
+			const sp = p.battle.actions.canMegaEvo(p);
+			if (sp) { p.canMegaEvo = sp; a.canMegaEvo = true; }
+		}
 		// 메가진화: 규칙·허용 메가 목록
 		// 메가스톤이 없는 메가진화(레쿠쟈: 화룡점정)는 메가 모습으로 판단
 		const stoneOk = !p ? allow('mega') : p.getItem?.()?.megaStone ? megaStoneAllowed(rule, p.item) : megaFormAllowed(rule, p.canMegaEvo || 'rayquazamega');
