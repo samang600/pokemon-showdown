@@ -270,7 +270,7 @@ export async function runTower() {
 }
 
 // ───────────── 배틀팩토리 ─────────────
-interface FactoryState { fmt: Fmt; level: 50 | 100; team: PSet[]; streak: number; partner?: { id: string; team: PSet[] } }
+interface FactoryState { fmt: Fmt; level: 50 | 100; team: PSet[]; streak: number }
 const FACTORY_KEY = (fmt: Fmt, lv: number, o: BattleOpts) => `factory-${fmt}-${lv}${optsTag(o)}`;
 
 /** 세트(7연승)마다 렌탈 등급: PU → NU → RU → UU → OU → OU+Uber 절반 → Uber 위주 */
@@ -295,7 +295,7 @@ function factoryPool(streak: number, level: number, size: number, exclude?: Set<
 
 export async function runFactory() {
 	const opts = defaultOpts();
-	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈', true, opts, ['inverse', 'mono'], true);
+	const fmt = await chooseFormat('배틀팩토리', '빌린 포켓몬으로 싸우는 시설 · 이길 때마다 상대 포켓몬과 교환 가능 · 세트가 오를수록 강한 렌탈', true, opts, ['inverse', 'mono']);
 	if (fmt === BACK) return;
 	const level = await ask<50 | 100 | typeof BACK>(r => <ChoiceScreen title="배틀팩토리 · 레벨" onBack={() => r(BACK)} options={[
 		{ value: 50 as const, label: '레벨 50', desc: '모든 포켓몬 레벨 50', icon: '50' },
@@ -316,13 +316,9 @@ export async function runFactory() {
 		return ask<PSet[]>(r => <PickScreen title={`렌탈 포켓몬 선택 · ${factoryGrade(streak)} 등급`} team={rentals} gen={9} count={n}
 			hint={`빌릴 포켓몬 ${n}마리를 고르세요. 처음 고른 포켓몬이 먼저 나갑니다. (세트가 오를수록 더 강한 등급에서 빌려 줍니다)`} onDone={r} />);
 	};
-	/** 멀티: 파트너도 세트마다 렌탈 2마리 (내 포켓몬과 겹치지 않게) */
-	const partnerRental = (streak: number, mine: PSet[]) => factoryPool(streak, level, 2, new Set(mine.map(s => toID(s.species))));
 	if (!state) {
-		let pt: NamedTrainer | typeof BACK | null = null;
-		if (fmt === 'multi') { pt = await choosePartner('배틀팩토리 · 멀티 파트너'); if (pt === BACK) return; }
 		const team = await rentalRound(0);
-		state = { fmt, level, team, streak: 0, partner: pt ? { id: pt.id, team: partnerRental(0, team) } : undefined };
+		state = { fmt, level, team, streak: 0 };
 		save(FACTORY_KEY(fmt, level, opts), state);
 	}
 	const head = (no: number) => no === 21 || no === 49;
@@ -340,26 +336,19 @@ export async function runFactory() {
 	};
 	while (true) {
 		const no = state.streak + 1;
-		const multi = fmt === 'multi';
-		const isHead = !multi && head(no);
+		const isHead = head(no);
 		const tr = randomTrainer();
-		const tr2 = randomTrainer();
-		// 타입 구애 도전: 일반 상대는 한 타입 팀 (멀티면 두 트레이너가 각자 한 타입)
+		// 타입 구애 도전: 일반 상대는 한 타입 팀
 		const mt = opts.mono && !isHead ? monoTypeFor(tr.types) : undefined;
-		const mt2 = opts.mono && multi ? monoTypeFor(tr2.types) : undefined;
-		const oppTeam = isHead ? factoryTeam(no === 49 ? 'Uber' : 'OU', n, level)
-			: multi ? (() => { const a = factoryPool(state!.streak, level, 2, undefined, mt); return [...a, ...factoryPool(state!.streak, level, 2, new Set(a.map(s => toID(s.species))), mt2)]; })()
-			: factoryPool(state.streak, level, n, undefined, mt);
+		const oppTeam = isHead ? factoryTeam(no === 49 ? 'Uber' : 'OU', n, level) : factoryPool(state.streak, level, n, undefined, mt);
 		const hint = staffHint(state.streak, oppTeam);
 		const skill = Math.min(0.92, 0.5 + Math.floor(state.streak / 7) * 0.1);
 		const opp = isHead ? { name: '팩토리 헤드', title: '', skill: 0.97, line: '지식과 운, 둘 다 시험해 보자고!', sprite: 'thorton', lines: { ace: '계산대로라면 여기서 역전이야!', lose: '내 계산이 틀렸다니… 대단한데!', win: '데이터는 거짓말을 안 하거든.' } } :
-			multi ? { name: `${tr.className} ${tr.name} & ${tr2.className} ${tr2.name}`, title: '', skill, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines }
-			: { name: tr.name, title: tr.className, skill, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines };
-		const monoLabel = multi && (mt || mt2) ? ` (${[mt, mt2].filter(Boolean).map(t => typeKo(t!)).join('·')}타입 구애)` : monoTag(mt);
-		const partnerT = state.partner ? namedById(state.partner.id) : null;
+			{ name: tr.name, title: tr.className, skill, line: tr.lines.intro, sprite: tr.sprite, lines: tr.lines };
+		const monoLabel = monoTag(mt);
 		const go = await confirmQuit(() => ask<'go' | 'rest' | 'quit'>(r => <InfoScreen title="배틀팩토리" banner={`${no}번째 승부`}
 			heading={isHead ? '⚠ 팩토리 헤드 등장!' : `${whoOf(opp)}${josa(opp.name)} 승부를 걸어왔다!${monoLabel}`} trainer={opp.sprite}
-			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, ...(partnerT ? [`파트너: ${partnerT.title} ${partnerT.name} (${state!.partner!.team.map(s => speciesKo(s.species)).join(', ')})`] : []), hint, ...optsLines(opts)]}
+			lines={[`현재 ${state!.streak}연승 · 레벨 ${level === 50 ? '50' : '오픈'}`, hint, ...optsLines(opts)]}
 			sprites={state!.team.map(s => s.species)} sets={state!.team} gen={9}
 			actions={[{ label: '승부한다', onClick: () => r('go') }, { label: '쉬기 (저장 후 나가기)', kind: 'ghost', onClick: () => r('rest') },
 				{ label: '도전 그만두기', kind: 'danger', onClick: () => r('quit') }]} />), 'quit', `지금까지의 ${state!.streak}연승 도전과 빌린 포켓몬이 사라집니다.\n정말 그만둘까요? (‘쉬기’를 고르면 저장하고 나중에 이어서 할 수 있어요)`);
@@ -371,8 +360,7 @@ export async function runFactory() {
 		const oppEntry = fmt === 'doubles64' ? aiPickEntry(oppTeam, state.team, 4, true, opp.skill) : oppTeam;
 		const res = await battle({
 			gen: 9, doubles: isDoubles(fmt), aiSkill: opp.skill, bg: isHead ? 'champion' : 'factory', label: `배틀팩토리 ${no}번째`, noRecord: noRec(opts), inverse: opts.inverse,
-			p1: { name: playerName(), team: state.partner ? multiTeam(myEntry, state.partner.team).team : myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
-			partner: partnerT && state.partner ? { name: partnerT.name, theirs: multiTeam(myEntry, state.partner.team).flags, skill: 0.9 } : undefined,
+			p1: { name: playerName(), team: myEntry, sprite: playerSprite() }, p2: { name: opp.name, title: opp.title, team: oppEntry, line: opp.line, sprite: opp.sprite, lines: { intro: opp.line, ...opp.lines } },
 		});
 		if (!res.win) {
 			const s = state.streak;
@@ -389,7 +377,6 @@ export async function runFactory() {
 			await ask<void>(r => <InfoScreen title="배틀팩토리" banner="🏆 세트 클리어!" heading={`${s}연승 달성!`}
 				lines={['빌린 포켓몬을 모두 반납하고, 새 렌탈 포켓몬을 처음부터 다시 고릅니다.', `다음 세트 렌탈 등급: ${factoryGrade(s)}${factoryGrade(s) !== factoryGrade(s - 1) ? ' (등급 상승!)' : ''}`]} actions={[{ label: '새로 빌리기', onClick: () => r() }]} />);
 			state.team = await rentalRound(s);
-			if (state.partner) state.partner.team = partnerRental(s, state.team);
 		} else {
 			const swap = await ask<{ give: number; take: number } | null>(r => <SwapScreen mine={state!.team} theirs={oppTeam} gen={9} onDone={r} />);
 			if (swap) {

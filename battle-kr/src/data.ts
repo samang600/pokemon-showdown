@@ -1,7 +1,5 @@
 /** 빌드 시 만든 dex.json 을 감싸는 도우미 */
 import DEX from './gen/dex.json';
-import { loadSettings } from './store';
-const champRule = () => { try { return /^champ/.test(loadSettings().battleRule || ''); } catch { return false; } };
 
 /** 배틀 규칙 세대 — 9세대 내셔널 도감 고정 */
 export type Gen = 9;
@@ -98,14 +96,15 @@ export function allSpecies(gen: Gen) {
 	}
 	return out.sort((a, b) => a!.num - b!.num || a!.id.length - b!.id.length);
 }
-/** 기술 배우기 목록. 포켓몬 챔피언스 규칙(설정의 챔피언스 레귤레이션)에서는 챔피언스 목록(cls)이 있으면 그것을 씀 */
+/** 기술 배우기 목록: 본가 전 세대 목록(ls) + 포켓몬 챔피언스 목록(cls, 예: 아쿠스타 아쿠아제트)을 합침 — 모든 규칙에서 같음.
+ * 배틀 중 모습(메가 등)은 기본 모습의 목록 */
 export function learnset(id: string, gen: Gen): string[] {
 	const s: any = speciesData(id, gen);
 	if (!s) return [];
-	if (s.cls && champRule()) return s.cls.map((i: number) => D.moveIds[i]);
-	let ls = s.ls;
-	if (!ls && s.base) ls = speciesData(s.base, gen)?.ls;
-	return (ls || []).map(i => D.moveIds[i]);
+	const own = s.ls || s.cls ? s : s.base ? speciesData(s.base, gen) : null;
+	if (!own) return [];
+	const out = new Set<number>([...(own.ls || []), ...(own.cls || [])]);
+	return [...out].map(i => D.moveIds[i]);
 }
 export function allItems(gen: Gen) {
 	return Object.entries(D.items).filter(([, it]) => it.gens.includes(gen) && !it.ball).map(([id, it]) => ({ id, ...it }));

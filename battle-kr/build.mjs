@@ -60,7 +60,7 @@ const result = await esbuild.build({
 	sourcemap: false,
 	define: { '__dirname': '"/ps/sim"', 'process.env.NODE_ENV': '"production"',
 		// 앱 안에 들어 있는 울음소리 목록 (public/cries, scripts/fetch-sprites.sh)
-		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES), '__BGM_LOOPS__': fs.existsSync(path.join(HERE, 'public/bgm/loops.json')) ? fs.readFileSync(path.join(HERE, 'public/bgm/loops.json'), 'utf8') : '{}',
+		'__LITE__': String(lite), '__BUNDLED__': String(!lite), '__ANIM_BASE__': JSON.stringify(ANIM_BASE), '__PACK_URLS__': JSON.stringify(PACK_URLS), '__CUSTOM_SPRITES__': JSON.stringify(CUSTOM_SPRITES), '__BGM_LOOPS__': '{}',
 		'__LOCAL_CRIES__': JSON.stringify(fs.existsSync(path.join(HERE, 'public/cries')) ? fs.readdirSync(path.join(HERE, 'public/cries')).filter(f => f.endsWith('.mp3')).map(f => f.slice(0, -4)).join(',') : '') },
 	jsx: 'automatic',
 	jsxImportSource: 'preact',
@@ -82,7 +82,8 @@ const html = template
 if (args.has('--test')) { fs.writeFileSync(path.join(HERE, 'test/selfplay.html'), html); console.log('test/selfplay.html'); process.exit(0); }
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 if (!fs.existsSync(path.join(HERE, 'public/sprites/gen5'))) console.warn('⚠ public/sprites 가 없습니다 — 오프라인 그림을 넣으려면 먼저 `bash battle-kr/scripts/fetch-sprites.sh`');
-fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true, filter: src => !lite || !/[\\/]public[\\/](sprites|cries|anims)(?:[\\/]|$)/.test(src) });
+// 관현악 배경음악(public/bgm mp3)은 빼고 칩튠판만 씀 → 앱에 넣지 않음
+fs.cpSync(path.join(HERE, 'public'), OUT, { recursive: true, filter: src => !/[\\/]public[\\/]bgm(?:[\\/]|$)/.test(src) && (!lite || !/[\\/]public[\\/](sprites|cries|anims)(?:[\\/]|$)/.test(src)) });
 console.log(`battle-kr/dist/index.html ${(html.length / 1024 / 1024).toFixed(2)} MB`);
 
 if (args.has('--android')) {

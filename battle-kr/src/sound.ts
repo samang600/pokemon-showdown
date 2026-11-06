@@ -357,8 +357,8 @@ let current = '';
 declare const __BGM_LOOPS__: { [name: string]: { start: number; end: number } };
 const BGM_LOOPS: { [name: string]: { start: number; end: number } } = typeof __BGM_LOOPS__ === 'object' ? __BGM_LOOPS__ : {};
 export type BgmStyle = 'orch' | 'chip';
-/** 음악 스타일 (예전에 고른 '공개 음원'은 없어졌으므로 기본값 칩튠으로) */
-const bgmStyle = (): BgmStyle => loadSettings().bgmStyle === 'orch' ? 'orch' : 'chip';
+/** 음악 스타일: 관현악(mp3)판은 빼고 항상 칩튠판 (예전에 관현악을 고른 설정도 칩튠으로) */
+const bgmStyle = (): BgmStyle => 'chip';
 const BGM_VOL = [0.25, 0.5, 0.8];
 let bgmSrc: AudioBufferSourceNode | null = null;
 let bgmGain: GainNode | null = null;
