@@ -296,35 +296,84 @@ export function pillar(layer: HTMLElement, at: Pt, color: string, s: number) {
 	sparkle(layer, at, 'Normal', s);
 }
 
-/** 메가진화 표식: 이중 나선 문양만 — 이 앱용으로 코드로 그린 32×32 도트 그림.
- * 포켓몬 위에 톡 튀어나와(확대 → 제자리) 반짝이다가 사라짐. 50ms 한 칸씩. */
+/** 메가진화 심볼 모양 (22×42 도트, '#' = 칠함): 위로 뻗은 꼬리 · 구멍 둘이 엇갈린 몸통 · 아래로 휘는 꼬리 */
+const MEGA_MASK = [
+	'...............##.....',
+	'..............###.....',
+	'..............###.....',
+	'.............###......',
+	'.............###......',
+	'............####......',
+	'............###.......',
+	'...........####.......',
+	'...........###........',
+	'..........####........',
+	'......#...####........',
+	'......##.#####........',
+	'.......#######........',
+	'......########........',
+	'.....##########.......',
+	'....############......',
+	'....##..#########.....',
+	'...##....#########....',
+	'...##.....########....',
+	'...###.....#######....',
+	'...####....########...',
+	'....####...#####.###..',
+	'....######.###....##..',
+	'.....#######......###.',
+	'.....######.......###.',
+	'......#####......####.',
+	'......#####.....####..',
+	'.......######..#####..',
+	'........###########...',
+	'.........#########....',
+	'..........#######.....',
+	'...........######.....',
+	'............#####.....',
+	'...........#####......',
+	'..........#####.......',
+	'.........#####........',
+	'........####..........',
+	'.......####...........',
+	'......###.............',
+	'.....###..............',
+	'.....##...............',
+	'....##................',
+];
+/** 둘레에 튀는 물방울 (도트 좌표) */
+const MEGA_DROPS: [number, number][] = [[19, 1], [20, 5], [1, 13], [2, 20], [17, 39], [9, 41]];
+/** 위(주황) → 노랑 → 초록 → 하늘 → 파랑 → 아래(분홍) 무지개 6단 */
+const MEGA_RAMP = ['#ff9a70', '#f8d860', '#a8e070', '#70d8e8', '#78a8f0', '#e898d8'];
+/** 메가진화 표식: 메가진화 심볼 모양을 코드로 그린 도트 그림 (무지개 6단 띠 + 진보라 외곽선 + 물방울).
+ * 포켓몬 위에 톡 튀어나와(확대 → 제자리) 가장자리가 반짝이다 사라짐. 50ms 한 칸씩. */
 export function megaIcon(layer: HTMLElement, at: Pt, s: number) {
-	const N = 32, C = 16, k = Math.max(3, Math.round(s * 2.2));
+	const W = 24, H = 44, OX = 1, OY = 1, k = Math.max(2, Math.round(s * 1.7));
 	const cv = document.createElement('canvas');
-	cv.width = N; cv.height = N; cv.className = 'fxp pxfx';
-	const size = N * k;
-	cv.style.cssText = `left:${Math.round(at.x - size / 2)}px;top:${Math.round(at.y - 56 * s - size / 2)}px;width:${size}px;height:${size}px;transform-origin:50% 50%;`;
+	cv.width = W; cv.height = H; cv.className = 'fxp pxfx';
+	cv.style.cssText = `left:${Math.round(at.x - W * k / 2)}px;top:${Math.round(at.y - 40 * s - H * k / 2)}px;width:${W * k}px;height:${H * k}px;transform-origin:50% 60%;`;
 	const g = cv.getContext('2d'); if (!g) return;
-	const px = (x: number, y: number, c: string) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
-	// 나선 두 가닥: 대각선(왼쪽 아래 → 오른쪽 위)을 따라 서로 감기는 곡선
-	const strand = (phase: number) => {
-		const pts: [number, number][] = [];
-		for (let t = 0; t <= 1.0001; t += 0.01) {
-			const u = (t - 0.5) * 17, v = Math.sin(t * Math.PI * 2 + phase) * 3.4;
-			const a = -Math.PI / 4;
-			pts.push([Math.round(C - 1 + u * Math.cos(a) - v * Math.sin(a)), Math.round(C - 1 + u * Math.sin(a) + v * Math.cos(a))]);
-		}
-		return pts;
-	};
-	const A = strand(0), B = strand(Math.PI);
+	const fill = (x: number, y: number) => MEGA_MASK[y]?.[x] === '#';
+	const px = (x: number, y: number, c: string) => { g.fillStyle = c; g.fillRect(x + OX, y + OY, 1, 1); };
+	const OUT = '#5a2a6e', HI = '#ffffff';
 	const draw = (f: number) => {
-		g.clearRect(0, 0, N, N);
-		// 가닥은 2×2 굵기, 바깥 한 칸 외곽선
-		const thick = (pts: [number, number][], c: string) => { for (const [x, y] of pts) { px(x, y, c); px(x + 1, y, c); px(x, y + 1, c); px(x + 1, y + 1, c); } };
-		for (const [x, y] of [...A, ...B]) for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) px(x + dx, y + dy, '#0a0d14');
-		thick(B, '#8a94b0');
-		thick(A, '#f4f6fa');
-		if (f % 6 < 3) { px(C - 6, C - 9, '#fff'); px(C - 7, C - 8, '#fff'); } // 반짝임
+		g.clearRect(0, 0, W, H);
+		const rows = MEGA_MASK.length, cols = MEGA_MASK[0].length;
+		// 외곽선: 칠한 칸에 맞닿은 빈 칸 (구멍 안쪽 포함)
+		for (let y = -1; y <= rows; y++) for (let x = -1; x <= cols; x++) {
+			if (fill(x, y)) continue;
+			if (fill(x + 1, y) || fill(x - 1, y) || fill(x, y + 1) || fill(x, y - 1)) px(x, y, OUT);
+		}
+		// 몸: 위 주황 → 아래 분홍 무지개 띠 (살짝 비스듬히)
+		for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+			if (!fill(x, y)) continue;
+			const t = Math.min(0.999, Math.max(0, (y + (cols - x) * 0.35) / (rows + cols * 0.35)));
+			px(x, y, MEGA_RAMP[Math.min(MEGA_RAMP.length - 1, Math.floor(t * MEGA_RAMP.length))]);
+		}
+		// 왼쪽 위 가장자리 한 칸 밝게 (도트 입체감)
+		for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (fill(x, y) && !fill(x - 1, y) && !fill(x, y - 1) && (x + y + f) % 3 === 0) px(x, y, HI);
+		// 물방울
+		for (const [x, y] of MEGA_DROPS) { px(x, y, OUT); px(x + 1, y, OUT); px(x, y + 1, OUT); px(x + 1, y + 1, MEGA_RAMP[Math.floor(y / rows * MEGA_RAMP.length)] || MEGA_RAMP[0]); }
 	};
 	const FR = 18; let f = 0;
 	const SC = [0.3, 0.7, 1.15, 1.25, 1.1, 1];
@@ -332,8 +381,7 @@ export function megaIcon(layer: HTMLElement, at: Pt, s: number) {
 	const tick = () => {
 		if (f >= FR) { clearInterval(timer); cv.remove(); return; }
 		draw(f);
-		const sc = SC[Math.min(f, SC.length - 1)];
-		cv.style.transform = `scale(${sc})`;
+		cv.style.transform = `scale(${SC[Math.min(f, SC.length - 1)]})`;
 		cv.style.opacity = f >= FR - 3 ? String((FR - f) / 4) : '1';
 		f++;
 	};
