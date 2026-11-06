@@ -10,7 +10,10 @@ import { rankerTeam } from '../src/pokedb';
 import { KoreanText, parseLine } from '../src/text';
 /** o.aSmogon/bSmogon: 각 팀을 Smogon 통계로 만들지 / o.quality: 통계 세트의 쏠림 / o.pick: 6마리 중 n마리 (A 는 aiPickEntry, B 는 무작위) */
 (window as any).selfplay = (n: number, gen: 9, doubles: boolean, skillA: number, skillB: number, _unused = false, size = 0,
-	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number; depthA?: number; depthB?: number; budget?: number; aRanker?: boolean; minBstB?: number; cfgA?: { budget?: number; seeds?: number }; cfgB?: { budget?: number; seeds?: number } } = {}) => {
+	o: { aSmogon?: boolean; bSmogon?: boolean; quality?: number; pick?: number; depthA?: number; depthB?: number; budget?: number; aRanker?: boolean; minBstB?: number; cfgA?: { budget?: number; seeds?: number }; cfgB?: { budget?: number; seeds?: number }; verA?: number; verB?: number; swap?: boolean; featA?: any; featB?: any } = {}) => {
+	(globalThis as any).__aiFeat = o.featA || o.featB ? { p1: o.featA, p2: o.featB } : null;
+	(globalThis as any).__aiVer = o.verA || o.verB ? { p1: o.verA ?? 2, p2: o.verB ?? 2 } : null;
+	let prevTeams: any = null;
 	(globalThis as any).__searchCfg = o.cfgA || o.cfgB ? { p1: o.cfgA, p2: o.cfgB } : null;
 	(globalThis as any).__searchDepth = o.depthA || o.depthB ? { p1: o.depthA || 1, p2: o.depthB || 1 } : null;
 	(globalThis as any).__laBudget = o.budget;
@@ -29,6 +32,8 @@ import { KoreanText, parseLine } from '../src/text';
 		setSmogon(o.aSmogon ?? true); let ta = randomTeam({ gen, size: sz, minBst: 450, doubles, quality: o.quality });
 		setSmogon(o.bSmogon ?? true); let tb = randomTeam({ gen, size: sz, minBst: o.minBstB ?? 450, allowSubLegend: !!o.minBstB, doubles, quality: o.quality });
 		if (o.aRanker) { setSmogon(true); const rk = rankerTeam(doubles, 50, 0.9); if (rk) ta = rk.team.slice(0, sz); }
+		// swap: 두 판씩 같은 두 팀을 진영만 바꿔서 (팀 운을 상쇄해 AI 버전끼리 공정하게 비교)
+		if (o.swap) { if (k % 2 === 1 && prevTeams) { ta = prevTeams[1]; tb = prevTeams[0]; } else prevTeams = [ta, tb]; }
 		if (o.pick) {
 			setSmogon(true); const pa = aiPickEntry(ta, tb, o.pick, doubles, 1);
 			setSmogon(false); const pb = aiPickEntry(tb, ta, o.pick, doubles, 1);
@@ -42,6 +47,8 @@ import { KoreanText, parseLine } from '../src/text';
 		const done: any = {};
 		while (!b.ended && guard++ < 600) {
 			let acted = false;
+			// 두 진영이 모두 고른 뒤에 한꺼번에 제출 (먼저 제출하면 나중에 고르는 AI 의 탐색 복제본에 상대의 실제 선택이 들어가 엿보게 됨)
+			const decided: [('p1' | 'p2'), string][] = [];
 			for (const side of ['p1', 'p2'] as const) {
 				const r = reqs[side];
 				if (!r || r.wait || done[side] === r) continue;
@@ -52,6 +59,9 @@ import { KoreanText, parseLine } from '../src/text';
 				const t0 = performance.now();
 				try { c = chooseAI(b, r, side, side === 'p1' ? skillA : skillB); } catch (e: any) { res.errors.push('AI ' + e.message + e.stack.slice(0, 300)); }
 				think[side].push(performance.now() - t0);
+				decided.push([side, c]);
+			}
+			for (const [side, c] of decided) {
 				try {
 					if (!b.choose(side, c)) { res.errors.push(`bad choice ${side}: ${c} :: ${(b as any)[side].choice.error}`); b.choose(side, 'default'); }
 				} catch (e: any) { res.errors.push('SIM ' + e.message + '\n' + b.log.slice(-25).join('\n')); guard = 9999; break; }

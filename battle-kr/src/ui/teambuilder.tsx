@@ -4,7 +4,7 @@ import { useMemo, useState, useRef, useLayoutEffect } from 'preact/hooks';
 import { allSpecies, allItems, allNatures, learnset, moveData, speciesData, toID, abilityKo, abilityDesc, itemKo, itemDesc,
 	natureKo, STAT_KO, STAT_SHORT, STATS, RAW, speciesKo, nickKo, ALL_TYPES, typeKo, megaStonesFor, allBalls, type Gen, type StatID } from '../data';
 import { typeEff } from './calc';
-import { randomSetFor, applySpread, randomTeam, normalizeSP, fillSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, type PSet } from '../sets';
+import { randomSetFor, applySpread, randomTeam, normalizeSP, fillSP, cheatSP, spOf, spToEv, evToSp, SP_MAX, SP_TOTAL, evDisplay, fmtSP, evsFor510, type PSet } from '../sets';
 import { ruleById, teamRuleWarnings } from '../rules';
 import { loadSettings } from '../store';
 import { loadTeams, upsertTeam, deleteTeam, newId, load, save, type SavedTeam } from '../store';
@@ -118,6 +118,9 @@ export function importText(text: string, gen: Gen): PSet[] {
 			else if (/^(Tera ?Type|테라타입):/i.test(l)) { const t = l.split(':')[1].trim(); set.teraType = ALL_TYPES.find(x => x.toLowerCase() === t.toLowerCase() || typeKo(x) === t) || set.teraType; }
 		}
 		if (!set.moves.length) continue;
+		// 본가 노력치(합계 510)를 꽉 채운 세트(예: 252/252/4 = 65포인트)는 챔피언스의 남는 1포인트를 4를 준 능력에 더함 (→ 32/32/2)
+		const evSum = Object.values(set.evs).reduce((a, v) => a + (v || 0), 0);
+		if (evSum >= 508 && evSum <= 510) { fillSP(set); sets.push(set); continue; }
 		sets.push(normalizeSP(set));
 	}
 	return sets.slice(0, 6);
@@ -126,7 +129,8 @@ export function exportText(sets: PSet[]) {
 	return sets.map(s => {
 		const nick = s.name && s.name !== nickKo(toID(s.species)) ? `${s.name} (${speciesKo(s.species)})` : speciesKo(s.species);
 		const lines = [`${nick}${s.gender ? ` (${s.gender})` : ''}${s.item ? ' @ ' + itemKo(s.item) : ''}`, `특성: ${abilityKo(s.ability)}`,
-			`능력 포인트: ${(() => { const p = spOf(s); return STATS.filter(k => p[k]).map(k => `${p[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`,
+			evDisplay() ? `노력치: ${(() => { const e = evsFor510(spOf(s)); return STATS.filter(k => e[k]).map(k => `${e[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`
+				: `능력 포인트: ${(() => { const p = spOf(s); return STATS.filter(k => p[k]).map(k => `${p[k]} ${STAT_SHORT[k]}`).join(' / '); })()}`,
 			`${natureKo(s.nature)} 성격`, `테라타입: ${typeKo(s.teraType || speciesData(toID(s.species), 9)?.t[0] || 'Normal')}`,
 			...(s.gigantamax ? ['거다이맥스: 예'] : []), ...(s.pokeball && s.pokeball !== 'pokeball' ? [`볼: ${itemKo(s.pokeball)}`] : []), ...(s.shiny ? ['색이 다른: 예'] : []), ...s.moves.map(m => `- ${moveData(m, 5)?.name || m}`)];
 		return lines.join('\n');
@@ -354,9 +358,11 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 		<h3 class="sec">테라스탈 타입</h3>
 		<label class="sel-row big"><TypeBadge type={s.teraType || sd.t[0]} /><select value={s.teraType || sd.t[0]} onChange={e => up({ teraType: (e.target as HTMLSelectElement).value })}>
 			{ALL_TYPES.map(t => <option value={t}>{typeKo(t)}</option>)}</select></label>
-		<h3 class="sec">능력 포인트 <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{cheat ? `${spTotal} (제한 없음)` : `${spTotal}/${SP_TOTAL}`}</small>
+		<h3 class="sec">{evDisplay() ? '노력치' : '능력 포인트'} <small class={'muted' + (spTotal > SP_TOTAL ? ' bad' : '')}>{evDisplay() ? `${STATS.reduce((a, k) => a + spToEv(sp[k]), 0)} · ` : ''}{cheat ? `${spTotal}${evDisplay() ? '포인트' : ''} (제한 없음)` : `${spTotal}/${SP_TOTAL}${evDisplay() ? '포인트' : ''}`}</small>
 			<button class="btn ghost small" onClick={() => { const n = applySpread({ ...s, evs: { ...s.evs } }, gen); up({ evs: fillSP({ ...s, evs: n.evs, ivs: { ...s.ivs } }).evs, nature: n.nature }); }}>자동 배분</button></h3>
-		<p class="muted small">포켓몬 챔피언스 방식: 능력마다 0~32포인트, 합계 66포인트. 개체값은 없고(모두 최대), 레벨 50에서 1포인트 = 능력치 +1.</p>
+		<p class="muted small">{evDisplay()
+			? '노력치로 표시(설정에서 바꿈): 4 다음부터 8씩, 능력마다 최대 252 · 레벨 50에서 능력치 +1. 규칙은 챔피언스 방식 합계 66포인트라 본가 510보다 1포인트(노력치 8) 더 쓸 수 있습니다(예: 252/252/12). 개체값은 모두 최대.'
+			: '포켓몬 챔피언스 방식: 능력마다 0~32포인트, 합계 66포인트. 개체값은 없고(모두 최대), 레벨 50에서 1포인트 = 능력치 +1.'}</p>
 		<div class="chips-row">{SP_PRESETS.map(([label, sp]) => <button class="chipbtn" onClick={() => setSp({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...sp })}>{label}</button>)}
 			<button class="chipbtn" onClick={() => setSp({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })}>초기화</button></div>
 		<div class="ev-table">
@@ -373,7 +379,7 @@ export function SetEditor({ set, gen, onChange, onDelete, onBack, cheat }: { set
 					<button class="sp-step" onClick={() => change(sp[k] - 1)} aria-label="빼기">−</button>
 					<input type="range" min={0} max={SP_MAX} step={1} value={sp[k]} onInput={e => change(parseInt((e.target as HTMLInputElement).value, 10))} />
 					<button class="sp-step" onClick={() => change(sp[k] + 1)} aria-label="더하기">+</button>
-					<span class="ev-val">{sp[k]}</span>
+					<span class="ev-val">{fmtSP(sp[k])}</span>
 					<b class="ev-stat">{val}</b>
 				</div>;
 			})}

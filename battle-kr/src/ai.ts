@@ -879,7 +879,38 @@ function lookaheadDoubles(battle: Battle, side: any, parts: string[], slotCands:
 	return best?.choice || null;
 }
 
-/** 진영 평가: HP 비율 합 + 살아 있는 수 (내 쪽 − 상대 쪽) */
+/** AI 버전: 1 = 이전, 2 = + 장 상황 평가, 3 = + 상대 습관·교체 예상. 자체 대전 비교용으로 globalThis.__aiVer = { p1: 1, p2: 3 } 처럼 진영별 지정 */
+/** 장 상황 평가 항목별 가중 (자체 대전으로 맞춤) */
+const AI_FEAT = { haz: 1, scr: 1, sub: 1, item: 1 };
+function aiVer(me: 'p1' | 'p2'): number { return (globalThis as any).__aiVer?.[me] ?? 3; }
+
+/** (v2) 한 진영의 장 상황 점수: 설치기(내 쪽에 깔리면 손해) · 벽 · 순풍 · 대타출동 · 기합의띠/풍선 */
+function fieldScore(b: Battle, sideId: 'p1' | 'p2', F: { haz?: number; scr?: number; sub?: number; item?: number } = {}): number {
+	const side = b[sideId];
+	const H = F.haz ?? 1, S = F.scr ?? 1, U = F.sub ?? 1, I = F.item ?? 1;
+	const sc = side.sideConditions || {};
+	let v = 0;
+	const bench = side.pokemon.filter((p: any) => p && !p.fainted && p.hp && !p.isActive);
+	const grounded = (p: any) => { try { return p.isGrounded(); } catch { return true; } };
+	// 설치기: 앞으로 나올 포켓몬이 입을 데미지(HP 비율)의 약 70%
+	if (sc.stealthrock) for (const p of bench) { let m = 1; try { m = Math.pow(2, b.dex.getEffectiveness('Rock', p)); } catch {} if (p.getItem?.()?.id !== 'heavydutyboots') v -= (m / 8) * 0.7 * H; }
+	if (sc.spikes) { const f = [0, 1 / 8, 1 / 6, 1 / 4][Math.min(3, sc.spikes.layers || 1)]; for (const p of bench) if (grounded(p) && p.getItem?.()?.id !== 'heavydutyboots') v -= f * 0.7 * H; }
+	if (sc.toxicspikes) for (const p of bench) if (grounded(p) && !p.hasType?.('Poison') && !p.hasType?.('Steel')) v -= 0.05 * (sc.toxicspikes.layers || 1) * H;
+	if (sc.stickyweb) v -= 0.04 * bench.length * H;
+	// 벽·순풍: 남은 턴만큼
+	const turns = (k: string, cap: number) => Math.min(cap, sc[k]?.duration ?? (sc[k] ? cap : 0));
+	v += (0.035 * turns('reflect', 5) + 0.035 * turns('lightscreen', 5) + 0.05 * turns('auroraveil', 5) + 0.05 * turns('tailwind', 4)) * S;
+	for (const p of side.active) {
+		if (!p || p.fainted || !p.hp) continue;
+		if (p.volatiles?.substitute) v += 0.12 * U;
+		const item = p.getItem?.()?.id;
+		if (item === 'focussash' && p.hp === p.maxhp) v += 0.1 * I;
+		if (item === 'airballoon') v += 0.03 * I;
+	}
+	return v;
+}
+
+/** 진영 평가: HP 비율 합 + 살아 있는 수 (내 쪽 − 상대 쪽), v2 는 장 상황도 */
 function evalState(b: Battle, mySide: 'p1' | 'p2'): number {
 	const score = (side: any) => {
 		let v = 0;
@@ -899,6 +930,11 @@ function evalState(b: Battle, mySide: 'p1' | 'p2'): number {
 	const foe = mySide === 'p1' ? 'p2' : 'p1';
 	if (b.ended) return b.winner === b[mySide].name ? 100 : b.winner ? -100 : 0;
 	let v = score(b[mySide]) - score(b[foe]);
+	if (aiVer(mySide) >= 2) {
+		// 항목별 가중(테스트에서 __aiFeat[진영] 으로 조절)
+		const F = (globalThis as any).__aiFeat?.[mySide] || AI_FEAT;
+		try { v += fieldScore(b, mySide, F) - fieldScore(b, foe, F); } catch {}
+	}
 	// 턴이 끝난 뒤의 대면 상황: 내가 상대를 위협하는가 / 상대가 나를 위협하는가
 	const mine = b[mySide].active.filter((p: any) => p && !p.fainted && p.hp), theirs = b[foe].active.filter((p: any) => p && !p.fainted && p.hp);
 	if (mine.length && theirs.length) {
@@ -910,6 +946,20 @@ function evalState(b: Battle, mySide: 'p1' | 'p2'): number {
 		} catch {}
 	}
 	return v;
+}
+
+/** (v2) 배틀 기록에서 한 진영의 습관: 자진 교체 비율(쓰러져서 바꾼 것 제외), 방어 계열 기술 비율 */
+function playerHabits(battle: Battle, sideId: 'p1' | 'p2'): { switchRate: number; protectRate: number } {
+	let moves = 0, protects = 0, sw = 0, faintPending = 0;
+	const PROTECT = /\|(Protect|Detect|Spiky Shield|King's Shield|Baneful Bunker|Silk Trap|Obstruct|Burning Bulwark)\|/;
+	for (const l of (battle.log || []) as string[]) {
+		if (l.startsWith(`|faint|${sideId}`)) faintPending++;
+		else if (l.startsWith(`|move|${sideId}`)) { moves++; if (PROTECT.test(l)) protects++; }
+		else if (l.startsWith(`|switch|${sideId}`) || l.startsWith(`|drag|${sideId}`)) { if (faintPending > 0) faintPending--; else if (moves + sw > 0 && l.startsWith('|switch|')) sw++; }
+	}
+	const acts = moves + sw;
+	// 행동이 적을 때는 보통 사람 기준(교체 15%, 방어 0)으로 당김
+	return { switchRate: (sw + 0.15 * 4) / (acts + 4), protectRate: acts ? protects / (moves + 2) : 0 };
 }
 
 function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], reqActive: any, used: { [k: string]: boolean }, skill: number): string | null {
@@ -943,14 +993,27 @@ function lookahead(battle: Battle, side: any, user: Pokemon, opts: Option[], req
 	} catch {}
 	if (!foeMoves.length) foeMoves.push({ choice: 'default', w: 1 });
 	const depth = searchDepth(me, skill);
-	// (깊은 탐색) 상대가 교체할 가능성도 본다: 대면이 불리할수록 교체 가중을 높임 (사람은 불리하면 잘 바꿈)
-	if (depth >= 2) {
+	const v2 = aiVer(me) >= 3;
+	// (v3) 이 배틀에서 상대가 실제로 한 행동(자진 교체·방어 빈도)으로 예상 가중을 맞춤
+	const habit = v2 ? playerHabits(battle, foeSide) : null;
+	if (habit && habit.protectRate > 0 && !['protect', 'detect', 'spikyshield', 'kingsshield', 'banefulbunker', 'silktrap', 'obstruct', 'burningbulwark'].includes(foe.lastMove?.id)) {
+		const pi = foe.moveSlots.findIndex((m: any) => ['protect', 'detect', 'spikyshield', 'kingsshield', 'banefulbunker', 'silktrap', 'obstruct', 'burningbulwark'].includes(m.id) && m.pp > 0);
+		if (pi >= 0) {
+			const w = Math.min(0.35, habit.protectRate * 1.2);
+			for (const f of foeMoves) f.w *= (1 - w);
+			const ex = foeMoves.find(f => f.choice === `move ${pi + 1}`);
+			if (ex) ex.w += w; else foeMoves.push({ choice: `move ${pi + 1}`, w });
+		}
+	}
+	// 상대가 교체할 가능성: v1 은 깊은 탐색에서만, v2 는 늘 (대면이 불리할수록 + 상대가 자주 바꿀수록 가중 ↑)
+	if (depth >= 2 || v2) {
 		try {
 			const fs = battle[foeSide];
 			const fsw = bestSwitchIn(battle, fs, [user], new Set());
 			if (fsw && !foe.volatiles['partiallytrapped'] && !(foe as any).trapped) {
 				const threat = bestDamage(battle, user, foe), back = bestDamage(battle, foe, user);
-				const w = threat >= 0.9 && back < 0.6 ? 0.35 : threat >= 0.6 ? 0.2 : 0.08;
+				let w = threat >= 0.9 && back < 0.6 ? 0.35 : threat >= 0.6 ? 0.2 : 0.08;
+				if (habit) w = Math.max(0.04, Math.min(0.5, w * (0.6 + habit.switchRate * 2.5)));
 				for (const f of foeMoves) f.w *= (1 - w);
 				foeMoves.push({ choice: `switch ${fsw.i + 1}`, w });
 			}

@@ -385,6 +385,17 @@ export const SP_MAX = 32, SP_TOTAL = 66;
 export const STAT_KEYS: StatID[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
 export function evToSp(ev: number) { return ev >= 4 ? Math.min(SP_MAX, 1 + Math.floor((ev - 4) / 8)) : 0; }
 export function spToEv(sp: number) { return sp > 0 ? Math.min(252, 4 + 8 * (Math.min(SP_MAX, sp) - 1)) : 0; }
+/** 노력치(252) 방식으로 보여 줄지 (설정: 능력 포인트 표시). 저장·규칙은 항상 포인트(합계 66) */
+export function evDisplay(): boolean { try { return loadSettings().evDisplay === 'ev'; } catch { return false; } }
+/** 한 능력의 포인트를 설정에 맞춰 글자로: 32 또는 252 */
+export function fmtSP(sp: number): string { return String(evDisplay() ? spToEv(sp) : sp); }
+/** 본가(합계 510) 노력치로: 챔피언스는 66포인트라 본가보다 1포인트(노력치 8) 많을 수 있음 → 가장 적게 투자한 능력에서 그만큼 뺌 (쇼다운에 그대로 붙여 넣을 수 있게) */
+export function evsFor510(sp: { [k in StatID]: number }): { [k in StatID]: number } {
+	const p = { ...sp };
+	const sum = () => STAT_KEYS.reduce((a, k) => a + spToEv(p[k]), 0);
+	while (sum() > 510) { const k = STAT_KEYS.filter(x => p[x] > 0).sort((a, b) => p[a] - p[b])[0]; if (!k) break; p[k]--; }
+	return Object.fromEntries(STAT_KEYS.map(k => [k, spToEv(p[k])])) as { [k in StatID]: number };
+}
 export function spOf(set: PSet) {
 	const o = {} as { [k in StatID]: number };
 	for (const k of STAT_KEYS) o[k] = evToSp(set.evs?.[k] || 0);

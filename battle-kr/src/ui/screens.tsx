@@ -2,7 +2,7 @@
 import { h, Fragment, type ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { speciesData, toID, moveKo, itemKo, abilityKo, natureKo, typeKo, STAT_SHORT, STAT_KO, STATS, moveData, natureData, abilityDesc, itemDesc, calcStat, type Gen } from '../data';
-import { evToSp, spToEv, type PSet } from '../sets';
+import { evToSp, spToEv, evDisplay, fmtSP, type PSet } from '../sets';
 import { SPRITE_URL, trainerImgError } from '../trainer-lines';
 import { Screen, Sprite, MiniSprite, CropSprite, TypeBadge, Modal, HPBar, StatusBadge, TYPE_COLOR } from './core';
 
@@ -173,7 +173,7 @@ export function MonSheet({ set, gen, live, actions, onClose, note }: {
 						<span class="sb-track"><span class="sb-fill" style={{ width: Math.min(100, base / 180 * 100) + '%', background: base >= 120 ? '#40c8a0' : base >= 90 ? '#58d058' : base >= 60 ? '#e8c830' : '#e86030' }} /></span>
 						<span class="sb-base">{base}</span>
 						<b class="sb-val">{val}{boost ? <small class={boost > 0 ? 'up' : 'down'}> {boost > 0 ? '+' : ''}{boost}</small> : null}</b>
-						<span class="sb-ev">{set.evs[k] ? `SP ${evToSp(set.evs[k])}` : ''}</span>
+						<span class="sb-ev">{set.evs[k] ? (evDisplay() ? `노력치 ${spToEv(evToSp(set.evs[k]))}` : `SP ${evToSp(set.evs[k])}`) : ''}</span>
 					</div>;
 				})}
 			</div>
@@ -203,7 +203,7 @@ export function SetDetailModal({ set, gen, onClose }: { set: PSet; gen: Gen; onC
 			<div class="detail-head"><Sprite species={set.species} gen={gen} size={96} shiny={set.shiny} />
 				<div>{sd?.t.map(t => <TypeBadge type={t} />)}<p class="muted">종족값 {sd?.bs.join('/')}</p></div></div>
 			<p>{abilityKo(set.ability)} · {itemKo(set.item)} · {natureKo(set.nature)}</p>
-			<p class="muted">능力 포인트 {Object.entries(set.evs).filter(([, v]) => v).map(([k, v]) => `${STAT_SHORT[k]} ${evToSp(v)}`).join(' / ')}</p>
+			<p class="muted">{evDisplay() ? '노력치' : '능력 포인트'} {Object.entries(set.evs).filter(([, v]) => v).map(([k, v]) => `${STAT_SHORT[k]} ${fmtSP(evToSp(v))}`).join(' / ')}</p>
 			<ul class="move-list">{set.moves.map(m => <li>{moveKo(m)}</li>)}</ul>
 		</div>
 	</Modal>;
