@@ -1265,6 +1265,13 @@ function typeTint(type: string) {
 
 	const slots = setup.doubles ? [0, 1] : [0];
 	return <div class={'battle bg-' + (setup.bg || 'field') + (setup.doubles ? ' doubles' : ' singles')} style={{ '--spd': FX.fxSpeed() } as any}>
+		<div class="hud-top">
+			<span class="badge">{setup.label || ''}</span>
+			<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
+			<button class="badge speed-btn" onClick={e => { e.stopPropagation(); cycleSpeed(); }}>{SPEED_LABEL[settings.speed]}</button>
+			<button class="badge field-btn" onClick={e => { e.stopPropagation(); setFieldOpen(true); }}>필드 ▸</button>
+			<button class="badge menu-btn" onClick={e => { e.stopPropagation(); setMenuOpen(true); }} aria-label="메뉴">☰ 메뉴</button>
+		</div>
 		<div class={'arena' + (trainerVis.foe ? ' t-foe' : '')} ref={arenaRef} style={{ '--s': scale } as any} onClick={() => skipRef.current?.()}>
 			<div class="arena-bg" />
 			{/* 날씨와 필드(테라인)는 다른 레이어: 한 요소에 두면 필드의 '입자 없음' 규칙이 비·모래 줄기(가상 요소)까지 지움 */}
@@ -1280,13 +1287,6 @@ function typeTint(type: string) {
 			{slots.map(i => spriteSlot(scene.p1.active[i] || null, true, i))}
 			<canvas class="anim-canvas front" ref={frontRef} />
 			<div class="fx-layer" ref={fxRef} />
-			<div class="hud-top">
-				<span class="badge">{setup.label || ''}</span>
-				<span class="badge">{scene.turn ? `${scene.turn}턴` : ''}</span>
-				<button class="badge speed-btn" onClick={e => { e.stopPropagation(); cycleSpeed(); }}>{SPEED_LABEL[settings.speed]}</button>
-				<button class="badge field-btn" onClick={e => { e.stopPropagation(); setFieldOpen(true); }}>필드 ▸</button>
-				<button class="badge menu-btn" onClick={e => { e.stopPropagation(); setMenuOpen(true); }} aria-label="메뉴">☰ 메뉴</button>
-			</div>
 			<div class="hud-cond">
 				{scene.weather && WEATHER_KO[scene.weather] && <span class="chip weather">{WEATHER_KO[scene.weather]}</span>}
 				{[...scene.pseudo].map(id => <span class="chip field">{PSEUDO_KO[id] || TERRAIN_KO[id] || id}</span>)}

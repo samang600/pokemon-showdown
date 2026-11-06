@@ -53,7 +53,9 @@ for k, (o, i) in rings.items():
     css.append(f'\t--ring-{k}: {ring_svg(6, o, i, K4)};')
 css.append(f'\t--ring-s: {ring_svg(2, "#000000", "#9aa6bc", K2)};')
 css.append(f'\t--ring-i2: {ring_svg(2, "#0a0d12", "#f4f6fa", K2)};')
+css.append(f'\t--ring-i4: {ring_svg(4, "#0a0d12", "#f4f6fa", 5)};')  # HP 상자: 반지름 4칸
 css.append(f'\t--clip4: {clip(6, P)};')
 css.append(f'\t--clip2: {clip(2, P)};')
+css.append(f'\t--clip3: {clip(4, P)};')
 css.append('}')
 print('\n'.join(css))
