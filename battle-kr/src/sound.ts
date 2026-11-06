@@ -5,6 +5,7 @@ import { RAW } from './data';
 import { partBase } from './offline';
 import { loadSettings } from './store';
 import CHIP_RAW from './gen/chip-tracks.json';
+import CHIP_GEN3 from './gen/chip-gen3.json';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -246,7 +247,7 @@ function seq(str: string): (number | null)[] {
 }
 // 작곡한 곡의 칩튠판 (music/to_chip.py 가 작곡 데이터에서 자동 편곡): 칸마다 ' ' 쉼, '!' 지속, 그 밖 chr(MIDI+14)
 const decodeCh = (s: string) => Array.from(s, ch => ch === ' ' ? null : ch === '!' ? -1 : ch.charCodeAt(0) - 14);
-const CHIP: { [k: string]: Track } = Object.fromEntries(Object.entries(CHIP_RAW as { [k: string]: any }).map(([k, r]) =>
+const CHIP: { [k: string]: Track } = Object.fromEntries(Object.entries({ ...(CHIP_RAW as { [k: string]: any }), ...(CHIP_GEN3 as { [k: string]: any }) }).map(([k, r]) =>
 	[k, { bpm: r.bpm, intro: r.intro, loop: true, leadType: r.leadType, lead: decodeCh(r.lead), harm: decodeCh(r.harm), bass: decodeCh(r.bass), arp: decodeCh(r.arp), drums: r.drums }]));
 const chipStyle = () => bgmStyle() === 'chip';
 const TRACKS: { [k: string]: Track } = {
@@ -386,14 +387,15 @@ let bgmEl: HTMLAudioElement | null = null;
 const bgmFileMissing: { [k: string]: boolean } = {};
 
 export const BGM_CHOICES: [string, string][] = [['random', '상황에 맞게'], ['battle', '트레이너 배틀'], ['tower', '배틀 시설'], ['boss', '중요 배틀'], ['champion', '챔피언 결전'], ['pwt', 'PWT 토너먼트'], ['evil', '악의 조직'],
+	['g3battle', '트레이너 배틀 (3세대풍)'], ['g3gym', '관장전 (3세대풍)'], ['g3frontier', '배틀 프런티어 (3세대풍)'],
 	['battle2', '옛 칩튠 1'], ['battle3', '옛 칩튠 2']];
 /** 배틀 음악 선택: 설정이 '상황에 맞게'면 상황별 곡 (작곡한 곡 우선) */
 export function pickBattleMusic(situation: 'battle' | 'tower' | 'pwt' | 'boss' | 'evil' | 'champion') {
 	const pref = loadSettings().battleBgm || 'random';
 	if (pref !== 'random' && (TRACKS[pref] || BGM_LOOPS[pref] || CHIP[pref])) return pref;
-	const has = (n: string) => !!BGM_LOOPS[n];   // 작곡한 곡이 없으면 비슷한 곡으로
-	const pool = situation === 'champion' ? [has('champion') ? 'champion' : 'boss'] : situation === 'boss' ? ['boss'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower']
-		: situation === 'pwt' ? (has('pwt') ? ['pwt'] : ['battle', 'tower']) : ['battle'];
+	const has = (n: string) => !!(BGM_LOOPS[n] || CHIP[n]);   // 작곡한 곡(칩튠판 포함)이 없으면 비슷한 곡으로
+	const pool = situation === 'champion' ? [has('champion') ? 'champion' : 'boss'] : situation === 'boss' ? ['boss', 'g3gym'] : situation === 'evil' ? ['evil'] : situation === 'tower' ? ['tower', 'g3frontier']
+		: situation === 'pwt' ? (has('pwt') ? ['pwt'] : ['battle', 'tower']) : ['battle', 'g3battle'];
 	return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -438,12 +440,102 @@ export function playMusic(name: string) {
 	startSynth(name, c);
 }
 
+/* ───── GBA 풍 음원 (작곡한 곡의 칩튠판에 사용) ─────
+ * 사각파 채널은 듀티 12.5·25·50% 펄스, 베이스는 4비트 32칸 파형 메모리 채널, 드럼은 LFSR 노이즈(긴 15비트 = 스네어, 짧은 7비트 = 금속성 하이햇)와
+ * 음높이가 떨어지는 킥, 그리고 GBA 사운드 엔진(m4a)의 잔향처럼 짧은 메아리. 실제 게임 음원 파일은 쓰지 않고 파형을 계산해 만든다. */
+const gbaWaves = new Map<string, PeriodicWave>();
+function pulseWave(c: AudioContext, duty: number): PeriodicWave {
+	const key = 'p' + duty;
+	let w = gbaWaves.get(key);
+	if (!w) {
+		const H = 48, re = new Float32Array(H), im = new Float32Array(H);
+		for (let n = 1; n < H; n++) { re[n] = Math.sin(2 * Math.PI * n * duty) / (n * Math.PI); im[n] = (1 - Math.cos(2 * Math.PI * n * duty)) / (n * Math.PI); }
+		w = c.createPeriodicWave(re, im); gbaWaves.set(key, w);
+	}
+	return w;
+}
+/** 파형 메모리 베이스: 4비트(16단계)로 깎은 삼각파 32칸 */
+function waveRamBass(c: AudioContext): PeriodicWave {
+	let w = gbaWaves.get('wram');
+	if (!w) {
+		const L = 32, smp = Array.from({ length: L }, (_, i) => Math.round((i < 16 ? i : 31 - i) * 15 / 15) / 7.5 - 1);
+		const H = 16, re = new Float32Array(H), im = new Float32Array(H);
+		for (let n = 1; n < H; n++) for (let k = 0; k < L; k++) { const a = 2 * Math.PI * n * k / L; re[n] += smp[k] * Math.cos(a) * 2 / L; im[n] += smp[k] * Math.sin(a) * 2 / L; }
+		w = c.createPeriodicWave(re, im); gbaWaves.set('wram', w);
+	}
+	return w;
+}
+/** LFSR 노이즈: short=7비트(금속성), 아니면 15비트 */
+const lfsrBufs = new Map<string, AudioBuffer>();
+function lfsrNoise(c: AudioContext, short: boolean): AudioBuffer {
+	const key = short ? 's' : 'l';
+	let b = lfsrBufs.get(key);
+	if (!b) {
+		b = c.createBuffer(1, c.sampleRate, c.sampleRate);
+		const d = b.getChannelData(0), clock = short ? 32768 : 131072; // 노이즈 레지스터가 바뀌는 빠르기(Hz)
+		let r = 0x7fff, acc = 0;
+		for (let i = 0; i < d.length; i++) {
+			acc += clock / c.sampleRate;
+			while (acc >= 1) { acc -= 1; const bit = (r ^ (r >> 1)) & 1; r = (r >> 1) | (bit << 14); if (short) r = (r & ~0x40) | (bit << 6); }
+			d[i] = (r & 1) ? -1 : 1;
+		}
+		lfsrBufs.set(key, b);
+	}
+	return b;
+}
+type GbaVoice = 'lead' | 'harm' | 'arp' | 'bass';
+function gbaTone(c: AudioContext, freq: number, dur: number, voice: GbaVoice, vol: number, at: number, bus: GainNode) {
+	const t = c.currentTime + at;
+	const o = c.createOscillator();
+	o.setPeriodicWave(voice === 'bass' ? waveRamBass(c) : pulseWave(c, voice === 'lead' ? 0.25 : voice === 'arp' ? 0.125 : 0.5));
+	o.frequency.setValueAtTime(freq, t);
+	// 리드는 조금 뒤에 비브라토 (3세대 곡의 긴 음처럼)
+	if (voice === 'lead' && dur > 0.25) {
+		const lfo = c.createOscillator(), lg = c.createGain();
+		lfo.frequency.value = 5.5; lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.18); lg.gain.linearRampToValueAtTime(freq * 0.012, t + 0.32);
+		lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 0.03);
+	}
+	const g = c.createGain();
+	// 엔벨로프: 빠른 시작 → 조금 줄어 유지 → 끝에서 끊김 (GB 채널의 계단식 엔벨로프 느낌)
+	const sus = voice === 'bass' ? 0.85 : voice === 'arp' ? 0.4 : 0.7;
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.linearRampToValueAtTime(vol, t + 0.004);
+	g.gain.linearRampToValueAtTime(vol * sus, t + Math.min(dur, 0.08));
+	g.gain.setValueAtTime(vol * sus, t + Math.max(0.005, dur - 0.012));
+	g.gain.linearRampToValueAtTime(0.0001, t + dur);
+	o.connect(g); g.connect(bus);
+	o.start(t); o.stop(t + dur + 0.02);
+}
+function gbaDrum(c: AudioContext, kind: string, at: number, bus: GainNode) {
+	const t = c.currentTime + at;
+	if (kind === 'k') {        // 킥: 펄스 음높이가 뚝 떨어짐
+		const o = c.createOscillator(), g = c.createGain();
+		o.setPeriodicWave(pulseWave(c, 0.5)); o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.09);
+		g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+		o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.13);
+		return;
+	}
+	const src = c.createBufferSource(); src.buffer = lfsrNoise(c, kind === 'h');
+	src.playbackRate.value = kind === 'h' ? 1 : 0.5;
+	const g = c.createGain(), d = kind === 'h' ? 0.035 : 0.12, v = kind === 'h' ? 0.07 : 0.2;
+	g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+	src.connect(g); g.connect(bus); src.start(t, Math.random() * 0.5); src.stop(t + d + 0.02);
+}
+/** GBA 사운드 엔진의 잔향처럼 짧은 메아리 (곡마다 하나) */
+function gbaEcho(c: AudioContext, into: GainNode): GainNode {
+	const inp = c.createGain(), dl = c.createDelay(0.5), fb = c.createGain(), lp = c.createBiquadFilter(), wet = c.createGain();
+	dl.delayTime.value = 0.11; fb.gain.value = 0.3; lp.type = 'lowpass'; lp.frequency.value = 3200; wet.gain.value = 0.22;
+	inp.connect(into); inp.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(wet); wet.connect(into);
+	return inp;
+}
+
 let synthBus: GainNode | null = null;
 function startSynth(name: string, c: AudioContext, track?: Track) {
 	const tr = track || TRACKS[name] || CHIP[name] || (name === 'evil' || name === 'champion' ? TRACKS.boss : null); if (!tr) return;
 	// 작곡한 곡의 칩튠판은 관현악 mp3 와 비슷한 크기로 들리게 키움 (측정 약 18dB 작음 → 12dB 키움, 크게 설정에서도 1을 넘지 않게)
 	synthBus = c.createGain(); synthBus.gain.value = Object.values(CHIP).includes(tr) ? 4 : 1; synthBus.connect(musicBus!);
-	const bus = synthBus;
+	const gba = Object.values(CHIP).includes(tr);
+	const bus = gba ? gbaEcho(c, synthBus) : synthBus;
 	step = 0; nextTime = c.currentTime + 0.05;
 	const stepDur = 60 / tr.bpm / 4;
 	const len = tr.lead.length;
@@ -456,6 +548,20 @@ function startSynth(name: string, c: AudioContext, track?: Track) {
 			const i = step < len ? step : intro + (step - intro) % (len - intro);
 			const at = nextTime - c.currentTime;
 			const l = tr.lead[i];
+			if (gba) {
+				// GBA 풍: 리드 25% 펄스(비브라토) · 화음 50% 펄스 · 베이스 파형 메모리 · 아르페지오 12.5% 펄스 · LFSR 드럼
+				if (l !== null && l !== -1) gbaTone(c, N(l), stepDur * noteLen(tr.lead, i) * 0.92, 'lead', 0.12, at, bus);
+				const hh = tr.harm?.[i % (tr.harm.length || 1)];
+				if (hh !== null && hh !== undefined && hh !== -1) gbaTone(c, N(hh), stepDur * noteLen(tr.harm!, i % tr.harm!.length) * 0.95, 'harm', 0.055, at, bus);
+				const bb = tr.bass[i % tr.bass.length];
+				if (bb !== null && bb !== -1) gbaTone(c, N(bb), stepDur * Math.max(1, noteLen(tr.bass, i % tr.bass.length)) * 0.9, 'bass', 0.26, at, bus);
+				const aa = tr.arp?.[i % (tr.arp.length || 1)];
+				if (aa !== null && aa !== undefined && aa !== -1) gbaTone(c, N(aa), stepDur * 0.6, 'arp', 0.04, at, bus);
+				const dd = tr.drums[i % tr.drums.length];
+				if (dd === 'k' || dd === 's' || dd === 'h') gbaDrum(c, dd, at, bus);
+				nextTime += stepDur; step++;
+				continue;
+			}
 			if (l !== null && l !== -1) tone(N(l), stepDur * noteLen(tr.lead, i) * 0.9, { type: tr.leadType || 'square', vol: 0.13, at, bus });
 			const h = tr.harm?.[i % (tr.harm.length || 1)];
 			if (h !== null && h !== undefined && h !== -1) tone(N(h), stepDur * noteLen(tr.harm!, i % tr.harm!.length) * 0.95, { type: 'triangle', vol: 0.08, at, bus });
